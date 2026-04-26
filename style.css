@@ -434,3 +434,32 @@
                                                                                                                                                                                                                                                                                                                                                                                                                                                                 margin-bottom: 1rem;
                                                                                                                                                                                                                                                                                                                                                                                                                                                                   font-size: 1rem;
                                                                                                                                                                                                                                                                                                                                                                                                                                                                   }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                  /* ===== BUSCADOR DE USUARIOS ===== */
+.usuarios-lista {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent);
+  border-radius: 0 0 10px 10px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.usuario-sugerencia {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--bg-card);
+}
+
+.usuario-sugerencia:hover {
+  background: var(--bg-card);
+}
+
+.usuario-sugerencia:last-child {
+  border-bottom: none;
+}
