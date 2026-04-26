@@ -9,7 +9,6 @@ import {
           doc, getDoc, setDoc, collection, query, where, getDocs
           } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-          // ===== ELEMENTOS =====
           const splash = document.getElementById('splash');
           const appDiv = document.getElementById('app');
           const loginScreen = document.getElementById('login-screen');
@@ -20,7 +19,6 @@ import {
 
           let currentUser = null;
 
-          // ===== AUTH STATE =====
           onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = await loadUserProfile(user);
@@ -30,7 +28,6 @@ import {
                             }
                             });
 
-                            // ===== PANTALLAS =====
                             function showApp() {
                               splash.classList.add('hidden');
                                 loginScreen.classList.add('hidden');
@@ -45,7 +42,6 @@ import {
                                             loginScreen.classList.remove('hidden');
                                             }
 
-                                            // ===== TABS LOGIN/REGISTRO =====
                                             document.querySelectorAll('.auth-tab').forEach(tab => {
                                               tab.addEventListener('click', () => {
                                                   document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
@@ -57,18 +53,14 @@ import {
                                                                         });
                                                                         });
 
-                                                                        // ===== LOGIN =====
                                                                         document.getElementById('login-btn').addEventListener('click', async () => {
                                                                           const username = document.getElementById('login-username').value.trim().toLowerCase();
                                                                             const password = document.getElementById('login-password').value;
-
                                                                               if (!username || !password) return showError('Completa todos los campos');
-
                                                                                 const btn = document.getElementById('login-btn');
                                                                                   btn.disabled = true;
                                                                                     btn.textContent = 'Entrando...';
                                                                                       hideError();
-
                                                                                         try {
                                                                                             const email = `${username}@estiria.app`;
                                                                                                 await signInWithEmailAndPassword(auth, email, password);
@@ -76,29 +68,26 @@ import {
                                                                                                       showError('Usuario o contraseña incorrectos');
                                                                                                           btn.disabled = false;
                                                                                                               btn.textContent = 'Entrar a Estiria';
-                                                                                                                }
+                                                                                                                }importimport
                                                                                                                 });
-
-                                                                                                                // ===== REGISTRO =====
                                                                                                                 document.getElementById('register-btn').addEventListener('click', async () => {
-                                                                                                                  const username = document.getElementById('reg-username').value.trim().toLowerCase();
-                                                                                                                    const password = document.getElementById('reg-password').value;
-                                                                                                                      const password2 = document.getElementById('reg-password2').value;
-                                                                                                                        const whatsapp = document.getElementById('reg-whatsapp').value.trim();
+                                                                                                                      const username = document.getElementById('reg-username').value.trim().toLowerCase();
+                                                                                                                        const password = document.getElementById('reg-password').value;
+                                                                                                                          const password2 = document.getElementById('reg-password2').value;
+                                                                                                                            const whatsapp = document.getElementById('reg-whatsapp').value.trim();
 
-                                                                                                                          if (!username || !password) return showError('Usuario y contraseña son obligatorios');
-                                                                                                                            if (username.length < 3) return showError('El usuario debe tener al menos 3 caracteres');
-                                                                                                                              if (password.length < 6) return showError('La contraseña debe tener al menos 6 caracteres');
-                                                                                                                                if (password !== password2) return showError('Las contraseñas no coinciden');
-                                                                                                                                  if (!/^[a-z0-9_]+$/.test(username)) return showError('Solo letras, números y guión bajo');
+                                                                                                                              if (!username || !password) return showError('Usuario y contraseña son obligatorios');
+                                                                                                                                if (username.length < 3) return showError('El usuario debe tener al menos 3 caracteres');
+                                                                                                                                  if (password.length < 6) return showError('La contraseña debe tener al menos 6 caracteres');
+                                                                                                                                    if (password !== password2) return showError('Las contraseñas no coinciden');
+                                                                                                                                      if (!/^[a-z0-9_]+$/.test(username)) return showError('Solo letras, números y guión bajo');
 
-                                                                                                                                    const btn = document.getElementById('register-btn');
-                                                                                                                                      btn.disabled = true;
-                                                                                                                                        btn.textContent = 'Creando cuenta...';
-                                                                                                                                          hideError();
+                                                                                                                                        const btn = document.getElementById('register-btn');
+                                                                                                                                          btn.disabled = true;
+                                                                                                                                            btn.textContent = 'Creando cuenta...';
+                                                                                                                                              hideError();
 
-                                                                                                                                            try {
-                                                                                                                                                // Verificar que el username no exista
+                                                                                                                                                try {
                                                                                                                                                     const q = query(collection(db, 'usuarios'), where('username', '==', username));
                                                                                                                                                         const snap = await getDocs(q);
                                                                                                                                                             if (!snap.empty) {
@@ -107,10 +96,8 @@ import {
                                                                                                                                                                               btn.textContent = 'Crear cuenta';
                                                                                                                                                                                     return;
                                                                                                                                                                                         }
-
                                                                                                                                                                                             const email = `${username}@estiria.app`;
                                                                                                                                                                                                 const cred = await createUserWithEmailAndPassword(auth, email, password);
-
                                                                                                                                                                                                     await setDoc(doc(db, 'usuarios', cred.user.uid), {
                                                                                                                                                                                                           uid: cred.user.uid,
                                                                                                                                                                                                                 username,
@@ -119,7 +106,6 @@ import {
                                                                                                                                                                                                                                   creadoEn: new Date().toISOString(),
                                                                                                                                                                                                                                         saldo: 0
                                                                                                                                                                                                                                             });
-
                                                                                                                                                                                                                                               } catch (err) {
                                                                                                                                                                                                                                                   showError('Error al crear cuenta: ' + err.message);
                                                                                                                                                                                                                                                       btn.disabled = false;
@@ -127,7 +113,6 @@ import {
                                                                                                                                                                                                                                                             }
                                                                                                                                                                                                                                                             });
 
-                                                                                                                                                                                                                                                            // ===== PERFIL =====
                                                                                                                                                                                                                                                             async function loadUserProfile(user) {
                                                                                                                                                                                                                                                               const ref = doc(db, 'usuarios', user.uid);
                                                                                                                                                                                                                                                                 const snap = await getDoc(ref);
@@ -135,7 +120,6 @@ import {
                                                                                                                                                                                                                                                                     return { uid: user.uid, username: user.email?.split('@')[0], rol: 'jugador' };
                                                                                                                                                                                                                                                                     }
 
-                                                                                                                                                                                                                                                                    // ===== NAVEGACIÓN =====
                                                                                                                                                                                                                                                                     navBtns.forEach(btn => {
                                                                                                                                                                                                                                                                       btn.addEventListener('click', () => {
                                                                                                                                                                                                                                                                           navBtns.forEach(b => b.classList.remove('active'));
@@ -155,7 +139,6 @@ import {
                                                                                                                                                                                                                                                                                                               }
                                                                                                                                                                                                                                                                                                               }
 
-                                                                                                                                                                                                                                                                                                              // ===== SECCIONES =====
                                                                                                                                                                                                                                                                                                               function renderInicio() {
                                                                                                                                                                                                                                                                                                                 mainContent.innerHTML = `
                                                                                                                                                                                                                                                                                                                     <div class="welcome-banner">
@@ -211,7 +194,6 @@ import {
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           }
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          // ===== ERRORES =====
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           function showError(msg) {
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             loginError.textContent = msg;
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               loginError.classList.remove('hidden');
@@ -219,4 +201,4 @@ import {
 
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               function hideError() {
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 loginError.classList.add('hidden');
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                }import
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                }
