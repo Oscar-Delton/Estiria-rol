@@ -6,7 +6,7 @@ import {
         signOut
         } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
         import {
-          doc, getDoc, setDoc, collection, query, where, getDocs
+          doc, getDoc, setDoc
           } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
           const splash = document.getElementById('splash');
@@ -68,44 +68,46 @@ import {
                                                                                                       showError('Usuario o contraseña incorrectos');
                                                                                                           btn.disabled = false;
                                                                                                               btn.textContent = 'Entrar a Estiria';
-                                                                                                                }importimport
+                                                                                                                }
                                                                                                                 });
+
                                                                                                                 document.getElementById('register-btn').addEventListener('click', async () => {
-                                                                                                                      const username = document.getElementById('reg-username').value.trim().toLowerCase();
-                                                                                                                        const password = document.getElementById('reg-password').value;
-                                                                                                                          const password2 = document.getElementById('reg-password2').value;
-                                                                                                                            const whatsapp = document.getElementById('reg-whatsapp').value.trim();
+                                                                                                                  const username = document.getElementById('reg-username').value.trim().toLowerCase();
+                                                                                                                    const password = document.getElementById('reg-password').value;
+                                                                                                                      const password2 = document.getElementById('reg-password2').value;
+                                                                                                                        const whatsapp = document.getElementById('reg-whatsapp').value.trim();
 
-                                                                                                                              if (!username || !password) return showError('Usuario y contraseña son obligatorios');
-                                                                                                                                if (username.length < 3) return showError('El usuario debe tener al menos 3 caracteres');
-                                                                                                                                  if (password.length < 6) return showError('La contraseña debe tener al menos 6 caracteres');
-                                                                                                                                    if (password !== password2) return showError('Las contraseñas no coinciden');
-                                                                                                                                      if (!/^[a-z0-9_]+$/.test(username)) return showError('Solo letras, números y guión bajo');
+                                                                                                                          if (!username || !password) return showError('Usuario y contraseña son obligatorios');
+                                                                                                                            if (username.length < 3) return showError('El usuario debe tener al menos 3 caracteres');
+                                                                                                                              if (password.length < 6) return showError('La contraseña debe tener al menos 6 caracteres');
+                                                                                                                                if (password !== password2) return showError('Las contraseñas no coinciden');
+                                                                                                                                  if (!/^[a-z0-9_]+$/.test(username)) return showError('Solo letras, números y guión bajo');
 
-                                                                                                                                        const btn = document.getElementById('register-btn');
-                                                                                                                                          btn.disabled = true;
-                                                                                                                                            btn.textContent = 'Creando cuenta...';
-                                                                                                                                              hideError();
+                                                                                                                                    const btn = document.getElementById('register-btn');
+                                                                                                                                      btn.disabled = true;
+                                                                                                                                        btn.textContent = 'Creando cuenta...';
+                                                                                                                                          hideError();
 
-                                                                                                                                                try {
-                                                                                                                                                    const q = query(collection(db, 'usuarios'), where('username', '==', username));
-                                                                                                                                                        const snap = await getDocs(q);
-                                                                                                                                                            if (!snap.empty) {
-                                                                                                                                                                  showError('Ese nombre de usuario ya está ocupado');
-                                                                                                                                                                        btn.disabled = false;
-                                                                                                                                                                              btn.textContent = 'Crear cuenta';
-                                                                                                                                                                                    return;
-                                                                                                                                                                                        }
-                                                                                                                                                                                            const email = `${username}@estiria.app`;
-                                                                                                                                                                                                const cred = await createUserWithEmailAndPassword(auth, email, password);
-                                                                                                                                                                                                    await setDoc(doc(db, 'usuarios', cred.user.uid), {
-                                                                                                                                                                                                          uid: cred.user.uid,
-                                                                                                                                                                                                                username,
-                                                                                                                                                                                                                      whatsapp: whatsapp || '',
-                                                                                                                                                                                                                            rol: 'jugador',
-                                                                                                                                                                                                                                  creadoEn: new Date().toISOString(),
-                                                                                                                                                                                                                                        saldo: 0
-                                                                                                                                                                                                                                            });
+                                                                                                                                            try {
+                                                                                                                                                const usernameRef = doc(db, 'usernames', username);
+                                                                                                                                                    const usernameSnap = await getDoc(usernameRef);
+                                                                                                                                                        if (usernameSnap.exists()) {
+                                                                                                                                                              showError('Ese nombre de usuario ya está ocupado');
+                                                                                                                                                                    btn.disabled = false;
+                                                                                                                                                                          btn.textContent = 'Crear cuenta';
+                                                                                                                                                                                return;
+                                                                                                                                                                                    }
+                                                                                                                                                                                        const email = `${username}@estiria.app`;
+                                                                                                                                                                                            const cred = await createUserWithEmailAndPassword(auth, email, password);
+                                                                                                                                                                                                await setDoc(doc(db, 'usuarios', cred.user.uid), {
+                                                                                                                                                                                                      uid: cred.user.uid,
+                                                                                                                                                                                                            username,
+                                                                                                                                                                                                                  whatsapp: whatsapp || '',
+                                                                                                                                                                                                                        rol: 'jugador',
+                                                                                                                                                                                                                              creadoEn: new Date().toISOString(),
+                                                                                                                                                                                                                                    saldo: 0
+                                                                                                                                                                                                                                        });
+                                                                                                                                                                                                                                            await setDoc(usernameRef, { uid: cred.user.uid });
                                                                                                                                                                                                                                               } catch (err) {
                                                                                                                                                                                                                                                   showError('Error al crear cuenta: ' + err.message);
                                                                                                                                                                                                                                                       btn.disabled = false;
@@ -201,4 +203,4 @@ import {
 
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               function hideError() {
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 loginError.classList.add('hidden');
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                }importimportimport
