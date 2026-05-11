@@ -484,7 +484,62 @@ function mostrarSumarRestar(tipo) {
 }
 
 function renderPerfil() {
-  mainContent.innerHTML = '<div class="card"><h3>👤 Mi Perfil</h3><p><strong>Usuario:</strong> ' + (currentUser ? currentUser.username : '') + '</p><p><strong>Rol:</strong> ' + (currentUser ? currentUser.rol : 'jugador') + '</p><p><strong>Ciudad:</strong> ' + (currentUser && currentUser.ciudad ? currentUser.ciudad : 'Sin asignar') + '</p><p><strong>WhatsApp:</strong> ' + (currentUser && currentUser.whatsapp ? currentUser.whatsapp : 'No registrado') + '</p></div><button class="btn btn-secondary btn-full" id="logout-btn">Cerrar sesion</button>';
+  var esRegidor = currentUser && currentUser.rol === 'regidor';
+  var ciudades = ['Ryazan', 'Ryla', 'Kemerov', 'Navarra'];
+  mainContent.innerHTML = '<div class="card"><h3>👤 Mi Perfil</h3><p><strong>Usuario:</strong> ' + (currentUser ? currentUser.username : '') + '</p><p><strong>Rol:</strong> ' + (currentUser ? currentUser.rol : 'jugador') + '</p><p><strong>Ciudad:</strong> ' + (currentUser && currentUser.ciudad ? currentUser.ciudad : 'Sin asignar') + '</p><p><strong>WhatsApp:</strong> ' + (currentUser && currentUser.whatsapp ? currentUser.whatsapp : 'No registrado') + '</p></div>' +
+
+  (!esRegidor ? '<div class="card"><h3>🏙️ Cambiar ciudad</h3><select id="perfil-ciudad"><option value="">Selecciona tu ciudad</option>' + ciudades.map(function(c) { return '<option value="' + c + '"' + (currentUser && currentUser.ciudad === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select><button class="btn btn-primary btn-full" id="btn-guardar-ciudad" style="margin-top:0.75rem">Guardar ciudad</button><div id="ciudad-msg" style="margin-top:0.5rem"></div></div>' : '<div class="card"><h3>🏙️ Ciudad</h3><p style="color:var(--text-secondary)">Los regidores no pueden cambiar su ciudad. Contacta a un administrador.</p></div>') +
+
+  '<div class="card"><h3>📱 Actualizar WhatsApp</h3><input type="tel" id="perfil-whatsapp" placeholder="Numero de WhatsApp" value="' + (currentUser && currentUser.whatsapp ? currentUser.whatsapp : '') + '"/><button class="btn btn-primary btn-full" id="btn-guardar-whatsapp" style="margin-top:0.75rem">Guardar WhatsApp</button><div id="whatsapp-msg" style="margin-top:0.5rem"></div></div>' +
+
+  '<div class="card"><h3>🔑 Cambiar contrasena</h3><input type="password" id="perfil-pass-nueva" placeholder="Nueva contrasena (min 6 caracteres)"/><input type="password" id="perfil-pass-confirmar" placeholder="Confirmar nueva contrasena" style="margin-top:0.5rem"/><button class="btn btn-primary btn-full" id="btn-cambiar-pass" style="margin-top:0.75rem">Cambiar contrasena</button><div id="pass-msg" style="margin-top:0.5rem"></div></div>' +
+
+  '<button class="btn btn-secondary btn-full" id="logout-btn" style="margin-top:0.5rem">Cerrar sesion</button>';
+
+  if (!esRegidor) {
+    document.getElementById('btn-guardar-ciudad').addEventListener('click', async function() {
+      var ciudad = document.getElementById('perfil-ciudad').value;
+      var msg = document.getElementById('ciudad-msg');
+      if (!ciudad) { msg.textContent = 'Selecciona una ciudad'; msg.style.color = 'var(--danger)'; return; }
+      await updateDoc(doc(db, 'usuarios', currentUser.uid), { ciudad: ciudad });
+      currentUser.ciudad = ciudad;
+      msg.textContent = 'Ciudad actualizada a ' + ciudad;
+      msg.style.color = 'var(--success)';
+    });
+  }
+
+  document.getElementById('btn-guardar-whatsapp').addEventListener('click', async function() {
+    var whatsapp = document.getElementById('perfil-whatsapp').value.trim();
+    var msg = document.getElementById('whatsapp-msg');
+    if (!whatsapp) { msg.textContent = 'Ingresa un numero'; msg.style.color = 'var(--danger)'; return; }
+    await updateDoc(doc(db, 'usuarios', currentUser.uid), { whatsapp: whatsapp });
+    currentUser.whatsapp = whatsapp;
+    msg.textContent = 'WhatsApp actualizado';
+    msg.style.color = 'var(--success)';
+  });
+
+  document.getElementById('btn-cambiar-pass').addEventListener('click', async function() {
+    var nueva = document.getElementById('perfil-pass-nueva').value;
+    var confirmar = document.getElementById('perfil-pass-confirmar').value;
+    var msg = document.getElementById('pass-msg');
+    if (!nueva || nueva.length < 6) { msg.textContent = 'La contrasena debe tener al menos 6 caracteres'; msg.style.color = 'var(--danger)'; return; }
+    if (nueva !== confirmar) { msg.textContent = 'Las contrasenhas no coinciden'; msg.style.color = 'var(--danger)'; return; }
+    var btn = document.getElementById('btn-cambiar-pass');
+    btn.disabled = true; btn.textContent = 'Cambiando...';
+    try {
+      var { updatePassword } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+      await updatePassword(auth.currentUser, nueva);
+      msg.textContent = 'Contrasena cambiada exitosamente';
+      msg.style.color = 'var(--success)';
+      document.getElementById('perfil-pass-nueva').value = '';
+      document.getElementById('perfil-pass-confirmar').value = '';
+    } catch (err) {
+      msg.textContent = 'Error: ' + err.message;
+      msg.style.color = 'var(--danger)';
+    }
+    btn.disabled = false; btn.textContent = 'Cambiar contrasena';
+  });
+
   document.getElementById('logout-btn').addEventListener('click', function() { signOut(auth); });
 }
 
