@@ -463,3 +463,19 @@
 .usuario-sugerencia:last-child {
   border-bottom: none;
 }
+/* ===== TAGS USUARIOS SELECCIONADOS ===== */
+.tag-usuario {
+  display: inline-block;
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  border-radius: 20px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  margin: 0.2rem;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.tag-usuario:hover {
+  background: var(--accent);
+}
