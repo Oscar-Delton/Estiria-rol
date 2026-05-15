@@ -153,10 +153,10 @@ function renderInicio() {
     '<div class="card"><h3>📢 Anuncios</h3><p>Proximamente...</p></div>' +
     '<div class="card"><h3>📅 Eventos</h3><p>Proximamente...</p></div>';
 
-  document.getElementById('inicio-tienda').addEventListener('click', function() { setNav('tienda'); navigateTo('tienda'); });
-  document.getElementById('inicio-casino').addEventListener('click', function() { setNav('casino'); navigateTo('casino'); });
-  document.getElementById('inicio-citas').addEventListener('click', function() { setNav('citas'); navigateTo('citas'); });
-  document.getElementById('inicio-misiones').addEventListener('click', function() { setNav('misiones'); navigateTo('misiones'); });
+  document.getElementById('inicio-tienda').addEventListener('click', function() { navigateTo('tienda'); });
+  document.getElementById('inicio-casino').addEventListener('click', function() { navigateTo('casino'); });
+  document.getElementById('inicio-citas').addEventListener('click', function() { navigateTo('citas'); });
+  document.getElementById('inicio-misiones').addEventListener('click', function() { navigateTo('misiones'); });
 }
 
 function setNav(section) {
