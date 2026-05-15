@@ -485,17 +485,139 @@ function mostrarSumarRestar(tipo) {
 
 function renderPerfil() {
   var esRegidor = currentUser && currentUser.rol === 'regidor';
-  var ciudades = ['Ryazan', 'Ryla', 'Kemerov', 'Navarra'];
-  mainContent.innerHTML = '<div class="card"><h3>👤 Mi Perfil</h3><p><strong>Usuario:</strong> ' + (currentUser ? currentUser.username : '') + '</p><p><strong>Rol:</strong> ' + (currentUser ? currentUser.rol : 'jugador') + '</p><p><strong>Ciudad:</strong> ' + (currentUser && currentUser.ciudad ? currentUser.ciudad : 'Sin asignar') + '</p><p><strong>WhatsApp:</strong> ' + (currentUser && currentUser.whatsapp ? currentUser.whatsapp : 'No registrado') + '</p></div>' +
+  var ciudades = ['Ryazan', 'Ryla', 'Kemerov', 'Navarra', 'Gresit', 'Odrekao', 'Irkustuk'];
+  var foto = currentUser && currentUser.fotoPerfil ? currentUser.fotoPerfil : '';
 
-  (!esRegidor ? '<div class="card"><h3>🏙️ Cambiar ciudad</h3><select id="perfil-ciudad"><option value="">Selecciona tu ciudad</option>' + ciudades.map(function(c) { return '<option value="' + c + '"' + (currentUser && currentUser.ciudad === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select><button class="btn btn-primary btn-full" id="btn-guardar-ciudad" style="margin-top:0.75rem">Guardar ciudad</button><div id="ciudad-msg" style="margin-top:0.5rem"></div></div>' : '<div class="card"><h3>🏙️ Ciudad</h3><p style="color:var(--text-secondary)">Los regidores no pueden cambiar su ciudad. Contacta a un administrador.</p></div>') +
+  mainContent.innerHTML =
+    '<div class="card perfil-card">' +
+      '<div class="perfil-header">' +
+        '<div class="perfil-avatar-wrap">' +
+          (foto
+            ? '<img src="' + foto + '" class="perfil-avatar" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'" /><div class="perfil-avatar-placeholder" style="display:none">👤</div>'
+            : '<div class="perfil-avatar-placeholder">👤</div>'
+          ) +
+        '</div>' +
+        '<div class="perfil-datos">' +
+          '<h2 class="perfil-username">' + (currentUser ? currentUser.username : '') + '</h2>' +
+          '<span class="perfil-rol-badge">' + (currentUser ? currentUser.rol : 'jugador') + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="perfil-info-lista">' +
+        '<div class="perfil-info-item"><span class="perfil-info-label">🏙️ Ciudad</span><span class="perfil-info-valor">' + (currentUser && currentUser.ciudad ? currentUser.ciudad : 'Sin asignar') + '</span></div>' +
+        '<div class="perfil-info-item"><span class="perfil-info-label">📱 WhatsApp</span><span class="perfil-info-valor">' + (currentUser && currentUser.whatsapp ? currentUser.whatsapp : 'No registrado') + '</span></div>' +
+      '</div>' +
+      '<button class="btn btn-primary btn-full" id="btn-abrir-editar-perfil" style="margin-top:1rem">✏️ Editar perfil</button>' +
+    '</div>' +
+    '<button class="btn btn-secondary btn-full" id="logout-btn" style="margin-top:0.5rem">Cerrar sesion</button>' +
 
-  '<div class="card"><h3>📱 Actualizar WhatsApp</h3><input type="tel" id="perfil-whatsapp" placeholder="Numero de WhatsApp" value="' + (currentUser && currentUser.whatsapp ? currentUser.whatsapp : '') + '"/><button class="btn btn-primary btn-full" id="btn-guardar-whatsapp" style="margin-top:0.75rem">Guardar WhatsApp</button><div id="whatsapp-msg" style="margin-top:0.5rem"></div></div>' +
+    // MODAL
+    '<div id="modal-editar-perfil" class="modal-overlay hidden">' +
+      '<div class="modal-box">' +
+        '<div class="modal-header">' +
+          '<h3>✏️ Editar perfil</h3>' +
+          '<button id="btn-cerrar-modal-perfil" class="modal-close-btn">✕</button>' +
+        '</div>' +
+        '<div class="modal-body">' +
 
-  '<div class="card"><h3>🔑 Cambiar contrasena</h3><input type="password" id="perfil-pass-nueva" placeholder="Nueva contrasena (min 6 caracteres)"/><input type="password" id="perfil-pass-confirmar" placeholder="Confirmar nueva contrasena" style="margin-top:0.5rem"/><button class="btn btn-primary btn-full" id="btn-cambiar-pass" style="margin-top:0.75rem">Cambiar contrasena</button><div id="pass-msg" style="margin-top:0.5rem"></div></div>' +
+          // FOTO
+          '<div class="edit-section">' +
+            '<p class="edit-section-title">🖼️ Foto de perfil</p>' +
+            '<div class="foto-preview-wrap">' +
+              '<div id="foto-preview-container">' +
+                (foto
+                  ? '<img id="foto-preview-img" src="' + foto + '" class="foto-preview-img" onerror="this.style.display=\'none\'" />'
+                  : '<div id="foto-preview-placeholder" class="foto-preview-placeholder">👤</div>'
+                ) +
+              '</div>' +
+            '</div>' +
+            '<input type="url" id="perfil-foto-url" placeholder="Pega aqui la URL de tu foto..." value="' + foto + '" />' +
+            '<button class="btn btn-secondary btn-full" id="btn-previsualizar-foto" style="margin-top:0.5rem">Previsualizar</button>' +
+            '<button class="btn btn-primary btn-full" id="btn-guardar-foto" style="margin-top:0.4rem">Guardar foto</button>' +
+            '<div id="foto-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+          '</div>' +
 
-  '<button class="btn btn-secondary btn-full" id="logout-btn" style="margin-top:0.5rem">Cerrar sesion</button>';
+          '<hr class="edit-divider" />' +
 
+          // CIUDAD
+          (!esRegidor
+            ? '<div class="edit-section">' +
+                '<p class="edit-section-title">🏙️ Ciudad</p>' +
+                '<select id="perfil-ciudad"><option value="">Selecciona tu ciudad</option>' +
+                ciudades.map(function(c) { return '<option value="' + c + '"' + (currentUser && currentUser.ciudad === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') +
+                '</select>' +
+                '<button class="btn btn-primary btn-full" id="btn-guardar-ciudad" style="margin-top:0.5rem">Guardar ciudad</button>' +
+                '<div id="ciudad-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+              '</div><hr class="edit-divider" />'
+            : '<div class="edit-section"><p class="edit-section-title">🏙️ Ciudad</p><p style="color:var(--text-secondary);font-size:0.85rem">Los regidores no pueden cambiar su ciudad.</p></div><hr class="edit-divider" />'
+          ) +
+
+          // WHATSAPP
+          '<div class="edit-section">' +
+            '<p class="edit-section-title">📱 WhatsApp</p>' +
+            '<input type="tel" id="perfil-whatsapp" placeholder="Numero de WhatsApp" value="' + (currentUser && currentUser.whatsapp ? currentUser.whatsapp : '') + '" />' +
+            '<button class="btn btn-primary btn-full" id="btn-guardar-whatsapp" style="margin-top:0.5rem">Guardar WhatsApp</button>' +
+            '<div id="whatsapp-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+          '</div>' +
+
+          '<hr class="edit-divider" />' +
+
+          // CONTRASEÑA
+          '<div class="edit-section">' +
+            '<p class="edit-section-title">🔑 Cambiar contrasena</p>' +
+            '<input type="password" id="perfil-pass-nueva" placeholder="Nueva contrasena (min 6 caracteres)" />' +
+            '<input type="password" id="perfil-pass-confirmar" placeholder="Confirmar nueva contrasena" style="margin-top:0.5rem" />' +
+            '<button class="btn btn-primary btn-full" id="btn-cambiar-pass" style="margin-top:0.5rem">Cambiar contrasena</button>' +
+            '<div id="pass-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+          '</div>' +
+
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  // Abrir/cerrar modal
+  document.getElementById('btn-abrir-editar-perfil').addEventListener('click', function() {
+    document.getElementById('modal-editar-perfil').classList.remove('hidden');
+  });
+  document.getElementById('btn-cerrar-modal-perfil').addEventListener('click', function() {
+    document.getElementById('modal-editar-perfil').classList.add('hidden');
+  });
+  document.getElementById('modal-editar-perfil').addEventListener('click', function(e) {
+    if (e.target === this) this.classList.add('hidden');
+  });
+
+  // Previsualizar foto
+  document.getElementById('btn-previsualizar-foto').addEventListener('click', function() {
+    var url = document.getElementById('perfil-foto-url').value.trim();
+    var container = document.getElementById('foto-preview-container');
+    var msg = document.getElementById('foto-msg');
+    if (!url) { msg.textContent = 'Ingresa una URL'; msg.style.color = 'var(--danger)'; return; }
+    container.innerHTML = '<img id="foto-preview-img" src="' + url + '" class="foto-preview-img" />';
+    document.getElementById('foto-preview-img').addEventListener('error', function() {
+      container.innerHTML = '<div class="foto-preview-placeholder">❌</div>';
+      msg.textContent = 'La URL no es una imagen valida'; msg.style.color = 'var(--danger)';
+    });
+    document.getElementById('foto-preview-img').addEventListener('load', function() {
+      msg.textContent = 'Vista previa cargada'; msg.style.color = 'var(--success)';
+    });
+  });
+
+  // Guardar foto
+  document.getElementById('btn-guardar-foto').addEventListener('click', async function() {
+    var url = document.getElementById('perfil-foto-url').value.trim();
+    var msg = document.getElementById('foto-msg');
+    if (!url) { msg.textContent = 'Ingresa una URL'; msg.style.color = 'var(--danger)'; return; }
+    var btn = this; btn.disabled = true; btn.textContent = 'Guardando...';
+    try {
+      await updateDoc(doc(db, 'usuarios', currentUser.uid), { fotoPerfil: url });
+      currentUser.fotoPerfil = url;
+      msg.textContent = 'Foto actualizada'; msg.style.color = 'var(--success)';
+    } catch (err) {
+      msg.textContent = 'Error al guardar'; msg.style.color = 'var(--danger)';
+    }
+    btn.disabled = false; btn.textContent = 'Guardar foto';
+  });
+
+  // Ciudad
   if (!esRegidor) {
     document.getElementById('btn-guardar-ciudad').addEventListener('click', async function() {
       var ciudad = document.getElementById('perfil-ciudad').value;
@@ -503,39 +625,36 @@ function renderPerfil() {
       if (!ciudad) { msg.textContent = 'Selecciona una ciudad'; msg.style.color = 'var(--danger)'; return; }
       await updateDoc(doc(db, 'usuarios', currentUser.uid), { ciudad: ciudad });
       currentUser.ciudad = ciudad;
-      msg.textContent = 'Ciudad actualizada a ' + ciudad;
-      msg.style.color = 'var(--success)';
+      msg.textContent = 'Ciudad actualizada a ' + ciudad; msg.style.color = 'var(--success)';
     });
   }
 
+  // WhatsApp
   document.getElementById('btn-guardar-whatsapp').addEventListener('click', async function() {
     var whatsapp = document.getElementById('perfil-whatsapp').value.trim();
     var msg = document.getElementById('whatsapp-msg');
     if (!whatsapp) { msg.textContent = 'Ingresa un numero'; msg.style.color = 'var(--danger)'; return; }
     await updateDoc(doc(db, 'usuarios', currentUser.uid), { whatsapp: whatsapp });
     currentUser.whatsapp = whatsapp;
-    msg.textContent = 'WhatsApp actualizado';
-    msg.style.color = 'var(--success)';
+    msg.textContent = 'WhatsApp actualizado'; msg.style.color = 'var(--success)';
   });
 
+  // Contraseña
   document.getElementById('btn-cambiar-pass').addEventListener('click', async function() {
     var nueva = document.getElementById('perfil-pass-nueva').value;
     var confirmar = document.getElementById('perfil-pass-confirmar').value;
     var msg = document.getElementById('pass-msg');
-    if (!nueva || nueva.length < 6) { msg.textContent = 'La contrasena debe tener al menos 6 caracteres'; msg.style.color = 'var(--danger)'; return; }
+    if (!nueva || nueva.length < 6) { msg.textContent = 'Minimo 6 caracteres'; msg.style.color = 'var(--danger)'; return; }
     if (nueva !== confirmar) { msg.textContent = 'Las contrasenhas no coinciden'; msg.style.color = 'var(--danger)'; return; }
-    var btn = document.getElementById('btn-cambiar-pass');
-    btn.disabled = true; btn.textContent = 'Cambiando...';
+    var btn = this; btn.disabled = true; btn.textContent = 'Cambiando...';
     try {
       var { updatePassword } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
       await updatePassword(auth.currentUser, nueva);
-      msg.textContent = 'Contrasena cambiada exitosamente';
-      msg.style.color = 'var(--success)';
+      msg.textContent = 'Contrasena cambiada'; msg.style.color = 'var(--success)';
       document.getElementById('perfil-pass-nueva').value = '';
       document.getElementById('perfil-pass-confirmar').value = '';
     } catch (err) {
-      msg.textContent = 'Error: ' + err.message;
-      msg.style.color = 'var(--danger)';
+      msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--danger)';
     }
     btn.disabled = false; btn.textContent = 'Cambiar contrasena';
   });
