@@ -142,8 +142,27 @@ function navigateTo(section) {
 }
 
 function renderInicio() {
-  var esDev = currentUser && currentUser.rol === 'dev';
-  mainContent.innerHTML = '<div class="welcome-banner"><h2>Bienvenido a Estiria</h2><p>' + (currentUser ? currentUser.username : 'Ciudadano') + '</p></div><div class="card"><h3>Anuncios</h3><p>Proximamente...</p></div><div class="card"><h3>Eventos</h3><p>Proximamente...</p></div>' + (esDev ? '<div class="card" style="border-color:var(--accent)"><h3>Panel Dev</h3><p>Acceso de desarrollador.</p></div>' : '');
+  mainContent.innerHTML =
+    '<div class="welcome-banner"><h2>Bienvenido a Estiria</h2><p>' + (currentUser ? currentUser.username : 'Ciudadano') + '</p></div>' +
+    '<div class="inicio-grid">' +
+      '<button class="inicio-card" id="inicio-tienda"><span class="inicio-icon">🛒</span><span class="inicio-label">Tienda</span></button>' +
+      '<button class="inicio-card" id="inicio-casino"><span class="inicio-icon">🎰</span><span class="inicio-label">Casino</span></button>' +
+      '<button class="inicio-card" id="inicio-citas"><span class="inicio-icon">💘</span><span class="inicio-label">Citas</span></button>' +
+      '<button class="inicio-card" id="inicio-misiones"><span class="inicio-icon">⚔️</span><span class="inicio-label">Misiones</span></button>' +
+    '</div>' +
+    '<div class="card"><h3>📢 Anuncios</h3><p>Proximamente...</p></div>' +
+    '<div class="card"><h3>📅 Eventos</h3><p>Proximamente...</p></div>';
+
+  document.getElementById('inicio-tienda').addEventListener('click', function() { setNav('tienda'); navigateTo('tienda'); });
+  document.getElementById('inicio-casino').addEventListener('click', function() { setNav('casino'); navigateTo('casino'); });
+  document.getElementById('inicio-citas').addEventListener('click', function() { setNav('citas'); navigateTo('citas'); });
+  document.getElementById('inicio-misiones').addEventListener('click', function() { setNav('misiones'); navigateTo('misiones'); });
+}
+
+function setNav(section) {
+  navBtns.forEach(function(b) { b.classList.remove('active'); });
+  var btn = document.querySelector('.nav-btn[data-section="' + section + '"]');
+  if (btn) btn.classList.add('active');
 }
 
 function renderBiblioteca() {
