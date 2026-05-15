@@ -661,3 +661,66 @@
   justify-content: center;
   font-size: 2.5rem;
 }
+
+/* ===== INICIO GRID ===== */
+.inicio-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.inicio-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem 0.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-card);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.1s;
+}
+
+.inicio-card:active {
+  border-color: var(--accent);
+  transform: scale(0.97);
+}
+
+.inicio-icon {
+  font-size: 2rem;
+}
+
+.inicio-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ===== PROXIMAMENTE ===== */
+.proximamente-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.proximamente-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.proximamente-titulo {
+  font-size: 1.5rem;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.proximamente-texto {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}

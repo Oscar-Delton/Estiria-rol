@@ -122,12 +122,22 @@ navBtns.forEach(function(btn) {
 });
 
 function navigateTo(section) {
-  document.getElementById('header-title').textContent = section.charAt(0).toUpperCase() + section.slice(1);
+  var titulos = {
+    inicio: 'Inicio', banco: 'Banco', biblioteca: 'Biblioteca',
+    perfil: 'Perfil', patrimonio: 'Patrimonio',
+    tienda: 'Tienda', casino: 'Casino', citas: 'Citas', misiones: 'Misiones'
+  };
+  document.getElementById('header-title').textContent = titulos[section] || section;
   switch (section) {
     case 'inicio': renderInicio(); break;
     case 'banco': renderBanco(); break;
     case 'biblioteca': renderBiblioteca(); break;
     case 'perfil': renderPerfil(); break;
+    case 'patrimonio': renderPatrimonio(); break;
+    case 'tienda': renderTienda(); break;
+    case 'casino': renderProximamente('casino'); break;
+    case 'citas': renderProximamente('citas'); break;
+    case 'misiones': renderProximamente('misiones'); break;
   }
 }
 
@@ -138,6 +148,22 @@ function renderInicio() {
 
 function renderBiblioteca() {
   mainContent.innerHTML = '<div class="card"><h3>Biblioteca</h3><p>Proximamente...</p></div>';
+}
+
+function renderPatrimonio() {
+  mainContent.innerHTML = '<div class="card"><h3>💎 Patrimonio Total</h3><p>Proximamente...</p></div>';
+}
+
+function renderProximamente(seccion) {
+  var iconos = { casino: '🎰', citas: '💘', misiones: '⚔️' };
+  var nombres = { casino: 'Casino', citas: 'Citas', misiones: 'Misiones' };
+  mainContent.innerHTML =
+    '<div class="proximamente-wrap">' +
+      '<div class="proximamente-icon">' + (iconos[seccion] || '🔒') + '</div>' +
+      '<h2 class="proximamente-titulo">' + (nombres[seccion] || seccion) + '</h2>' +
+      '<p class="proximamente-texto">Esta seccion esta en desarrollo.</p>' +
+      '<p class="proximamente-texto">Proximamente disponible.</p>' +
+    '</div>';
 }
 
 function isAdminBanco() {
