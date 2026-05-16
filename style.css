@@ -724,3 +724,266 @@
   font-size: 0.9rem;
   color: var(--text-secondary);
 }
+/* ===== TIENDA ===== */
+.tienda-naciones {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.tienda-nacion-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 1.2rem 0.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-card);
+  border-radius: 14px;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.2s;
+}
+
+.tienda-nacion-btn span:first-child {
+  font-size: 1.8rem;
+}
+
+.tienda-nacion-btn:active {
+  border-color: var(--accent);
+}
+
+.proximamente-btn {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.prox-tag {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 0.6rem;
+  background: var(--accent);
+  color: white;
+  padding: 0.1rem 0.4rem;
+  border-radius: 10px;
+}
+
+.btn-viajes {
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(135deg, var(--bg-card), var(--accent-soft));
+  border: none;
+  border-radius: 14px;
+  color: white;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-bottom: 0.75rem;
+  transition: opacity 0.2s;
+}
+
+.btn-viajes:active { opacity: 0.8; }
+
+.tienda-seccion-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--bg-card);
+}
+
+.tienda-seccion-header h3 {
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.btn-back {
+  background: var(--bg-card);
+  border: none;
+  color: var(--text-secondary);
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.categorias-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.categoria-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 1.2rem 0.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-card);
+  border-radius: 14px;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.categoria-btn span:first-child { font-size: 1.6rem; }
+.categoria-btn:active { border-color: var(--accent); }
+
+.productos-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.producto-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-card);
+  border-radius: 10px;
+  gap: 0.5rem;
+}
+
+.producto-info { flex: 1; }
+
+.producto-nombre {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  margin-bottom: 0.1rem;
+}
+
+.producto-precio {
+  font-size: 0.78rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.producto-cantidad {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.btn-cantidad {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--bg-card);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cantidad-valor {
+  min-width: 20px;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.btn-agregar {
+  background: var(--accent);
+  border: none;
+  color: white;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tienda-select {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--bg-card);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.tienda-select:focus { border-color: var(--accent); }
+
+.form-label {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.4rem;
+}
+
+/* Carrito flotante */
+.carrito-flotante {
+  position: fixed;
+  bottom: calc(var(--nav-height) + 1rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+}
+
+.carrito-flotante button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 25px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(233, 69, 96, 0.4);
+}
+
+/* Viajes */
+.acomp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.acomp-input {
+  flex: 1;
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--bg-card);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.acomp-remove {
+  background: var(--bg-card);
+  border: none;
+  color: var(--danger);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tienda-header { margin-bottom: 0.75rem; }

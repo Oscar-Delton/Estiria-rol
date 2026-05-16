@@ -169,6 +169,407 @@ function renderBiblioteca() {
   mainContent.innerHTML = '<div class="card"><h3>Biblioteca</h3><p>Proximamente...</p></div>';
 }
 
+// ===== TIENDA =====
+var carrito = [];
+
+function renderTienda() {
+  mainContent.innerHTML =
+    '<div class="tienda-header card">' +
+      '<h3>🛒 Tienda de Estiria</h3>' +
+      '<p style="color:var(--text-secondary);font-size:0.85rem">Selecciona una nación o la sección de viajes</p>' +
+    '</div>' +
+    '<div class="tienda-naciones">' +
+      '<button class="tienda-nacion-btn" id="tn-estiria"><span>🏛️</span><span>Estiria</span></button>' +
+      '<button class="tienda-nacion-btn proximamente-btn"><span>🕌</span><span>Irkustuk</span><span class="prox-tag">Próx.</span></button>' +
+      '<button class="tienda-nacion-btn proximamente-btn"><span>🏦</span><span>Gresit</span><span class="prox-tag">Próx.</span></button>' +
+      '<button class="tienda-nacion-btn proximamente-btn"><span>🌙</span><span>Odrekao</span><span class="prox-tag">Próx.</span></button>' +
+    '</div>' +
+    '<button class="btn-viajes" id="btn-viajes">✈️ Viajes</button>' +
+    '<div id="tienda-panel"></div>' +
+    '<div id="carrito-flotante" class="carrito-flotante hidden">' +
+      '<button id="btn-ver-carrito">🛒 Ver carrito (<span id="carrito-count">0</span>)</button>' +
+    '</div>';
+
+  document.getElementById('tn-estiria').addEventListener('click', function() { renderCategoriasEstiria(); });
+  document.getElementById('btn-viajes').addEventListener('click', function() { renderViajes(); });
+}
+
+function renderCategoriasEstiria() {
+  var panel = document.getElementById('tienda-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-naciones">← Naciones</button>' +
+      '<h3>🏛️ Estiria</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" id="cat-comida"><span>🍽️</span><span>Comida</span></button>' +
+      '<button class="categoria-btn" id="cat-terrenos"><span>🏔️</span><span>Terrenos</span></button>' +
+      '<button class="categoria-btn" id="cat-construcciones"><span>🏠</span><span>Construcciones</span></button>' +
+      '<button class="categoria-btn" id="cat-armas"><span>⚔️</span><span>Mat. Armas</span></button>' +
+    '</div>';
+
+  document.getElementById('back-naciones').addEventListener('click', function() {
+    document.getElementById('tienda-panel').innerHTML = '';
+  });
+  document.getElementById('cat-comida').addEventListener('click', function() { renderSubcategoriasComida(); });
+  document.getElementById('cat-terrenos').addEventListener('click', function() { renderTerrenos(); });
+  document.getElementById('cat-construcciones').addEventListener('click', function() { renderSubcategoriasConst(); });
+  document.getElementById('cat-armas').addEventListener('click', function() { renderSubcategoriasArmas(); });
+}
+
+function renderSubcategoriasComida() {
+  var panel = document.getElementById('tienda-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-estiria-comida">← Estiria</button>' +
+      '<h3>🍽️ Comida</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" data-sub="lacteos"><span>🥛</span><span>Lácteos</span></button>' +
+      '<button class="categoria-btn" data-sub="varios"><span>🧂</span><span>Varios</span></button>' +
+      '<button class="categoria-btn" data-sub="preparados"><span>🍔</span><span>Preparados</span></button>' +
+      '<button class="categoria-btn" data-sub="bebidas"><span>🧃</span><span>Bebidas</span></button>' +
+      '<button class="categoria-btn" data-sub="frutas"><span>🍎</span><span>Frutas</span></button>' +
+      '<button class="categoria-btn" data-sub="panaderia"><span>🍞</span><span>Panadería</span></button>' +
+      '<button class="categoria-btn" data-sub="postres"><span>🍰</span><span>Postres</span></button>' +
+    '</div>';
+
+  document.getElementById('back-estiria-comida').addEventListener('click', function() { renderCategoriasEstiria(); });
+  panel.querySelectorAll('.categoria-btn[data-sub]').forEach(function(btn) {
+    btn.addEventListener('click', function() { renderProductos('comida', btn.dataset.sub); });
+  });
+}
+
+function renderSubcategoriasConst() {
+  var panel = document.getElementById('tienda-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-estiria-const">← Estiria</button>' +
+      '<h3>🏠 Construcciones</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" data-sub="casas"><span>🏡</span><span>Casas</span></button>' +
+      '<button class="categoria-btn" data-sub="materiales"><span>🧱</span><span>Materiales</span></button>' +
+    '</div>';
+
+  document.getElementById('back-estiria-const').addEventListener('click', function() { renderCategoriasEstiria(); });
+  panel.querySelectorAll('.categoria-btn[data-sub]').forEach(function(btn) {
+    btn.addEventListener('click', function() { renderProductos('construcciones', btn.dataset.sub); });
+  });
+}
+function renderSubcategoriasArmas() {
+  var panel = document.getElementById('tienda-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-estiria-armas">← Estiria</button>' +
+      '<h3>⚔️ Materiales para Armas</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" data-sub="metales_armas"><span>🔩</span><span>Metales</span></button>' +
+      '<button class="categoria-btn" data-sub="preciosos"><span>💎</span><span>Preciosos</span></button>' +
+    '</div>';
+
+  document.getElementById('back-estiria-armas').addEventListener('click', function() { renderCategoriasEstiria(); });
+  panel.querySelectorAll('.categoria-btn[data-sub]').forEach(function(btn) {
+    btn.addEventListener('click', function() { renderProductos('armas', btn.dataset.sub); });
+  });
+}
+
+function renderProductos(categoria, subcategoria) {
+  var productos = getCatalogo(categoria, subcategoria);
+  var panel = document.getElementById('tienda-panel');
+
+  var nombreSub = {
+    lacteos: '🥛 Lácteos', varios: '🧂 Varios', preparados: '🍔 Preparados',
+    bebidas: '🧃 Bebidas', frutas: '🍎 Frutas', panaderia: '🍞 Panadería',
+    postres: '🍰 Postres', casas: '🏡 Casas', materiales: '🧱 Materiales',
+    metales_armas: '🔩 Metales', preciosos: '💎 Preciosos'
+  };
+
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-subcat">← Atrás</button>' +
+      '<h3>' + (nombreSub[subcategoria] || subcategoria) + '</h3>' +
+    '</div>' +
+    '<div class="productos-lista" id="productos-lista">' +
+      productos.map(function(p, i) {
+        return '<div class="producto-item">' +
+          '<div class="producto-info">' +
+            '<p class="producto-nombre">' + p.emoji + ' ' + p.nombre + '</p>' +
+            '<p class="producto-precio">£' + p.precio.toLocaleString('es-CO') + (p.unidad ? ' / ' + p.unidad : '') + '</p>' +
+          '</div>' +
+          '<div class="producto-cantidad">' +
+            '<button class="btn-cantidad" data-i="' + i + '" data-action="minus">−</button>' +
+            '<span class="cantidad-valor" id="qty-' + i + '">0</span>' +
+            '<button class="btn-cantidad" data-i="' + i + '" data-action="plus">+</button>' +
+          '</div>' +
+          '<button class="btn-agregar" data-i="' + i + '">Añadir</button>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+
+  document.getElementById('back-subcat').addEventListener('click', function() {
+    if (categoria === 'comida') renderSubcategoriasComida();
+    else if (categoria === 'construcciones') renderSubcategoriasConst();
+    else if (categoria === 'armas') renderSubcategoriasArmas();
+  });
+
+  panel.querySelectorAll('.btn-cantidad').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var i = parseInt(btn.dataset.i);
+      var el = document.getElementById('qty-' + i);
+      var val = parseInt(el.textContent);
+      if (btn.dataset.action === 'plus') el.textContent = val + 1;
+      else if (val > 0) el.textContent = val - 1;
+    });
+  });
+
+  panel.querySelectorAll('.btn-agregar').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var i = parseInt(btn.dataset.i);
+      var qty = parseInt(document.getElementById('qty-' + i).textContent);
+      if (qty === 0) return;
+      var p = productos[i];
+      var existe = carrito.findIndex(function(c) { return c.nombre === p.nombre && c.categoria === subcategoria; });
+      if (existe >= 0) carrito[existe].cantidad += qty;
+      else carrito.push({ nombre: p.nombre, emoji: p.emoji, precio: p.precio, cantidad: qty, categoria: subcategoria, unidad: p.unidad || '' });
+      document.getElementById('qty-' + i).textContent = '0';
+      actualizarCarritoFlotante();
+      btn.textContent = '✓';
+      setTimeout(function() { btn.textContent = 'Añadir'; }, 1000);
+    });
+  });
+}
+
+function renderTerrenos() {
+  var panel = document.getElementById('tienda-panel');
+  var tamanos = [
+    { m2: '300', precio: 8000 }, { m2: '500', precio: 10000 },
+    { m2: '700', precio: 11500 }, { m2: '1.000', precio: 13500 },
+    { m2: '2.000', precio: 14500 }, { m2: '3.500', precio: 17000 },
+    { m2: '7.000', precio: 18500 }, { m2: '10.000', precio: 20000 }
+  ];
+  var zonas = {
+    'Ryla': ['Canteras oscuras', 'Cerca de los bosques espinosos', 'Estepa de Ryla', 'Llanuras frías de Ryla'],
+    'Ryazan': ['Bosque omni', 'Playas costeras', 'Meseta', 'La gran Taiga de Ryazan'],
+    'Kemerov': ['Llanuras fértiles de Kemerov', 'Estepa de Kemerov', 'Zona comercial: Noxus', 'Zona costera: Kattegat'],
+    'Navarra': ['Navarra terreno 1', 'Navarra terreno 2', 'Navarra terreno 3', 'Navarra terreno 4']
+  };
+
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-terrenos">← Estiria</button>' +
+      '<h3>🏔️ Terrenos</h3>' +
+    '</div>' +
+    '<p style="color:var(--text-secondary);font-size:0.82rem;margin-bottom:0.75rem">Selecciona tamaño, zona y cantidad. Puedes añadir varios.</p>' +
+    '<div id="terrenos-form">' +
+      '<label class="form-label">Tamaño del terreno</label>' +
+      '<select id="terreno-tamano" class="tienda-select">' +
+        '<option value="">Selecciona tamaño...</option>' +
+        tamanos.map(function(t) { return '<option value="' + t.precio + '" data-m2="' + t.m2 + '">' + t.m2 + ' m² — £' + t.precio.toLocaleString('es-CO') + '</option>'; }).join('') +
+      '</select>' +
+      '<label class="form-label" style="margin-top:0.75rem">Ciudad</label>' +
+      '<select id="terreno-ciudad" class="tienda-select">' +
+        '<option value="">Selecciona ciudad...</option>' +
+        Object.keys(zonas).map(function(c) { return '<option value="' + c + '">' + c + '</option>'; }).join('') +
+      '</select>' +
+      '<label class="form-label" style="margin-top:0.75rem">Zona</label>' +
+      '<select id="terreno-zona" class="tienda-select">' +
+        '<option value="">Selecciona ciudad primero...</option>' +
+      '</select>' +
+      '<label class="form-label" style="margin-top:0.75rem">Cantidad</label>' +
+      '<div class="producto-cantidad" style="justify-content:flex-start;gap:1rem">' +
+        '<button class="btn-cantidad" id="terreno-minus">−</button>' +
+        '<span class="cantidad-valor" id="terreno-qty">1</span>' +
+        '<button class="btn-cantidad" id="terreno-plus">+</button>' +
+      '</div>' +
+      '<div id="terreno-precio-preview" style="margin-top:0.75rem;color:var(--accent);font-weight:700;font-size:1rem"></div>' +
+      '<button class="btn btn-primary btn-full" id="btn-agregar-terreno" style="margin-top:0.75rem">Añadir al carrito</button>' +
+      '<div id="terreno-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+    '</div>';
+
+  document.getElementById('back-terrenos').addEventListener('click', function() { renderCategoriasEstiria(); });
+
+  document.getElementById('terreno-ciudad').addEventListener('change', function() {
+    var ciudad = this.value;
+    var zonaSelect = document.getElementById('terreno-zona');
+    if (!ciudad) { zonaSelect.innerHTML = '<option value="">Selecciona ciudad primero...</option>'; return; }
+    zonaSelect.innerHTML = '<option value="">Selecciona zona...</option>' +
+      zonas[ciudad].map(function(z) { return '<option value="' + z + '">' + z + '</option>'; }).join('');
+    actualizarPreviewTerreno();
+  });
+
+  ['terreno-tamano', 'terreno-zona'].forEach(function(id) {
+    document.getElementById(id).addEventListener('change', actualizarPreviewTerreno);
+  });
+
+  document.getElementById('terreno-minus').addEventListener('click', function() {
+    var el = document.getElementById('terreno-qty');
+    if (parseInt(el.textContent) > 1) { el.textContent = parseInt(el.textContent) - 1; actualizarPreviewTerreno(); }
+  });
+  document.getElementById('terreno-plus').addEventListener('click', function() {
+    var el = document.getElementById('terreno-qty');
+    el.textContent = parseInt(el.textContent) + 1; actualizarPreviewTerreno();
+  });
+  document.getElementById('btn-agregar-terreno').addEventListener('click', function() {
+    var tamanoSelect = document.getElementById('terreno-tamano');
+    var precio = parseInt(tamanoSelect.value);
+    var m2 = tamanoSelect.options[tamanoSelect.selectedIndex].dataset.m2;
+    var ciudad = document.getElementById('terreno-ciudad').value;
+    var zona = document.getElementById('terreno-zona').value;
+    var qty = parseInt(document.getElementById('terreno-qty').textContent);
+    var msg = document.getElementById('terreno-msg');
+    if (!precio || !ciudad || !zona) { msg.textContent = 'Completa todos los campos'; msg.style.color = 'var(--danger)'; return; }
+    carrito.push({ nombre: 'Terreno ' + m2 + 'm² — ' + zona + ' (' + ciudad + ')', emoji: '🏔️', precio: precio, cantidad: qty, categoria: 'terrenos', unidad: '' });
+    actualizarCarritoFlotante();
+    msg.textContent = '✓ Añadido al carrito'; msg.style.color = 'var(--success)';
+    setTimeout(function() { msg.textContent = ''; }, 1500);
+  });
+}
+
+function actualizarPreviewTerreno() {
+  var tamanoSelect = document.getElementById('terreno-tamano');
+  var precio = parseInt(tamanoSelect.value);
+  var qty = parseInt(document.getElementById('terreno-qty').textContent);
+  var preview = document.getElementById('terreno-precio-preview');
+  if (precio && qty) preview.textContent = 'Total: £' + (precio * qty).toLocaleString('es-CO');
+  else preview.textContent = '';
+}
+
+function renderViajes() {
+  var panel = document.getElementById('tienda-panel');
+  var precios = {
+    'Estiria': { 'Estiria': 150, 'Irkustuk': 250, 'Gresit': 350, 'Odrekao': 940 },
+    'Irkustuk': { 'Estiria': 250, 'Gresit': 420, 'Odrekao': 940 },
+    'Gresit': { 'Estiria': 350, 'Irkustuk': 420, 'Odrekao': 940 },
+    'Odrekao': { 'Estiria': 940, 'Irkustuk': 940, 'Gresit': 940 }
+  };
+  var naciones = ['Estiria', 'Irkustuk', 'Gresit', 'Odrekao'];
+
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-viajes">← Tienda</button>' +
+      '<h3>✈️ Viajes</h3>' +
+    '</div>' +
+    '<p style="color:var(--text-secondary);font-size:0.82rem;margin-bottom:0.75rem">Precio por persona por día (24h)</p>' +
+    '<label class="form-label">Origen</label>' +
+    '<select id="viaje-origen" class="tienda-select">' +
+      '<option value="">Selecciona origen...</option>' +
+      naciones.map(function(n) { return '<option value="' + n + '">' + n + '</option>'; }).join('') +
+    '</select>' +
+    '<label class="form-label" style="margin-top:0.75rem">Destino</label>' +
+    '<select id="viaje-destino" class="tienda-select">' +
+      '<option value="">Selecciona origen primero...</option>' +
+    '</select>' +
+    '<label class="form-label" style="margin-top:0.75rem">Días de viaje</label>' +
+    '<div class="producto-cantidad" style="justify-content:flex-start;gap:1rem">' +
+      '<button class="btn-cantidad" id="viaje-minus">−</button>' +
+      '<span class="cantidad-valor" id="viaje-dias">1</span>' +
+      '<button class="btn-cantidad" id="viaje-plus">+</button>' +
+    '</div>' +
+    '<label class="form-label" style="margin-top:0.75rem">Acompañantes</label>' +
+    '<div id="acompanantes-lista"></div>' +
+    '<button class="btn btn-secondary btn-full" id="btn-add-acomp" style="margin-top:0.5rem">+ Añadir acompañante</button>' +
+    '<div id="viaje-precio-preview" style="margin-top:0.75rem;color:var(--accent);font-weight:700;font-size:1rem"></div>' +
+    '<button class="btn btn-primary btn-full" id="btn-agregar-viaje" style="margin-top:0.75rem">Añadir al carrito</button>' +
+    '<div id="viaje-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>';
+
+  document.getElementById('back-viajes').addEventListener('click', function() {
+    document.getElementById('tienda-panel').innerHTML = '';
+  });
+
+  document.getElementById('viaje-origen').addEventListener('change', function() {
+    var origen = this.value;
+    var destinoSelect = document.getElementById('viaje-destino');
+    if (!origen) { destinoSelect.innerHTML = '<option value="">Selecciona origen primero...</option>'; return; }
+    var destinos = Object.keys(precios[origen]);
+    destinoSelect.innerHTML = '<option value="">Selecciona destino...</option>' +
+      destinos.map(function(d) { return '<option value="' + d + '">' + d + ' — £' + precios[origen][d] + '/día por persona</option>'; }).join('');
+    actualizarPreviewViaje(precios);
+  });
+
+  document.getElementById('viaje-destino').addEventListener('change', function() { actualizarPreviewViaje(precios); });
+
+  document.getElementById('viaje-minus').addEventListener('click', function() {
+    var el = document.getElementById('viaje-dias');
+    if (parseInt(el.textContent) > 1) { el.textContent = parseInt(el.textContent) - 1; actualizarPreviewViaje(precios); }
+  });
+  document.getElementById('viaje-plus').addEventListener('click', function() {
+    var el = document.getElementById('viaje-dias');
+    el.textContent = parseInt(el.textContent) + 1; actualizarPreviewViaje(precios);
+  });
+
+  var acompanantes = 0;
+  document.getElementById('btn-add-acomp').addEventListener('click', function() {
+    acompanantes++;
+    var lista = document.getElementById('acompanantes-lista');
+    var div = document.createElement('div');
+    div.className = 'acomp-row';
+    div.id = 'acomp-' + acompanantes;
+    div.innerHTML = '<input type="text" placeholder="Nombre del acompañante..." class="acomp-input" /><button class="acomp-remove" data-id="' + acompanantes + '">✕</button>';
+    lista.appendChild(div);
+    div.querySelector('.acomp-remove').addEventListener('click', function() {
+      document.getElementById('acomp-' + this.dataset.id).remove();
+      actualizarPreviewViaje(precios);
+    });
+    actualizarPreviewViaje(precios);
+  });
+
+  document.getElementById('btn-agregar-viaje').addEventListener('click', function() {
+    var origen = document.getElementById('viaje-origen').value;
+    var destino = document.getElementById('viaje-destino').value;
+    var dias = parseInt(document.getElementById('viaje-dias').textContent);
+    var msg = document.getElementById('viaje-msg');
+    if (!origen || !destino) { msg.textContent = 'Selecciona origen y destino'; msg.style.color = 'var(--danger)'; return; }
+    var precioPorDia = precios[origen][destino];
+    var personas = 1 + document.querySelectorAll('.acomp-input').length;
+    var total = precioPorDia * dias * personas;
+    var acomps = Array.from(document.querySelectorAll('.acomp-input')).map(function(i) { return i.value || 'Acompañante'; });
+    var desc = origen + ' → ' + destino + ' · ' + dias + ' día(s) · ' + personas + ' persona(s)' + (acomps.length ? ' (' + acomps.join(', ') + ')' : '');
+    carrito.push({ nombre: 'Viaje: ' + desc, emoji: '✈️', precio: total, cantidad: 1, categoria: 'viajes', unidad: '' });
+    actualizarCarritoFlotante();
+    msg.textContent = '✓ Viaje añadido al carrito'; msg.style.color = 'var(--success)';
+    setTimeout(function() { msg.textContent = ''; }, 1500);
+  });
+}
+
+function actualizarPreviewViaje(precios) {
+  var origen = document.getElementById('viaje-origen') ? document.getElementById('viaje-origen').value : '';
+  var destino = document.getElementById('viaje-destino') ? document.getElementById('viaje-destino').value : '';
+  var dias = parseInt(document.getElementById('viaje-dias') ? document.getElementById('viaje-dias').textContent : 1);
+  var personas = 1 + document.querySelectorAll('.acomp-input').length;
+  var preview = document.getElementById('viaje-precio-preview');
+  if (!preview) return;
+  if (origen && destino && precios[origen] && precios[origen][destino]) {
+    var total = precios[origen][destino] * dias * personas;
+    preview.textContent = '£' + precios[origen][destino] + '/día × ' + dias + ' día(s) × ' + personas + ' persona(s) = £' + total.toLocaleString('es-CO');
+  } else {
+    preview.textContent = '';
+  }
+}
+
+function actualizarCarritoFlotante() {
+  var flotante = document.getElementById('carrito-flotante');
+  var count = document.getElementById('carrito-count');
+  if (!flotante || !count) return;
+  var total = carrito.reduce(function(s, i) { return s + i.cantidad; }, 0);
+  if (total > 0) {
+    flotante.classList.remove('hidden');
+    count.textContent = total;
+    if (!document.getElementById('btn-ver-carrito')._listener) {
+      document.getElementById('btn-ver-carrito').addEventListener('click', renderCarrito);
+      document.getElementById('btn-ver-carrito')._listener = true;
+    }
+  } else {
+    flotante.classList.add('hidden');
+  }
+}
+
+function getCatalogo(categoria, subcategoria) {
+  // El catálogo completo va en la Parte 3
+  return [];
+}
+
 function renderPatrimonio() {
   mainContent.innerHTML = '<div class="card"><h3>💎 Patrimonio Total</h3><p>Proximamente...</p></div>';
 }
