@@ -439,26 +439,36 @@ function actualizarPreviewTerreno() {
 function renderViajes() {
   var panel = document.getElementById('tienda-panel');
   var ciudadesEstiria = ['Ryazan (Estiria)', 'Ryla (Estiria)', 'Kemerov (Estiria)', 'Navarra (Estiria)'];
-var precios = {};
-ciudadesEstiria.forEach(function(c) {
-  precios[c] = {};
-  ciudadesEstiria.forEach(function(d) { if (c !== d) precios[c][d] = 150; });
-  precios[c]['Irkustuk'] = 250;
-  precios[c]['Gresit'] = 350;
-  precios[c]['Odrekao'] = 940;
-});
-precios['Irkustuk'] = { 'Gresit': 420, 'Odrekao': 940 };
-precios['Gresit'] = { 'Irkustuk': 420, 'Odrekao': 940 };
-precios['Odrekao'] = {};
-ciudadesEstiria.forEach(function(c) {
-  precios['Irkustuk'][c] = 250;
-  precios['Gresit'][c] = 350;
-  precios['Odrekao'][c] = 940;
-});
-precios['Odrekao']['Irkustuk'] = 940;
-precios['Odrekao']['Gresit'] = 940;
-  };
-  var naciones = ['Ryazan (Estiria)', 'Ryla (Estiria)', 'Kemerov (Estiria)', 'Navarra (Estiria)', 'Irkustuk', 'Gresit', 'Odrekao'];
+  var precios = {};
+
+  ciudadesEstiria.forEach(function(c) {
+    precios[c] = {};
+    ciudadesEstiria.forEach(function(d) {
+      if (c !== d) precios[c][d] = 150;
+    });
+    precios[c]['Irkustuk'] = 250;
+    precios[c]['Gresit'] = 350;
+    precios[c]['Odrekao'] = 940;
+  });
+
+  precios['Irkustuk'] = {};
+  precios['Gresit'] = {};
+  precios['Odrekao'] = {};
+
+  ciudadesEstiria.forEach(function(c) {
+    precios['Irkustuk'][c] = 250;
+    precios['Gresit'][c] = 350;
+    precios['Odrekao'][c] = 940;
+  });
+
+  precios['Irkustuk']['Gresit'] = 420;
+  precios['Irkustuk']['Odrekao'] = 940;
+  precios['Gresit']['Irkustuk'] = 420;
+  precios['Gresit']['Odrekao'] = 940;
+  precios['Odrekao']['Irkustuk'] = 940;
+  precios['Odrekao']['Gresit'] = 940;
+
+  var todasLasNaciones = ciudadesEstiria.concat(['Irkustuk', 'Gresit', 'Odrekao']);
 
   panel.innerHTML =
     '<div class="tienda-seccion-header">' +
@@ -469,7 +479,7 @@ precios['Odrekao']['Gresit'] = 940;
     '<label class="form-label">Origen</label>' +
     '<select id="viaje-origen" class="tienda-select">' +
       '<option value="">Selecciona origen...</option>' +
-      naciones.map(function(n) { return '<option value="' + n + '">' + n + '</option>'; }).join('') +
+      todasLasNaciones.map(function(n) { return '<option value="' + n + '">' + n + '</option>'; }).join('') +
     '</select>' +
     '<label class="form-label" style="margin-top:0.75rem">Destino</label>' +
     '<select id="viaje-destino" class="tienda-select">' +
@@ -495,22 +505,34 @@ precios['Odrekao']['Gresit'] = 940;
   document.getElementById('viaje-origen').addEventListener('change', function() {
     var origen = this.value;
     var destinoSelect = document.getElementById('viaje-destino');
-    if (!origen) { destinoSelect.innerHTML = '<option value="">Selecciona origen primero...</option>'; return; }
+    if (!origen || !precios[origen]) {
+      destinoSelect.innerHTML = '<option value="">Selecciona origen primero...</option>';
+      return;
+    }
     var destinos = Object.keys(precios[origen]);
     destinoSelect.innerHTML = '<option value="">Selecciona destino...</option>' +
-      destinos.map(function(d) { return '<option value="' + d + '">' + d + ' — £' + precios[origen][d] + '/día por persona</option>'; }).join('');
+      destinos.map(function(d) {
+        return '<option value="' + d + '">' + d + ' — £' + precios[origen][d] + '/día por persona</option>';
+      }).join('');
     actualizarPreviewViaje(precios);
   });
 
-  document.getElementById('viaje-destino').addEventListener('change', function() { actualizarPreviewViaje(precios); });
+  document.getElementById('viaje-destino').addEventListener('change', function() {
+    actualizarPreviewViaje(precios);
+  });
 
   document.getElementById('viaje-minus').addEventListener('click', function() {
     var el = document.getElementById('viaje-dias');
-    if (parseInt(el.textContent) > 1) { el.textContent = parseInt(el.textContent) - 1; actualizarPreviewViaje(precios); }
+    if (parseInt(el.textContent) > 1) {
+      el.textContent = parseInt(el.textContent) - 1;
+      actualizarPreviewViaje(precios);
+    }
   });
+
   document.getElementById('viaje-plus').addEventListener('click', function() {
     var el = document.getElementById('viaje-dias');
-    el.textContent = parseInt(el.textContent) + 1; actualizarPreviewViaje(precios);
+    el.textContent = parseInt(el.textContent) + 1;
+    actualizarPreviewViaje(precios);
   });
 
   var acompanantes = 0;
@@ -520,7 +542,7 @@ precios['Odrekao']['Gresit'] = 940;
     var div = document.createElement('div');
     div.className = 'acomp-row';
     div.id = 'acomp-' + acompanantes;
-    div.innerHTML = '<input type="text" placeholder="Nombre del acompañante..." class="acomp-input" /><button class="acomp-remove" data-id="' + acompanantes + '">✕</button>';
+    div.innerHTML = '<input type="text" placeholder="Nombre del acompañante..." class="acomp-input"/><button class="acomp-remove" data-id="' + acompanantes + '">✕</button>';
     lista.appendChild(div);
     div.querySelector('.acomp-remove').addEventListener('click', function() {
       document.getElementById('acomp-' + this.dataset.id).remove();
@@ -534,7 +556,11 @@ precios['Odrekao']['Gresit'] = 940;
     var destino = document.getElementById('viaje-destino').value;
     var dias = parseInt(document.getElementById('viaje-dias').textContent);
     var msg = document.getElementById('viaje-msg');
-    if (!origen || !destino) { msg.textContent = 'Selecciona origen y destino'; msg.style.color = 'var(--danger)'; return; }
+    if (!origen || !destino) {
+      msg.textContent = 'Selecciona origen y destino';
+      msg.style.color = 'var(--danger)';
+      return;
+    }
     var precioPorDia = precios[origen][destino];
     var personas = 1 + document.querySelectorAll('.acomp-input').length;
     var total = precioPorDia * dias * personas;
@@ -542,9 +568,11 @@ precios['Odrekao']['Gresit'] = 940;
     var desc = origen + ' → ' + destino + ' · ' + dias + ' día(s) · ' + personas + ' persona(s)' + (acomps.length ? ' (' + acomps.join(', ') + ')' : '');
     carrito.push({ nombre: 'Viaje: ' + desc, emoji: '✈️', precio: total, cantidad: 1, categoria: 'viajes', unidad: '' });
     actualizarCarritoFlotante();
-    msg.textContent = '✓ Viaje añadido al carrito'; msg.style.color = 'var(--success)';
+    msg.textContent = '✓ Viaje añadido al carrito';
+    msg.style.color = 'var(--success)';
     setTimeout(function() { msg.textContent = ''; }, 1500);
   });
+}
 
 function actualizarPreviewViaje(precios) {
   var origen = document.getElementById('viaje-origen') ? document.getElementById('viaje-origen').value : '';
