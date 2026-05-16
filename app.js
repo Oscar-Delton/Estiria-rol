@@ -181,7 +181,7 @@ function renderTienda() {
     '<div class="tienda-naciones">' +
       '<button class="tienda-nacion-btn" id="tn-estiria"><span>🏛️</span><span>Estiria</span></button>' +
       '<button class="tienda-nacion-btn proximamente-btn"><span>🕌</span><span>Irkustk</span><span class="prox-tag">Próx.</span></button>' +
-      '<button class="tienda-nacion-btn proximamente-btn"><span>🏦</span><span>Gresit</span><span class="prox-tag">Próx.</span></button>' +
+      '<button class="tienda-nacion-btn" id="tn-gresit"><span>🏦</span><span>Gresit</span></button>'+
       '<button class="tienda-nacion-btn proximamente-btn"><span>🌙</span><span>Odrekao</span><span class="prox-tag">Próx.</span></button>' +
     '</div>' +
     '<button class="btn-viajes" id="btn-viajes">✈️ Viajes</button>' +
@@ -191,6 +191,7 @@ function renderTienda() {
     '</div>';
 
   document.getElementById('tn-estiria').addEventListener('click', function() { renderCategoriasEstiria(); });
+  document.getElementById('tn-gresit').addEventListener('click', function() { renderCategoriasGresit(); });
   document.getElementById('btn-viajes').addEventListener('click', function() { renderViajes(); });
 }
 
@@ -424,6 +425,195 @@ function renderTerrenos() {
     actualizarCarritoFlotante();
     msg.textContent = '✓ Añadido al carrito'; msg.style.color = 'var(--success)';
     setTimeout(function() { msg.textContent = ''; }, 1500);
+  });
+}
+
+function renderCategoriasGresit() {
+  var panel = document.getElementById('tienda-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-naciones-gresit">← Naciones</button>' +
+      '<h3>🏔️ Gresit</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" id="cat-gresit-comida"><span>🍽️</span><span>Comida</span></button>' +
+      '<button class="categoria-btn" id="cat-gresit-terrenos"><span>🏔️</span><span>Terrenos</span></button>' +
+      '<button class="categoria-btn" id="cat-gresit-construcciones"><span>🏠</span><span>Construcciones</span></button>' +
+      '<button class="categoria-btn" id="cat-gresit-armas"><span>⚔️</span><span>Mat. Armas</span></button>' +
+    '</div>';
+
+  document.getElementById('back-naciones-gresit').addEventListener('click', function() {
+    document.getElementById('tienda-panel').innerHTML = '';
+  });
+  document.getElementById('cat-gresit-comida').addEventListener('click', function() { renderSubcategoriasComidaGresit(); });
+  document.getElementById('cat-gresit-terrenos').addEventListener('click', function() { renderTerrenosGresit(); });
+  document.getElementById('cat-gresit-construcciones').addEventListener('click', function() { renderConstruccionesGresit(); });
+  document.getElementById('cat-gresit-armas').addEventListener('click', function() { renderSubcategoriasArmasGresit(); });
+}
+
+function renderSubcategoriasComidaGresit() {
+  var panel = document.getElementById('tienda-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-gresit-comida">← Gresit</button>' +
+      '<h3>🍽️ Comida — Gresit</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" data-sub="g_carnes"><span>🥩</span><span>Carnes</span></button>' +
+      '<button class="categoria-btn" data-sub="g_verduras"><span>🥬</span><span>Verduras</span></button>' +
+      '<button class="categoria-btn" data-sub="g_frutas"><span>🍎</span><span>Frutas</span></button>' +
+      '<button class="categoria-btn" data-sub="g_lacteos"><span>🥛</span><span>Lácteos</span></button>' +
+      '<button class="categoria-btn" data-sub="g_panaderia"><span>🍞</span><span>Panadería</span></button>' +
+      '<button class="categoria-btn" data-sub="g_postres"><span>🍰</span><span>Postres</span></button>' +
+      '<button class="categoria-btn" data-sub="g_preparados"><span>🍔</span><span>Preparados</span></button>' +
+      '<button class="categoria-btn" data-sub="g_condimentos"><span>🧂</span><span>Condimentos</span></button>' +
+      '<button class="categoria-btn" data-sub="g_preelaborados"><span>🛍️</span><span>Preelaborados</span></button>' +
+      '<button class="categoria-btn" data-sub="g_bebidas"><span>🧃</span><span>Bebidas</span></button>' +
+    '</div>';
+
+  document.getElementById('back-gresit-comida').addEventListener('click', function() { renderCategoriasGresit(); });
+  panel.querySelectorAll('.categoria-btn[data-sub]').forEach(function(btn) {
+    btn.addEventListener('click', function() { renderProductos('gresit', btn.dataset.sub); });
+  });
+}
+
+function renderSubcategoriasArmasGresit() {
+  var panel = document.getElementById('tienda-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-gresit-armas">← Gresit</button>' +
+      '<h3>⚔️ Materiales para Armas — Gresit</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" data-sub="metales_armas"><span>🔩</span><span>Metales</span></button>' +
+      '<button class="categoria-btn" data-sub="preciosos"><span>💎</span><span>Preciosos</span></button>' +
+    '</div>';
+
+  document.getElementById('back-gresit-armas').addEventListener('click', function() { renderCategoriasGresit(); });
+  panel.querySelectorAll('.categoria-btn[data-sub]').forEach(function(btn) {
+    btn.addEventListener('click', function() { renderProductos('armas', btn.dataset.sub); });
+  });
+}
+
+function renderTerrenosGresit() {
+  var panel = document.getElementById('tienda-panel');
+  var zonas = {
+    'Populares (Roshan, Rojo Branwen, Sharqly Tuman exterior)': [
+      { m2: '70', precio: 1800 }, { m2: '90', precio: 2400 },
+      { m2: '110', precio: 3100 }, { m2: '125', precio: 4200 },
+      { m2: '150', precio: 4600 }, { m2: '160', precio: 4800 },
+      { m2: '180', precio: 5600 }, { m2: '200', precio: 6800 },
+      { m2: '240', precio: 7900 }
+    ],
+    'Urbana Central (Edhellond, Sharqly Tuman, Von Maxwell bajo)': [
+      { m2: '300', precio: 8900 }, { m2: '450', precio: 11500 },
+      { m2: '500', precio: 13000 }, { m2: '630', precio: 15000 },
+      { m2: '750', precio: 17200 }, { m2: '800', precio: 18500 },
+      { m2: '900', precio: 20500 }, { m2: '1.000', precio: 23000 },
+      { m2: '1.200', precio: 26000 }
+    ],
+    'Distritos Nobles (Von Maxwell alto, Oro Blanco, Riveras del río)': [
+      { m2: '1.500', precio: 30000 }, { m2: '2.000', precio: 38000 },
+      { m2: '3.000', precio: 52000 }, { m2: '4.800', precio: 65000 },
+      { m2: '6.000', precio: 78000 }, { m2: '8.000', precio: 95000 },
+      { m2: '10.000', precio: 115000 }, { m2: '15.000', precio: 170000 }
+    ],
+    'Rural y Agrícola (Campos del Este y periferia)': [
+      { m2: '2.000', precio: 14000 }, { m2: '5.000', precio: 28000 },
+      { m2: '10.000', precio: 48000 }, { m2: '25.000', precio: 95000 },
+      { m2: '50.000', precio: 160000 }
+    ]
+  };
+
+  var zonasKeys = Object.keys(zonas);
+
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-gresit-terrenos">← Gresit</button>' +
+      '<h3>🏔️ Terrenos — Gresit</h3>' +
+    '</div>' +
+    '<p style="color:var(--text-secondary);font-size:0.82rem;margin-bottom:0.75rem">Selecciona zona, tamaño y cantidad.</p>' +
+    '<label class="form-label">Zona</label>' +
+    '<select id="gresit-terreno-zona" class="tienda-select">' +
+      '<option value="">Selecciona zona...</option>' +
+      zonasKeys.map(function(z) { return '<option value="' + z + '">' + z + '</option>'; }).join('') +
+    '</select>' +
+    '<label class="form-label" style="margin-top:0.75rem">Tamaño</label>' +
+    '<select id="gresit-terreno-tamano" class="tienda-select">' +
+      '<option value="">Selecciona zona primero...</option>' +
+    '</select>' +
+    '<label class="form-label" style="margin-top:0.75rem">Cantidad</label>' +
+    '<div class="producto-cantidad" style="justify-content:flex-start;gap:1rem">' +
+      '<button class="btn-cantidad" id="gresit-terreno-minus">−</button>' +
+      '<span class="cantidad-valor" id="gresit-terreno-qty">1</span>' +
+      '<button class="btn-cantidad" id="gresit-terreno-plus">+</button>' +
+    '</div>' +
+    '<div id="gresit-terreno-preview" style="margin-top:0.75rem;color:var(--accent);font-weight:700;font-size:1rem"></div>' +
+    '<button class="btn btn-primary btn-full" id="btn-agregar-gresit-terreno" style="margin-top:0.75rem">Añadir al carrito</button>' +
+    '<div id="gresit-terreno-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>';
+
+  document.getElementById('back-gresit-terrenos').addEventListener('click', function() { renderCategoriasGresit(); });
+
+  document.getElementById('gresit-terreno-zona').addEventListener('change', function() {
+    var zona = this.value;
+    var tamSelect = document.getElementById('gresit-terreno-tamano');
+    if (!zona) { tamSelect.innerHTML = '<option value="">Selecciona zona primero...</option>'; return; }
+    tamSelect.innerHTML = '<option value="">Selecciona tamaño...</option>' +
+      zonas[zona].map(function(t) {
+        return '<option value="' + t.precio + '" data-m2="' + t.m2 + '">' + t.m2 + ' m² — £' + t.precio.toLocaleString('es-CO') + '</option>';
+      }).join('');
+    actualizarPreviewGresitTerreno();
+  });
+
+  document.getElementById('gresit-terreno-tamano').addEventListener('change', function() { actualizarPreviewGresitTerreno(); });
+
+  document.getElementById('gresit-terreno-minus').addEventListener('click', function() {
+    var el = document.getElementById('gresit-terreno-qty');
+    if (parseInt(el.textContent) > 1) { el.textContent = parseInt(el.textContent) - 1; actualizarPreviewGresitTerreno(); }
+  });
+  document.getElementById('gresit-terreno-plus').addEventListener('click', function() {
+    var el = document.getElementById('gresit-terreno-qty');
+    el.textContent = parseInt(el.textContent) + 1; actualizarPreviewGresitTerreno();
+  });
+
+  document.getElementById('btn-agregar-gresit-terreno').addEventListener('click', function() {
+    var zona = document.getElementById('gresit-terreno-zona').value;
+    var tamSelect = document.getElementById('gresit-terreno-tamano');
+    var precio = parseInt(tamSelect.value);
+    var m2 = tamSelect.options[tamSelect.selectedIndex].dataset.m2;
+    var qty = parseInt(document.getElementById('gresit-terreno-qty').textContent);
+    var msg = document.getElementById('gresit-terreno-msg');
+    if (!zona || !precio) { msg.textContent = 'Completa todos los campos'; msg.style.color = 'var(--danger)'; return; }
+    carrito.push({ nombre: 'Terreno ' + m2 + 'm² — ' + zona + ' (Gresit)', emoji: '🏔️', precio: precio, cantidad: qty, categoria: 'terrenos', unidad: '' });
+    actualizarCarritoFlotante();
+    msg.textContent = '✓ Añadido al carrito'; msg.style.color = 'var(--success)';
+    setTimeout(function() { msg.textContent = ''; }, 1500);
+  });
+}
+
+function actualizarPreviewGresitTerreno() {
+  var tamSelect = document.getElementById('gresit-terreno-tamano');
+  var precio = parseInt(tamSelect.value);
+  var qty = parseInt(document.getElementById('gresit-terreno-qty').textContent);
+  var preview = document.getElementById('gresit-terreno-preview');
+  if (precio && qty) preview.textContent = 'Total: £' + (precio * qty).toLocaleString('es-CO');
+  else preview.textContent = '';
+}
+
+function renderConstruccionesGresit() {
+  var panel = document.getElementById('tienda-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-gresit-const">← Gresit</button>' +
+      '<h3>🏠 Construcciones — Gresit</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" data-sub="g_casas"><span>🏠</span><span>Propiedades</span></button>' +
+    '</div>';
+
+  document.getElementById('back-gresit-const').addEventListener('click', function() { renderCategoriasGresit(); });
+  panel.querySelectorAll('.categoria-btn[data-sub]').forEach(function(btn) {
+    btn.addEventListener('click', function() { renderProductos('gresit', btn.dataset.sub); });
   });
 }
 
@@ -1196,6 +1386,200 @@ function getCatalogo(categoria, subcategoria) {
     }
 
   };
+
+  var catalogosGresit = {
+    g_carnes: [
+      { emoji: '🥩', nombre: 'Vaca (500g)', precio: 22 },
+      { emoji: '🥩', nombre: 'Oveja (500g)', precio: 16 },
+      { emoji: '🥩', nombre: 'Cerdo (500g)', precio: 18 },
+      { emoji: '🥩', nombre: 'Conejo (500g)', precio: 12 },
+      { emoji: '🦆', nombre: 'Pato (500g)', precio: 15 },
+      { emoji: '🍗', nombre: 'Pollo (500g)', precio: 14 },
+      { emoji: '🦌', nombre: 'Antílope (500g)', precio: 25 },
+      { emoji: '🐻', nombre: 'Oso (500g)', precio: 30 },
+      { emoji: '🐊', nombre: 'Cocodrilo (500g)', precio: 40 }
+    ],
+    g_verduras: [
+      { emoji: '🥔', nombre: 'Papa (1 unidad)', precio: 3 },
+      { emoji: '🧅', nombre: 'Cebolla (1 unidad)', precio: 2 },
+      { emoji: '🧄', nombre: 'Ajo (1 unidad)', precio: 1 },
+      { emoji: '🥬', nombre: 'Lechuga (1 unidad)', precio: 4 },
+      { emoji: '🍅', nombre: 'Tomate (1 unidad)', precio: 3 },
+      { emoji: '🥕', nombre: 'Zanahoria (1 unidad)', precio: 2 },
+      { emoji: '🫑', nombre: 'Pimiento (1 unidad)', precio: 3 },
+      { emoji: '🎃', nombre: 'Calabaza (1 unidad)', precio: 4 },
+      { emoji: '🍆', nombre: 'Berenjena (1 unidad)', precio: 4 },
+      { emoji: '🌿', nombre: 'Espinaca (1 unidad)', precio: 3 },
+      { emoji: '🫘', nombre: 'Garbanzo (1 unidad)', precio: 4 },
+      { emoji: '🥦', nombre: 'Brócoli (1 unidad)', precio: 5 },
+      { emoji: '🥒', nombre: 'Pepino (1 unidad)', precio: 3 },
+      { emoji: '🫑', nombre: 'Morrón (1 unidad)', precio: 3 },
+      { emoji: '🌿', nombre: 'Perejil (1 unidad)', precio: 1 },
+      { emoji: '🌿', nombre: 'Cilantro (1 unidad)', precio: 1 },
+      { emoji: '🌽', nombre: 'Mazorca de Maíz (1 unidad)', precio: 4 }
+    ],
+    g_frutas: [
+      { emoji: '🍎', nombre: 'Manzana (1 unidad)', precio: 3 },
+      { emoji: '🍌', nombre: 'Banana (1 unidad)', precio: 1 },
+      { emoji: '🍊', nombre: 'Naranja (1 unidad)', precio: 2 },
+      { emoji: '🍇', nombre: 'Uva (15 unidades)', precio: 4 },
+      { emoji: '🍐', nombre: 'Pera (1 unidad)', precio: 3 },
+      { emoji: '🍓', nombre: 'Fresas (1 unidad)', precio: 2 },
+      { emoji: '🍒', nombre: 'Cereza (1 unidad)', precio: 2 },
+      { emoji: '🥑', nombre: 'Palta (1 unidad)', precio: 5 },
+      { emoji: '🫐', nombre: 'Bayas silvestres (1 unidad)', precio: 6 },
+      { emoji: '🥥', nombre: 'Coco (1 unidad)', precio: 4 },
+      { emoji: '🍋', nombre: 'Limón (1 unidad)', precio: 2 },
+      { emoji: '🍑', nombre: 'Durazno (1 unidad)', precio: 3 },
+      { emoji: '🍉', nombre: 'Sandía (1 unidad)', precio: 7 },
+      { emoji: '🍍', nombre: 'Piña (1 unidad)', precio: 6 }
+    ],
+    g_lacteos: [
+      { emoji: '🥛', nombre: 'Leche (1L)', precio: 6 },
+      { emoji: '🧀', nombre: 'Queso (500g)', precio: 12 },
+      { emoji: '🍮', nombre: 'Crema Repostera (1 unidad)', precio: 5 },
+      { emoji: '🥛', nombre: 'Yogurt (1L)', precio: 9 },
+      { emoji: '🧈', nombre: 'Mantequilla (200g)', precio: 7 },
+      { emoji: '🍯', nombre: 'Dulce de leche (1 unidad)', precio: 6 }
+    ],
+    g_panaderia: [
+      { emoji: '🍞', nombre: 'Pan de Mil (1 unidad)', precio: 1000 },
+      { emoji: '🍞', nombre: 'Pan (1 unidad)', precio: 4 },
+      { emoji: '🍞', nombre: 'Pan Integral (1 unidad)', precio: 8 },
+      { emoji: '🍞', nombre: 'Pan Dulce (1 unidad)', precio: 6 },
+      { emoji: '🍞', nombre: 'Pan Relleno (1 unidad)', precio: 5 },
+      { emoji: '🍞', nombre: 'Pan Rallado (500g)', precio: 6 },
+      { emoji: '🥐', nombre: 'Factura (1 unidad)', precio: 4 },
+      { emoji: '🍪', nombre: 'Galleta (1 unidad)', precio: 2 },
+      { emoji: '🎂', nombre: 'Torta Asada (1 unidad)', precio: 10 },
+      { emoji: '🧇', nombre: 'Torta Frita (1 unidad)', precio: 7 },
+      { emoji: '🍩', nombre: 'Buñuelo (1 unidad)', precio: 5 },
+      { emoji: '🫓', nombre: 'Chipa (1 unidad)', precio: 4 }
+    ],
+    g_postres: [
+      { emoji: '🥧', nombre: 'Tarta (1 unidad)', precio: 25 },
+      { emoji: '🎂', nombre: 'Pastel (1 unidad)', precio: 40 },
+      { emoji: '🧁', nombre: 'Pastelito (1 unidad)', precio: 15 },
+      { emoji: '🍫', nombre: 'Chocolate Negro (1 barra)', precio: 10 },
+      { emoji: '🍫', nombre: 'Chocolate Blanco (1 barra)', precio: 10 },
+      { emoji: '🍬', nombre: 'Caramelo (1 unidad)', precio: 1 },
+      { emoji: '🍭', nombre: 'Paleta Dulce (1 unidad)', precio: 3 },
+      { emoji: '🍫', nombre: 'Bombón (1 caja)', precio: 20 },
+      { emoji: '🥚', nombre: 'Huevo de Pascua (1 unidad)', precio: 30 },
+      { emoji: '🍮', nombre: 'Flan (1 unidad)', precio: 12 },
+      { emoji: '🥧', nombre: 'Pastafrola (1 unidad)', precio: 16 },
+      { emoji: '🍭', nombre: 'Chupetin (1 unidad)', precio: 1 },
+      { emoji: '🍮', nombre: 'Gelatina (1 unidad)', precio: 5 },
+      { emoji: '🍓', nombre: 'Mermelada (1 frasco)', precio: 7 },
+      { emoji: '🍎', nombre: 'Manzana Acaramelada (1 unidad)', precio: 6 },
+      { emoji: '🍭', nombre: 'Algodón de Azúcar (1 porción)', precio: 4 },
+      { emoji: '🍨', nombre: 'Helado (1L)', precio: 13 }
+    ],
+    g_preparados: [
+      { emoji: '🍔', nombre: 'Hamburguesa (1 unidad)', precio: 30 },
+      { emoji: '🥩', nombre: 'Milanesa (1 unidad)', precio: 22 },
+      { emoji: '🍗', nombre: 'Milanesa de Pollo (1 unidad)', precio: 20 },
+      { emoji: '🥩', nombre: 'Milanesa Napolitana (1 unidad)', precio: 25 },
+      { emoji: '🌭', nombre: 'Choripan (1 unidad)', precio: 12 },
+      { emoji: '🌭', nombre: 'Hotdog (1 unidad)', precio: 9 },
+      { emoji: '🍕', nombre: 'Pizza (1 unidad)', precio: 35 },
+      { emoji: '🥗', nombre: 'Ensalada (1 unidad)', precio: 25 },
+      { emoji: '🍜', nombre: 'Ramen (1 tazón)', precio: 40 },
+      { emoji: '🍣', nombre: 'Sushi (1 pieza)', precio: 6 },
+      { emoji: '🥟', nombre: 'Empanada (1 unidad)', precio: 4 },
+      { emoji: '🍟', nombre: 'Papa Frita (1 cajita)', precio: 7 },
+      { emoji: '🍟', nombre: 'Papa Frita L.P. (1 cajita)', precio: 9 },
+      { emoji: '🥪', nombre: 'Sandwich Clásico (1 unidad)', precio: 18 },
+      { emoji: '🥪', nombre: 'Sandwich de Miga (1 unidad)', precio: 15 },
+      { emoji: '🍔', nombre: 'Bollo de Carne (1 unidad)', precio: 20 },
+      { emoji: '🍙', nombre: 'Bollo de Arroz (1 unidad)', precio: 10 },
+      { emoji: '🍿', nombre: 'Palomita de Maíz (1 cajita)', precio: 5 },
+      { emoji: '🥞', nombre: 'Panqueque (1 unidad)', precio: 12 },
+      { emoji: '🧆', nombre: 'Albóndiga (1 unidad)', precio: 6 },
+      { emoji: '🌮', nombre: 'Taco (1 unidad)', precio: 18 },
+      { emoji: '🌯', nombre: 'Burrito (1 unidad)', precio: 25 },
+      { emoji: '🥘', nombre: 'Estofado (1 unidad)', precio: 20 },
+      { emoji: '🍝', nombre: 'Espagueti con Salsa (1 unidad)', precio: 24 },
+      { emoji: '🍚', nombre: 'Arroz Hervido (1 porción)', precio: 8 },
+      { emoji: '🍚', nombre: 'Arroz con Pollo (1 porción)', precio: 20 },
+      { emoji: '🍗', nombre: 'Nuggets (1 unidad)', precio: 18 },
+      { emoji: '🍟', nombre: 'Salchipapas (1 porción)', precio: 15 },
+      { emoji: '🫓', nombre: 'Arepa Rellena (1 unidad)', precio: 13 }
+    ],
+    g_condimentos: [
+      { emoji: '🧂', nombre: 'Sal (1 paquete)', precio: 2 },
+      { emoji: '🥚', nombre: 'Huevo (1 unidad)', precio: 2 },
+      { emoji: '🌶️', nombre: 'Pimienta (1 unidad)', precio: 1 },
+      { emoji: '🫙', nombre: 'Aceite de Girasol (1L)', precio: 10 },
+      { emoji: '🫙', nombre: 'Aceite de Oliva (1L)', precio: 10 },
+      { emoji: '🍯', nombre: 'Miel (1 frasco)', precio: 7 },
+      { emoji: '🍋', nombre: 'Jugo de Limón (1L)', precio: 5 },
+      { emoji: '🌾', nombre: 'Harina (1 paquete)', precio: 4 },
+      { emoji: '🧂', nombre: 'Azúcar (1 paquete)', precio: 3 },
+      { emoji: '🫙', nombre: 'Polvo de Hornear (1 paquete)', precio: 1 },
+      { emoji: '🫙', nombre: 'Bicarbonato de Sodio (1 paquete)', precio: 1 },
+      { emoji: '🍅', nombre: 'Puré de Tomate (1 frasco)', precio: 4 },
+      { emoji: '🫙', nombre: 'Esencia de Vainilla (1 frasco)', precio: 2 }
+    ],
+    g_preelaborados: [
+      { emoji: '🍕', nombre: 'Pre-Pizza (1 unidad)', precio: 15 },
+      { emoji: '🍝', nombre: 'Fideos (1 paquete)', precio: 10 },
+      { emoji: '🍝', nombre: 'Ñoquis (1 paquete)', precio: 15 },
+      { emoji: '🍝', nombre: 'Ravioles (1 paquete)', precio: 15 },
+      { emoji: '🌭', nombre: 'Salchichas (1 unidad)', precio: 3 },
+      { emoji: '🌭', nombre: 'Chorizo (1 unidad)', precio: 13 },
+      { emoji: '🥟', nombre: 'Tapas de Empanada (20 unidades)', precio: 9 },
+      { emoji: '🥧', nombre: 'Masa para Tartas (1 unidad)', precio: 13 },
+      { emoji: '🥞', nombre: 'Masa para Panqueques (1 unidad)', precio: 6 },
+      { emoji: '🍔', nombre: 'Carne de Hamburguesa (1 unidad)', precio: 8 }
+    ],
+    g_bebidas: [
+      { emoji: '🧃', nombre: 'Jugos Frutales (1L)', precio: 20 },
+      { emoji: '🥤', nombre: 'Gaseosa (1L)', precio: 25 },
+      { emoji: '🧋', nombre: 'Batido (1 unidad)', precio: 13 },
+      { emoji: '☕', nombre: 'Café (1 taza)', precio: 5 },
+      { emoji: '☕', nombre: 'Café Helado (1 vaso)', precio: 7 },
+      { emoji: '☕', nombre: 'Café Descafeinado (1 taza)', precio: 6 },
+      { emoji: '💧', nombre: 'Agua Mineral (1L)', precio: 10 },
+      { emoji: '💧', nombre: 'Agua Saborizada (1L)', precio: 15 },
+      { emoji: '🍵', nombre: 'Té (1 taza)', precio: 4 },
+      { emoji: '🍵', nombre: 'Té Helado (1 vaso)', precio: 6 },
+      { emoji: '🍵', nombre: 'Té Verde (1 taza)', precio: 5 },
+      { emoji: '⚡', nombre: 'Energizante Saborizado (250ml)', precio: 20 },
+      { emoji: '🥃', nombre: 'Whisky (750ml)', precio: 400 },
+      { emoji: '🍷', nombre: 'Vino (750ml)', precio: 100 },
+      { emoji: '🍺', nombre: 'Cerveza (1L)', precio: 120 },
+      { emoji: '🥃', nombre: 'Agua Ardiente (750ml)', precio: 75 }
+    ],
+    g_casas: [
+      { emoji: '🛖', nombre: 'Cabaña de trabajador', precio: 7500 },
+      { emoji: '🏚️', nombre: 'Casa pequeña urbana', precio: 10500 },
+      { emoji: '🏚️', nombre: 'Casa familiar básica', precio: 14000 },
+      { emoji: '🏚️', nombre: 'Vivienda artesanal', precio: 17500 },
+      { emoji: '🏚️', nombre: 'Casa doble adosada', precio: 19000 },
+      { emoji: '🏠', nombre: 'Casa con tienda frontal', precio: 24000 },
+      { emoji: '🏠', nombre: 'Residencia comerciante', precio: 29000 },
+      { emoji: '🏠', nombre: 'Casa ribereña', precio: 34000 },
+      { emoji: '🏠', nombre: 'Posada pequeña', precio: 40000 },
+      { emoji: '🏠', nombre: 'Taller + vivienda', precio: 46000 },
+      { emoji: '🏡', nombre: 'Casa burguesa', precio: 55000 },
+      { emoji: '🏡', nombre: 'Residencia administrativa', precio: 68000 },
+      { emoji: '🏡', nombre: 'Villa urbana', precio: 82000 },
+      { emoji: '🏡', nombre: 'Casa señorial', precio: 96000 },
+      { emoji: '🏢', nombre: 'Mansión menor', precio: 120000 },
+      { emoji: '🏢', nombre: 'Villa noble', precio: 165000 },
+      { emoji: '🏢', nombre: 'Palacio urbano', precio: 220000 },
+      { emoji: '🏢', nombre: 'Palacio con jardines', precio: 310000 },
+      { emoji: '🏢', nombre: 'Residencia imperial privada', precio: 450000 },
+      { emoji: '🏰', nombre: 'Fortaleza residencial', precio: 600000 },
+      { emoji: '🏰', nombre: 'Complejo mercantil cerrado', precio: 750000 },
+      { emoji: '🏰', nombre: 'Castillo menor', precio: 1200000 }
+    ]
+  };
+
+  if (categoria === 'gresit' && catalogosGresit[subcategoria]) {
+    return catalogosGresit[subcategoria];
+  }
 
   if (catalogos[categoria] && catalogos[categoria][subcategoria]) {
     return catalogos[categoria][subcategoria];
