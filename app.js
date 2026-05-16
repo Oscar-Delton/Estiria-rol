@@ -545,7 +545,6 @@ precios['Odrekao']['Gresit'] = 940;
     msg.textContent = '✓ Viaje añadido al carrito'; msg.style.color = 'var(--success)';
     setTimeout(function() { msg.textContent = ''; }, 1500);
   });
-}
 
 function actualizarPreviewViaje(precios) {
   var origen = document.getElementById('viaje-origen') ? document.getElementById('viaje-origen').value : '';
