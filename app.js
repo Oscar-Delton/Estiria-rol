@@ -427,6 +427,180 @@ function renderTerrenos() {
   });
 }
 
+function renderCarrito() {
+  var total = carrito.reduce(function(s, i) { return s + (i.precio * i.cantidad); }, 0);
+  mainContent.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-carrito">← Tienda</button>' +
+      '<h3>🛒 Carrito</h3>' +
+    '</div>' +
+    '<div id="lista-carrito">' +
+      (carrito.length === 0
+        ? '<p style="color:var(--text-secondary);text-align:center;padding:2rem">El carrito está vacío</p>'
+        : carrito.map(function(item, i) {
+            return '<div class="carrito-item" id="carrito-item-' + i + '">' +
+              '<div class="producto-info">' +
+                '<p class="producto-nombre">' + item.emoji + ' ' + item.nombre + '</p>' +
+                '<p class="producto-precio">£' + item.precio.toLocaleString('es-CO') + (item.unidad ? ' / ' + item.unidad : '') + ' × ' + item.cantidad + ' = £' + (item.precio * item.cantidad).toLocaleString('es-CO') + '</p>' +
+              '</div>' +
+              '<button class="btn-eliminar-carrito" data-i="' + i + '">🗑️</button>' +
+            '</div>';
+          }).join('')
+      ) +
+    '</div>' +
+    '<div class="carrito-total card" style="margin-top:1rem">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<p style="font-size:0.9rem;color:var(--text-secondary)">Total a pagar</p>' +
+        '<p style="font-size:1.3rem;font-weight:700;color:var(--accent)">£' + total.toLocaleString('es-CO') + '</p>' +
+      '</div>' +
+      '<p style="font-size:0.82rem;color:var(--text-secondary);margin-top:0.3rem">Saldo disponible: £<span id="saldo-carrito">' + (currentUser.saldo || 0).toLocaleString('es-CO') + '</span></p>' +
+    '</div>' +
+    '<div id="carrito-error" class="hidden" style="color:var(--danger);font-size:0.85rem;margin-top:0.5rem;text-align:center"></div>' +
+    '<button class="btn btn-primary btn-full" id="btn-confirmar-compra" style="margin-top:0.75rem"' + (carrito.length === 0 ? ' disabled' : '') + '>✅ Confirmar compra</button>' +
+    '<button class="btn btn-secondary btn-full" id="btn-vaciar-carrito" style="margin-top:0.5rem;border-color:var(--danger);color:var(--danger)">🗑️ Vaciar carrito</button>';
+
+  document.getElementById('back-carrito').addEventListener('click', function() { renderTienda(); });
+
+  document.querySelectorAll('.btn-eliminar-carrito').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var i = parseInt(btn.dataset.i);
+      carrito.splice(i, 1);
+      actualizarCarritoFlotante();
+      renderCarrito();
+    });
+  });
+
+  document.getElementById('btn-vaciar-carrito').addEventListener('click', function() {
+    if (!confirm('¿Vaciar el carrito?')) return;
+    carrito = [];
+    actualizarCarritoFlotante();
+    renderCarrito();
+  });
+
+  document.getElementById('btn-confirmar-compra').addEventListener('click', async function() {
+    if (carrito.length === 0) return;
+    var total = carrito.reduce(function(s, i) { return s + (i.precio * i.cantidad); }, 0);
+    var errorEl = document.getElementById('carrito-error');
+    var btn = this;
+
+    // Recargar saldo actual desde Firebase
+    var userSnap = await getDoc(doc(db, 'usuarios', currentUser.uid));
+    var saldoActual = userSnap.data().saldo || 0;
+
+    if (total > saldoActual) {
+      errorEl.textContent = 'Saldo insuficiente. Tienes £' + saldoActual.toLocaleString('es-CO') + ' y necesitas £' + total.toLocaleString('es-CO');
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Procesando...';
+
+    try {
+      var saldoFinal = saldoActual - total;
+      await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(-total) });
+      await registrarTransaccion({
+        tipo: 'compra',
+        de: currentUser.uid,
+        deUsername: currentUser.username,
+        para: 'sistema',
+        paraUsername: 'Tienda Estiria',
+        monto: total,
+        descripcion: 'Compra en Tienda Estiria: ' + carrito.map(function(i) { return i.cantidad + 'x ' + i.nombre; }).join(', ')
+      });
+
+      currentUser.saldo = saldoFinal;
+      var itemsComprados = carrito.slice();
+      carrito = [];
+      actualizarCarritoFlotante();
+      renderRecibo(itemsComprados, saldoActual, saldoFinal, total);
+
+    } catch (err) {
+      errorEl.textContent = 'Error al procesar: ' + err.message;
+      errorEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = '✅ Confirmar compra';
+    }
+  });
+}
+
+function renderRecibo(items, saldoInicial, saldoFinal, total) {
+  var listaItems = items.map(function(item) {
+    if (item.categoria === 'viajes') {
+      return '<div class="recibo-item"><p>' + item.emoji + ' ' + item.nombre + '</p><p style="color:var(--danger)">-£' + (item.precio * item.cantidad).toLocaleString('es-CO') + '</p></div>';
+    }
+    return '<div class="recibo-item"><p>' + item.emoji + ' ' + item.cantidad + 'x ' + item.nombre + '</p><p style="color:var(--danger)">-£' + (item.precio * item.cantidad).toLocaleString('es-CO') + '</p></div>';
+  }).join('');
+
+  var textoWhatsApp = generarTextoRecibo(items, saldoInicial, saldoFinal, total);
+
+  mainContent.innerHTML =
+    '<div class="recibo-card card">' +
+      '<div style="text-align:center;margin-bottom:1rem">' +
+        '<p style="font-size:1.5rem">🎴</p>' +
+        '<h2 style="color:var(--accent);font-size:1rem">República de Estiria LATAM</h2>' +
+        '<p style="color:var(--text-secondary);font-size:0.85rem">✒️ Boleta de compra/pago ✒️</p>' +
+        '<p style="color:var(--text-secondary);font-size:0.82rem">Extracto Bancario de ' + currentUser.username + '</p>' +
+      '</div>' +
+      '<div class="recibo-saldo-row">' +
+        '<p>💷 Saldo inicial</p>' +
+        '<p>£' + saldoInicial.toLocaleString('es-CO') + '</p>' +
+      '</div>' +
+      '<div style="margin:0.75rem 0">' +
+        '<p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:0.5rem">• Lo que se compra:</p>' +
+        listaItems +
+      '</div>' +
+      '<div class="recibo-saldo-row" style="border-top:1px solid var(--bg-card);padding-top:0.75rem">' +
+        '<p style="color:var(--danger);font-weight:700">Total gastado</p>' +
+        '<p style="color:var(--danger);font-weight:700">-£' + total.toLocaleString('es-CO') + '</p>' +
+      '</div>' +
+      '<div class="recibo-saldo-row" style="margin-top:0.5rem">' +
+        '<p>💷 Saldo final</p>' +
+        '<p style="color:var(--success);font-weight:700">£' + saldoFinal.toLocaleString('es-CO') + '</p>' +
+      '</div>' +
+      '<button class="btn btn-secondary btn-full" id="btn-copiar-recibo" style="margin-top:1rem">📋 Copiar recibo para WhatsApp</button>' +
+      '<button class="btn btn-primary btn-full" id="btn-volver-tienda" style="margin-top:0.5rem">🛒 Seguir comprando</button>' +
+    '</div>';
+
+  document.getElementById('btn-copiar-recibo').addEventListener('click', function() {
+    navigator.clipboard.writeText(textoWhatsApp).then(function() {
+      var btn = document.getElementById('btn-copiar-recibo');
+      btn.textContent = '✅ ¡Copiado!';
+      setTimeout(function() { btn.textContent = '📋 Copiar recibo para WhatsApp'; }, 2000);
+    });
+  });
+
+  document.getElementById('btn-volver-tienda').addEventListener('click', function() { renderTienda(); });
+}
+
+function generarTextoRecibo(items, saldoInicial, saldoFinal, total) {
+  var lineas = [];
+  lineas.push('🏴󠁧󠁢󠁷󠁬󠁳󠁿🎴 República de Estiria LATAM 🎴');
+  lineas.push('');
+  lineas.push('✒️ Boleta de compra/pago ✒️');
+  lineas.push('');
+  lineas.push('-Extracto Bancario de ' + currentUser.username + '-');
+  lineas.push('');
+  lineas.push('💷 Saldo inicial: £' + saldoInicial.toLocaleString('es-CO') + ' 💷');
+  lineas.push('');
+  lineas.push('• Lo que se compra:');
+
+  items.forEach(function(item) {
+    if (item.categoria === 'viajes') {
+      lineas.push(item.emoji + ' ' + item.nombre);
+    } else {
+      lineas.push(item.emoji + ' ' + item.cantidad + 'x ' + item.nombre + ' — £' + (item.precio * item.cantidad).toLocaleString('es-CO'));
+    }
+  });
+
+  lineas.push('');
+  lineas.push('- £' + total.toLocaleString('es-CO') + ' (total gastado)');
+  lineas.push('');
+  lineas.push('💷 Saldo final: £' + saldoFinal.toLocaleString('es-CO') + ' 💷');
+
+  return lineas.join('\n');
+}
+
 function actualizarPreviewTerreno() {
   var tamanoSelect = document.getElementById('terreno-tamano');
   var precio = parseInt(tamanoSelect.value);
