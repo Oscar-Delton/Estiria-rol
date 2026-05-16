@@ -180,7 +180,7 @@ function renderTienda() {
     '</div>' +
     '<div class="tienda-naciones">' +
       '<button class="tienda-nacion-btn" id="tn-estiria"><span>🏛️</span><span>Estiria</span></button>' +
-      '<button class="tienda-nacion-btn proximamente-btn"><span>🕌</span><span>Irkustuk</span><span class="prox-tag">Próx.</span></button>' +
+      '<button class="tienda-nacion-btn proximamente-btn"><span>🕌</span><span>Irkustk</span><span class="prox-tag">Próx.</span></button>' +
       '<button class="tienda-nacion-btn proximamente-btn"><span>🏦</span><span>Gresit</span><span class="prox-tag">Próx.</span></button>' +
       '<button class="tienda-nacion-btn proximamente-btn"><span>🌙</span><span>Odrekao</span><span class="prox-tag">Próx.</span></button>' +
     '</div>' +
@@ -446,29 +446,29 @@ function renderViajes() {
     ciudadesEstiria.forEach(function(d) {
       if (c !== d) precios[c][d] = 150;
     });
-    precios[c]['Irkustuk'] = 250;
+    precios[c]['Irkustk'] = 250;
     precios[c]['Gresit'] = 350;
     precios[c]['Odrekao'] = 940;
   });
 
-  precios['Irkustuk'] = {};
+  precios['Irkustk'] = {};
   precios['Gresit'] = {};
   precios['Odrekao'] = {};
 
   ciudadesEstiria.forEach(function(c) {
-    precios['Irkustuk'][c] = 250;
+    precios['Irkustk'][c] = 250;
     precios['Gresit'][c] = 350;
     precios['Odrekao'][c] = 940;
   });
 
-  precios['Irkustuk']['Gresit'] = 420;
-  precios['Irkustuk']['Odrekao'] = 940;
-  precios['Gresit']['Irkustuk'] = 420;
+  precios['Irkustk']['Gresit'] = 420;
+  precios['Irkustk']['Odrekao'] = 940;
+  precios['Gresit']['Irkustk'] = 420;
   precios['Gresit']['Odrekao'] = 940;
-  precios['Odrekao']['Irkustuk'] = 940;
+  precios['Odrekao']['Irkustk'] = 940;
   precios['Odrekao']['Gresit'] = 940;
 
-  var todasLasNaciones = ciudadesEstiria.concat(['Irkustuk', 'Gresit', 'Odrekao']);
+  var todasLasNaciones = ciudadesEstiria.concat(['Irkustk', 'Gresit', 'Odrekao']);
 
   panel.innerHTML =
     '<div class="tienda-seccion-header">' +
@@ -972,7 +972,7 @@ function mostrarSumarRestar(tipo) {
 
 function renderPerfil() {
   var esRegidor = currentUser && currentUser.rol === 'regidor';
-  var ciudades = ['Ryazan', 'Ryla', 'Kemerov', 'Navarra', 'Gresit', 'Odrekao', 'Irkustuk'];
+  var ciudades = ['Ryazan', 'Ryla', 'Kemerov', 'Navarra', 'Gresit', 'Odrekao', 'Irkustk'];
   var foto = currentUser && currentUser.fotoPerfil ? currentUser.fotoPerfil : '';
 
   mainContent.innerHTML =
