@@ -314,6 +314,8 @@ function renderProductos(categoria, subcategoria) {
     if (categoria === 'comida') renderSubcategoriasComida();
     else if (categoria === 'construcciones') renderSubcategoriasConst();
     else if (categoria === 'armas') renderSubcategoriasArmas();
+    else if (categoria === 'gresit') renderSubcategoriasComidaGresit();
+    else if (categoria === 'irkustk') renderSubcategoriasComidaIrkustk();
   });
 
   panel.querySelectorAll('.btn-cantidad').forEach(function(btn) {
