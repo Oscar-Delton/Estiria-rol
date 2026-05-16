@@ -180,7 +180,7 @@ function renderTienda() {
     '</div>' +
     '<div class="tienda-naciones">' +
       '<button class="tienda-nacion-btn" id="tn-estiria"><span>🏛️</span><span>Estiria</span></button>' +
-      '<button class="tienda-nacion-btn proximamente-btn"><span>🕌</span><span>Irkustk</span><span class="prox-tag">Próx.</span></button>' +
+      '<button class="tienda-nacion-btn" id="tn-irkustk"><span>🕌</span><span>Irkustk</span></button>' +
       '<button class="tienda-nacion-btn" id="tn-gresit"><span>🏦</span><span>Gresit</span></button>'+
       '<button class="tienda-nacion-btn proximamente-btn"><span>🌙</span><span>Odrekao</span><span class="prox-tag">Próx.</span></button>' +
     '</div>' +
@@ -192,6 +192,7 @@ function renderTienda() {
 
   document.getElementById('tn-estiria').addEventListener('click', function() { renderCategoriasEstiria(); });
   document.getElementById('tn-gresit').addEventListener('click', function() { renderCategoriasGresit(); });
+  document.getElementById('tn-irkustk').addEventListener('click', function() { renderCategoriasIrkustk(); });
   document.getElementById('btn-viajes').addEventListener('click', function() { renderViajes(); });
 }
 
@@ -614,6 +615,191 @@ function renderConstruccionesGresit() {
   document.getElementById('back-gresit-const').addEventListener('click', function() { renderCategoriasGresit(); });
   panel.querySelectorAll('.categoria-btn[data-sub]').forEach(function(btn) {
     btn.addEventListener('click', function() { renderProductos('gresit', btn.dataset.sub); });
+  });
+}
+
+function renderCategoriasIrkustk() {
+  var panel = document.getElementById('tienda-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-naciones-irkustk">← Naciones</button>' +
+      '<h3>🕌 Irkustk</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" id="cat-irkustk-comida"><span>🍽️</span><span>Comida</span></button>' +
+      '<button class="categoria-btn" id="cat-irkustk-terrenos"><span>🏜️</span><span>Terrenos</span></button>' +
+      '<button class="categoria-btn" id="cat-irkustk-construcciones"><span>🏠</span><span>Construcciones</span></button>' +
+      '<button class="categoria-btn" id="cat-irkustk-armas"><span>⚔️</span><span>Mat. Armas</span></button>' +
+    '</div>';
+
+  document.getElementById('back-naciones-irkustk').addEventListener('click', function() {
+    document.getElementById('tienda-panel').innerHTML = '';
+  });
+  document.getElementById('cat-irkustk-comida').addEventListener('click', function() { renderSubcategoriasComidaIrkustk(); });
+  document.getElementById('cat-irkustk-terrenos').addEventListener('click', function() { renderTerrenosIrkustk(); });
+  document.getElementById('cat-irkustk-construcciones').addEventListener('click', function() { renderConstruccionesIrkustk(); });
+  document.getElementById('cat-irkustk-armas').addEventListener('click', function() { renderSubcategoriasArmasIrkustk(); });
+}
+
+function renderSubcategoriasComidaIrkustk() {
+  var panel = document.getElementById('tienda-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-irkustk-comida">← Irkustk</button>' +
+      '<h3>🍽️ Comida — Irkustk</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" data-sub="g_carnes"><span>🥩</span><span>Carnes</span></button>' +
+      '<button class="categoria-btn" data-sub="g_verduras"><span>🥬</span><span>Verduras</span></button>' +
+      '<button class="categoria-btn" data-sub="g_frutas"><span>🍎</span><span>Frutas</span></button>' +
+      '<button class="categoria-btn" data-sub="g_lacteos"><span>🥛</span><span>Lácteos</span></button>' +
+      '<button class="categoria-btn" data-sub="g_panaderia"><span>🍞</span><span>Panadería</span></button>' +
+      '<button class="categoria-btn" data-sub="g_postres"><span>🍰</span><span>Postres</span></button>' +
+      '<button class="categoria-btn" data-sub="g_preparados"><span>🍔</span><span>Preparados</span></button>' +
+      '<button class="categoria-btn" data-sub="g_condimentos"><span>🧂</span><span>Condimentos</span></button>' +
+      '<button class="categoria-btn" data-sub="g_preelaborados"><span>🛍️</span><span>Preelaborados</span></button>' +
+      '<button class="categoria-btn" data-sub="g_bebidas"><span>🧃</span><span>Bebidas</span></button>' +
+    '</div>';
+
+  document.getElementById('back-irkustk-comida').addEventListener('click', function() { renderCategoriasIrkustk(); });
+  panel.querySelectorAll('.categoria-btn[data-sub]').forEach(function(btn) {
+    btn.addEventListener('click', function() { renderProductos('gresit', btn.dataset.sub); });
+  });
+}
+
+function renderSubcategoriasArmasIrkustk() {
+  var panel = document.getElementById('tienda-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-irkustk-armas">← Irkustk</button>' +
+      '<h3>⚔️ Materiales para Armas — Irkustk</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" data-sub="metales_armas"><span>🔩</span><span>Metales</span></button>' +
+      '<button class="categoria-btn" data-sub="preciosos"><span>💎</span><span>Preciosos</span></button>' +
+    '</div>';
+
+  document.getElementById('back-irkustk-armas').addEventListener('click', function() { renderCategoriasIrkustk(); });
+  panel.querySelectorAll('.categoria-btn[data-sub]').forEach(function(btn) {
+    btn.addEventListener('click', function() { renderProductos('armas', btn.dataset.sub); });
+  });
+}
+
+function renderTerrenosIrkustk() {
+  var panel = document.getElementById('tienda-panel');
+  var zonas = {
+    'Pequeños (Oasis Obama, Saddan Hussein, The Hall, Lawrence, Rustem, Almagro, Bagdad, Saladino, Tortuga, Ruta de las Arenas)': [
+      { m2: '90', precio: 2000 },
+      { m2: '125', precio: 3800 },
+      { m2: '160', precio: 4200 },
+      { m2: '180', precio: 5000 },
+      { m2: '200', precio: 6000 }
+    ],
+    'Medianos (Oasis Obama, Saddan Hussein, Lawrence, Rustem, Almagro, Bagdad, Saladino, Tortuga, Ruta de las Arenas)': [
+      { m2: '450', precio: 10000 },
+      { m2: '500', precio: 11800 },
+      { m2: '630', precio: 13500 },
+      { m2: '800', precio: 16000 },
+      { m2: '1.000', precio: 20000 }
+    ],
+    'Grandes (Oasis Obama, Almagro, Bagdad, Saladino, Tortuga, Ruta de las Arenas, Territorios no explorados)': [
+      { m2: '1.500', precio: 25000 },
+      { m2: '3.000', precio: 45000 },
+      { m2: '4.800', precio: 57000 },
+      { m2: '10.000', precio: 100000 },
+      { m2: '15.000', precio: 150000 }
+    ]
+  };
+
+  var zonasKeys = Object.keys(zonas);
+
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-irkustk-terrenos">← Irkustk</button>' +
+      '<h3>🏜️ Terrenos — Irkustk</h3>' +
+    '</div>' +
+    '<p style="color:var(--text-secondary);font-size:0.82rem;margin-bottom:0.75rem">Selecciona zona, tamaño y cantidad.</p>' +
+    '<label class="form-label">Zona</label>' +
+    '<select id="irkustk-terreno-zona" class="tienda-select">' +
+      '<option value="">Selecciona zona...</option>' +
+      zonasKeys.map(function(z) { return '<option value="' + z + '">' + z + '</option>'; }).join('') +
+    '</select>' +
+    '<label class="form-label" style="margin-top:0.75rem">Tamaño</label>' +
+    '<select id="irkustk-terreno-tamano" class="tienda-select">' +
+      '<option value="">Selecciona zona primero...</option>' +
+    '</select>' +
+    '<label class="form-label" style="margin-top:0.75rem">Cantidad</label>' +
+    '<div class="producto-cantidad" style="justify-content:flex-start;gap:1rem">' +
+      '<button class="btn-cantidad" id="irkustk-terreno-minus">−</button>' +
+      '<span class="cantidad-valor" id="irkustk-terreno-qty">1</span>' +
+      '<button class="btn-cantidad" id="irkustk-terreno-plus">+</button>' +
+    '</div>' +
+    '<div id="irkustk-terreno-preview" style="margin-top:0.75rem;color:var(--accent);font-weight:700;font-size:1rem"></div>' +
+    '<button class="btn btn-primary btn-full" id="btn-agregar-irkustk-terreno" style="margin-top:0.75rem">Añadir al carrito</button>' +
+    '<div id="irkustk-terreno-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>';
+
+  document.getElementById('back-irkustk-terrenos').addEventListener('click', function() { renderCategoriasIrkustk(); });
+
+  document.getElementById('irkustk-terreno-zona').addEventListener('change', function() {
+    var zona = this.value;
+    var tamSelect = document.getElementById('irkustk-terreno-tamano');
+    if (!zona) { tamSelect.innerHTML = '<option value="">Selecciona zona primero...</option>'; return; }
+    tamSelect.innerHTML = '<option value="">Selecciona tamaño...</option>' +
+      zonas[zona].map(function(t) {
+        return '<option value="' + t.precio + '" data-m2="' + t.m2 + '">' + t.m2 + ' m² — £' + t.precio.toLocaleString('es-CO') + '</option>';
+      }).join('');
+    actualizarPreviewIrkustkTerreno();
+  });
+
+  document.getElementById('irkustk-terreno-tamano').addEventListener('change', function() { actualizarPreviewIrkustkTerreno(); });
+
+  document.getElementById('irkustk-terreno-minus').addEventListener('click', function() {
+    var el = document.getElementById('irkustk-terreno-qty');
+    if (parseInt(el.textContent) > 1) { el.textContent = parseInt(el.textContent) - 1; actualizarPreviewIrkustkTerreno(); }
+  });
+  document.getElementById('irkustk-terreno-plus').addEventListener('click', function() {
+    var el = document.getElementById('irkustk-terreno-qty');
+    el.textContent = parseInt(el.textContent) + 1; actualizarPreviewIrkustkTerreno();
+  });
+
+  document.getElementById('btn-agregar-irkustk-terreno').addEventListener('click', function() {
+    var zona = document.getElementById('irkustk-terreno-zona').value;
+    var tamSelect = document.getElementById('irkustk-terreno-tamano');
+    var precio = parseInt(tamSelect.value);
+    var m2 = tamSelect.options[tamSelect.selectedIndex].dataset.m2;
+    var qty = parseInt(document.getElementById('irkustk-terreno-qty').textContent);
+    var msg = document.getElementById('irkustk-terreno-msg');
+    if (!zona || !precio) { msg.textContent = 'Completa todos los campos'; msg.style.color = 'var(--danger)'; return; }
+    carrito.push({ nombre: 'Terreno ' + m2 + 'm² — ' + zona + ' (Irkustk)', emoji: '🏜️', precio: precio, cantidad: qty, categoria: 'terrenos', unidad: '' });
+    actualizarCarritoFlotante();
+    msg.textContent = '✓ Añadido al carrito'; msg.style.color = 'var(--success)';
+    setTimeout(function() { msg.textContent = ''; }, 1500);
+  });
+}
+
+function actualizarPreviewIrkustkTerreno() {
+  var tamSelect = document.getElementById('irkustk-terreno-tamano');
+  var precio = parseInt(tamSelect.value);
+  var qty = parseInt(document.getElementById('irkustk-terreno-qty').textContent);
+  var preview = document.getElementById('irkustk-terreno-preview');
+  if (precio && qty) preview.textContent = 'Total: £' + (precio * qty).toLocaleString('es-CO');
+  else preview.textContent = '';
+}
+
+function renderConstruccionesIrkustk() {
+  var panel = document.getElementById('tienda-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-irkustk-const">← Irkustk</button>' +
+      '<h3>🏠 Construcciones — Irkustk</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" data-sub="irkustk_casas"><span>🏠</span><span>Propiedades</span></button>' +
+    '</div>';
+
+  document.getElementById('back-irkustk-const').addEventListener('click', function() { renderCategoriasIrkustk(); });
+  panel.querySelectorAll('.categoria-btn[data-sub]').forEach(function(btn) {
+    btn.addEventListener('click', function() { renderProductos('irkustk', btn.dataset.sub); });
   });
 }
 
@@ -1576,6 +1762,20 @@ function getCatalogo(categoria, subcategoria) {
       { emoji: '🏰', nombre: 'Castillo menor', precio: 1200000 }
     ]
   };
+
+var catalogosIrkustk = {
+    irkustk_casas: [
+      { emoji: '🏠', nombre: 'Construcción Irkustk 1', precio: 0 },
+      { emoji: '🏠', nombre: 'Construcción Irkustk 2', precio: 0 },
+      { emoji: '🏠', nombre: 'Construcción Irkustk 3', precio: 0 },
+      { emoji: '🏠', nombre: 'Construcción Irkustk 4', precio: 0 },
+      { emoji: '🏠', nombre: 'Construcción Irkustk 5', precio: 0 }
+    ]
+  };
+
+  if (categoria === 'irkustk' && catalogosIrkustk[subcategoria]) {
+    return catalogosIrkustk[subcategoria];
+  }
 
   if (categoria === 'gresit' && catalogosGresit[subcategoria]) {
     return catalogosGresit[subcategoria];
