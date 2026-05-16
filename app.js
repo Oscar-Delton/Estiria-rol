@@ -438,13 +438,27 @@ function actualizarPreviewTerreno() {
 
 function renderViajes() {
   var panel = document.getElementById('tienda-panel');
-  var precios = {
-    'Estiria': { 'Estiria': 150, 'Irkustuk': 250, 'Gresit': 350, 'Odrekao': 940 },
-    'Irkustuk': { 'Estiria': 250, 'Gresit': 420, 'Odrekao': 940 },
-    'Gresit': { 'Estiria': 350, 'Irkustuk': 420, 'Odrekao': 940 },
-    'Odrekao': { 'Estiria': 940, 'Irkustuk': 940, 'Gresit': 940 }
+  var ciudadesEstiria = ['Ryazan (Estiria)', 'Ryla (Estiria)', 'Kemerov (Estiria)', 'Navarra (Estiria)'];
+var precios = {};
+ciudadesEstiria.forEach(function(c) {
+  precios[c] = {};
+  ciudadesEstiria.forEach(function(d) { if (c !== d) precios[c][d] = 150; });
+  precios[c]['Irkustuk'] = 250;
+  precios[c]['Gresit'] = 350;
+  precios[c]['Odrekao'] = 940;
+});
+precios['Irkustuk'] = { 'Gresit': 420, 'Odrekao': 940 };
+precios['Gresit'] = { 'Irkustuk': 420, 'Odrekao': 940 };
+precios['Odrekao'] = {};
+ciudadesEstiria.forEach(function(c) {
+  precios['Irkustuk'][c] = 250;
+  precios['Gresit'][c] = 350;
+  precios['Odrekao'][c] = 940;
+});
+precios['Odrekao']['Irkustuk'] = 940;
+precios['Odrekao']['Gresit'] = 940;
   };
-  var naciones = ['Estiria', 'Irkustuk', 'Gresit', 'Odrekao'];
+  var naciones = ['Ryazan (Estiria)', 'Ryla (Estiria)', 'Kemerov (Estiria)', 'Navarra (Estiria)', 'Irkustuk', 'Gresit', 'Odrekao'];
 
   panel.innerHTML =
     '<div class="tienda-seccion-header">' +
