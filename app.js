@@ -319,6 +319,15 @@ function mostrarFormNuevaSubcat(categoria, esSuperior) {
       document.getElementById('nueva-subcat-img').value = '';
       btn.disabled = false; btn.textContent = 'Guardar subcategoría';
 
+      setTimeout(function() {
+        var userRol = (currentUser && currentUser.rol) ? currentUser.rol.toLowerCase() : '';
+        var esBibliotecario = userRol === 'dev' || userRol === 'lider_suprema' || userRol === 'bibliotecario';
+        var esSuperior = userRol === 'dev' || userRol === 'lider_suprema';
+
+        form.innerHTML = '';
+        renderBibliotecaCategoria(categoria, esBibliotecario, esSuperior);
+      }, 1500);
+
     } catch (error) {
       console.error("Error en Firestore:", error);
       msg.textContent = 'Error: ' + error.message;
