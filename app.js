@@ -277,7 +277,6 @@ function mostrarFormNuevaSubcat(categoria, esSuperior) {
       '<div id="subcat-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
     '</div>';
 
-  // Estilos inline para inputs dentro del form
   form.querySelectorAll('input, textarea').forEach(function(el) {
     el.style.cssText = 'width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block';
   });
@@ -290,27 +289,41 @@ function mostrarFormNuevaSubcat(categoria, esSuperior) {
     if (!titulo) { msg.textContent = 'El título es obligatorio'; msg.style.color = 'var(--danger)'; return; }
     if (!desc) { msg.textContent = 'La descripción es obligatoria'; msg.style.color = 'var(--danger)'; return; }
 
-    // Verificar nombre duplicado
-    var existSnap = await getDocs(query(collection(db, 'biblioteca_subcats'), where('categoria', '==', categoria), where('titulo', '==', titulo)));
-    if (!existSnap.empty) { msg.textContent = 'Ya existe una subcategoría con ese nombre'; msg.style.color = 'var(--danger)'; return; }
-
     var btn = document.getElementById('btn-guardar-subcat');
     btn.disabled = true; btn.textContent = 'Guardando...';
 
-    await addDoc(collection(db, 'biblioteca_subcats'), {
-      categoria: categoria,
-      titulo: titulo,
-      descripcion: desc,
-      imagen: img || '',
-      creadoEn: new Date().toISOString(),
-      creadoPor: currentUser.username
-    });
+    try {
+      var existSnap = await getDocs(query(collection(db, 'biblioteca_subcats'), where('categoria', '==', categoria), where('titulo', '==', titulo)));
+      if (!existSnap.empty) { 
+        msg.textContent = 'Ya existe una subcategoría con ese nombre'; 
+        msg.style.color = 'var(--danger)'; 
+        btn.disabled = false; 
+        btn.textContent = 'Guardar subcategoría'; 
+        return; 
+      }
 
-    msg.textContent = '✓ Subcategoría creada'; msg.style.color = 'var(--success)';
-    document.getElementById('nueva-subcat-titulo').value = '';
-    document.getElementById('nueva-subcat-desc').value = '';
-    document.getElementById('nueva-subcat-img').value = '';
-    btn.disabled = false; btn.textContent = 'Guardar subcategoría';
+      await addDoc(collection(db, 'biblioteca_subcats'), {
+        categoria: categoria,
+        titulo: titulo,
+        descripcion: desc,
+        imagen: img || '',
+        creadoEn: new Date().toISOString(),
+        creadoPor: currentUser.username
+      });
+
+      msg.textContent = '✓ Subcategoría creada'; msg.style.color = 'var(--success)';
+      document.getElementById('nueva-subcat-titulo').value = '';
+      document.getElementById('nueva-subcat-desc').value = '';
+      document.getElementById('nueva-subcat-img').value = '';
+      btn.disabled = false; btn.textContent = 'Guardar subcategoría';
+
+    } catch (error) {
+      console.error("Error en Firestore:", error);
+      msg.textContent = 'Error: ' + error.message;
+      msg.style.color = 'var(--danger)';
+      btn.disabled = false; 
+      btn.textContent = 'Guardar subcategoría';
+    }
   });
 }
 
