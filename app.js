@@ -168,7 +168,6 @@ function setNav(section) {
 function renderBiblioteca() {
   var esBibliotecario = currentUser && (currentUser.rol === 'dev' || currentUser.rol === 'lider_suprema' || currentUser.rol === 'bibliotecario');
   var esSuperior = currentUser && (currentUser.rol === 'dev' || currentUser.rol === 'lider_suprema');
-  var categorias = ['Historia', 'Bestiarios', 'Divulgación Científica', 'Leyes'];
 
   mainContent.innerHTML =
     '<div class="card biblioteca-header">' +
@@ -180,10 +179,6 @@ function renderBiblioteca() {
       '<button class="categoria-btn" data-cat="Bestiarios"><span>🐉</span><span>Bestiarios</span></button>' +
       '<button class="categoria-btn" data-cat="Divulgación Científica"><span>🔬</span><span>Divulgación Científica</span></button>' +
       '<button class="categoria-btn" data-cat="Leyes"><span>⚖️</span><span>Leyes</span></button>' +
-    '</div>' +
-    '<div class="categorias-grid" style="margin-top:0">' +
-      '<button class="categoria-btn" data-cat="PDFs"><span>📄</span><span>Archivos PDF</span></button>' +
-      '<button class="categoria-btn" data-cat="Libros"><span>📖</span><span>Libros Escritos</span></button>' +
     '</div>' +
     '<div id="biblioteca-panel"></div>';
 
@@ -198,8 +193,7 @@ function renderBibliotecaCategoria(categoria, esBibliotecario, esSuperior) {
   var panel = document.getElementById('biblioteca-panel');
   var iconos = {
     'Historia': '📜', 'Bestiarios': '🐉',
-    'Divulgación Científica': '🔬', 'Leyes': '⚖️',
-    'PDFs': '📄', 'Libros': '📖'
+    'Divulgación Científica': '🔬', 'Leyes': '⚖️'
   };
 
   panel.innerHTML =
@@ -208,14 +202,8 @@ function renderBibliotecaCategoria(categoria, esBibliotecario, esSuperior) {
       '<h3>' + (iconos[categoria] || '📚') + ' ' + categoria + '</h3>' +
     '</div>' +
     '<div id="subcats-lista"><p style="color:var(--text-secondary);font-size:0.85rem;text-align:center;padding:1rem">Cargando...</p></div>' +
-    (esBibliotecario && categoria !== 'PDFs' && categoria !== 'Libros'
+    (esBibliotecario
       ? '<button class="btn btn-secondary btn-full" id="btn-nueva-subcat" style="margin-top:0.75rem">+ Nueva subcategoría</button>'
-      : '') +
-    (categoria === 'PDFs' && esBibliotecario
-      ? '<button class="btn btn-primary btn-full" id="btn-subir-pdf" style="margin-top:0.75rem">+ Subir PDF</button>'
-      : '') +
-    (categoria === 'Libros' && esBibliotecario
-      ? '<button class="btn btn-primary btn-full" id="btn-nuevo-libro" style="margin-top:0.75rem">+ Escribir libro</button>'
       : '') +
     '<div id="biblioteca-form"></div>';
 
@@ -223,33 +211,14 @@ function renderBibliotecaCategoria(categoria, esBibliotecario, esSuperior) {
     panel.innerHTML = '';
   });
 
-  // Cargar contenido según categoría
-  if (categoria === 'PDFs') {
-    cargarPDFs(esBibliotecario, esSuperior);
-  } else if (categoria === 'Libros') {
-    cargarLibros(esBibliotecario, esSuperior);
-  } else {
-    cargarSubcategorias(categoria, esBibliotecario, esSuperior);
-  }
+  // Ahora siempre carga subcategorías normales
+  cargarSubcategorias(categoria, esBibliotecario, esSuperior);
 
-  // Botón nueva subcategoría
   var btnNueva = document.getElementById('btn-nueva-subcat');
   if (btnNueva) {
     btnNueva.addEventListener('click', function() {
       mostrarFormNuevaSubcat(categoria, esSuperior);
     });
-  }
-
-  // Botón subir PDF
-  var btnPDF = document.getElementById('btn-subir-pdf');
-  if (btnPDF) {
-    btnPDF.addEventListener('click', function() { mostrarFormSubirPDF(); });
-  }
-
-  // Botón nuevo libro
-  var btnLibro = document.getElementById('btn-nuevo-libro');
-  if (btnLibro) {
-    btnLibro.addEventListener('click', function() { mostrarEditorLibro(null, null); });
   }
 }
 
@@ -354,7 +323,10 @@ function renderContenidoSubcat(subcatId, subcatTitulo, categoria, esBibliotecari
     '</div>' +
     '<div id="docs-lista"><p style="color:var(--text-secondary);font-size:0.85rem;text-align:center;padding:1rem">Cargando...</p></div>' +
     (esBibliotecario
-      ? '<button class="btn btn-primary btn-full" id="btn-subir-doc" style="margin-top:0.75rem">+ Subir documento</button>'
+      ? '<div class="categorias-grid" style="margin-top:0.75rem; grid-template-columns: 1fr 1fr; gap: 0.5rem;">' +
+          '<button class="btn btn-primary" id="btn-subir-pdf-doc" style="font-size:0.85rem; padding:0.6rem 0.5rem;">📄 Enlazar PDF</button>' +
+          '<button class="btn btn-primary" id="btn-escribir-libro-doc" style="font-size:0.85rem; padding:0.6rem 0.5rem;">📖 Escribir Libro</button>' +
+        '</div>'
       : '') +
     '<div id="doc-form"></div>';
 
@@ -364,10 +336,16 @@ function renderContenidoSubcat(subcatId, subcatTitulo, categoria, esBibliotecari
 
   cargarDocumentosSubcat(subcatId, esBibliotecario, esSuperior);
 
-  var btnSubir = document.getElementById('btn-subir-doc');
-  if (btnSubir) {
-    btnSubir.addEventListener('click', function() {
+  if (esBibliotecario) {
+    // Opción 1: Enlazar un PDF de Drive a esta subcategoría
+    document.getElementById('btn-subir-pdf-doc').addEventListener('click', function() {
       mostrarFormSubirDocumento(subcatId, subcatTitulo, categoria, esBibliotecario, esSuperior);
+    });
+
+    // Opción 2: Abrir el editor manual para redactar un libro en esta subcategoría
+    document.getElementById('btn-escribir-libro-doc').addEventListener('click', function() {
+      // Le pasamos el subcatId para saber a dónde pertenece el nuevo libro
+      mostrarEditorLibro(null, null, subcatId); 
     });
   }
 }
@@ -555,7 +533,7 @@ function cargarLibros(esBibliotecario, esSuperior) {
   );
 }
 
-function mostrarEditorLibro(docId, datosExistentes) {
+function mostrarEditorLibro(docId, datosExistentes, subcatId) {
   var panel = document.getElementById('biblioteca-panel');
   panel.innerHTML =
     '<div class="tienda-seccion-header" style="margin-top:1rem">' +
@@ -638,8 +616,13 @@ function mostrarEditorLibro(docId, datosExistentes) {
       await updateDoc(doc(db, 'biblioteca_docs', docId), { titulo: titulo, contenido: contenido, editadoEn: new Date().toISOString() });
     } else {
       await addDoc(collection(db, 'biblioteca_docs'), {
-        subcatId: 'libros_general', titulo: titulo, contenido: contenido, tipo: 'libro',
-        autor: currentUser.username, autorUid: currentUser.uid, creadoEn: new Date().toISOString()
+        subcatId: subcatId || 'general',
+        titulo: titulo, 
+        contenido: contenido, 
+        tipo: 'libro',
+        autor: currentUser.username, 
+        autorUid: currentUser.uid, 
+        creadoEn: new Date().toISOString()
       });
     }
     msg.textContent = '✓ ' + (docId ? 'Cambios guardados' : 'Libro publicado');
