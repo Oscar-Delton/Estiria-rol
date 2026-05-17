@@ -166,8 +166,10 @@ function setNav(section) {
 }
 
 function renderBiblioteca() {
-  var esBibliotecario = currentUser && (currentUser.rol === 'dev' || currentUser.rol === 'lider_suprema' || currentUser.rol === 'bibliotecario');
-  var esSuperior = currentUser && (currentUser.rol === 'dev' || currentUser.rol === 'lider_suprema');
+  var userRol = (currentUser && currentUser.rol) ? currentUser.rol.toLowerCase() : '';
+  
+  var esBibliotecario = userRol === 'dev' || userRol === 'lider_suprema' || userRol === 'bibliotecario';
+  var esSuperior = userRol === 'dev' || userRol === 'lider_suprema';
 
   mainContent.innerHTML =
     '<div class="card biblioteca-header">' +
