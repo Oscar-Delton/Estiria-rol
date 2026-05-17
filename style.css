@@ -1220,3 +1220,60 @@
 .editor-preview-wrap {
   margin-top: 0.5rem;
 }
+
+/* ===== PATRIMONIO ===== */
+.patrimonio-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-card);
+  border-radius: 12px;
+  margin-bottom: 0.5rem;
+}
+
+.patrimonio-img {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.patrimonio-info {
+  flex: 1;
+}
+
+.patrimonio-nombre {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.2rem;
+}
+
+.patrimonio-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.2rem;
+}
+
+.patrimonio-meta {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.patrimonio-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.btn-pat-editar, .btn-pat-borrar {
+  background: var(--bg-card);
+  border: none;
+  border-radius: 8px;
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}

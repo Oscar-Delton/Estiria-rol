@@ -1417,6 +1417,38 @@ function renderCarrito() {
       var itemsComprados = carrito.slice();
       carrito = [];
       actualizarCarritoFlotante();
+      // Registrar en patrimonio automáticamente
+var mapaCategorias = {
+  'lacteos': 'comida', 'varios': 'comida', 'preparados': 'comida',
+  'bebidas': 'comida', 'frutas': 'comida', 'panaderia': 'comida', 'postres': 'comida',
+  'g_carnes': 'comida', 'g_verduras': 'comida', 'g_frutas': 'comida',
+  'g_lacteos': 'comida', 'g_panaderia': 'comida', 'g_postres': 'comida',
+  'g_preparados': 'comida', 'g_condimentos': 'comida', 'g_preelaborados': 'comida', 'g_bebidas': 'comida',
+  'terrenos': 'terrenos',
+  'casas': 'casas',
+  'materiales': 'materiales_construccion',
+  'metales_armas': 'materiales_armas', 'preciosos': 'metales_preciosos',
+  'g_casas': 'casas', 'irkustk_casas': 'casas'
+};
+for (var pi = 0; pi < itemsComprados.length; pi++) {
+  var item = itemsComprados[pi];
+  var catPatrimonio = mapaCategorias[item.categoria];
+  if (catPatrimonio && item.categoria !== 'viajes') {
+    await addDoc(collection(db, 'patrimonio'), {
+      uid: currentUser.uid, username: currentUser.username,
+      categoria: catPatrimonio, nombre: item.nombre,
+      cantidad: item.cantidad, descripcion: 'Comprado en tienda',
+      precioCompra: item.precio, precioMercado: item.precio,
+      imagen: '', activo: true, creadoEn: new Date().toISOString(),
+      creadoPor: currentUser.username
+    });
+    await addDoc(collection(db, 'patrimonio_historial'), {
+      uid: currentUser.uid, username: currentUser.username,
+      tipo: 'añadido', itemNombre: item.nombre, categoria: catPatrimonio,
+      descripcion: 'Comprado en tienda de Estiria', fecha: new Date().toISOString()
+    });
+  }
+}
       renderRecibo(itemsComprados, saldoActual, saldoFinal, total);
 
     } catch (err) {
@@ -2316,7 +2348,377 @@ var catalogosIrkustk = {
 }
 
 function renderPatrimonio() {
-  mainContent.innerHTML = '<div class="card"><h3>💎 Patrimonio Total</h3><p>Proximamente...</p></div>';
+  var esAdmin = currentUser && (
+    currentUser.rol === 'dev' || currentUser.rol === 'DEV' ||
+    currentUser.rol === 'lider_suprema' || currentUser.rol === 'LIDER_SUPREMA' ||
+    currentUser.rol === 'ministra' || currentUser.rol === 'MINISTRA' ||
+    currentUser.rol === 'viceministra' || currentUser.rol === 'VICEMINISTRA'
+  );
+  var esRegidor = currentUser && (currentUser.rol === 'regidor' || currentUser.rol === 'REGIDOR');
+
+  var categorias = [
+    { key: 'armas', emoji: '⚔️', label: 'Armas' },
+    { key: 'vehiculos', emoji: '🚗', label: 'Vehículos' },
+    { key: 'casas', emoji: '🏠', label: 'Casas' },
+    { key: 'terrenos', emoji: '🏔️', label: 'Terrenos' },
+    { key: 'construcciones', emoji: '🏗️', label: 'Construcciones' },
+    { key: 'comida', emoji: '🍽️', label: 'Comida' },
+    { key: 'materiales_armas', emoji: '🔩', label: 'Materiales para armas' },
+    { key: 'materiales_construccion', emoji: '🧱', label: 'Materiales de construcción' },
+    { key: 'metales_preciosos', emoji: '💎', label: 'Metales preciosos/joyas' },
+    { key: 'artilugios', emoji: '🔮', label: 'Artilugios' },
+    { key: 'animales', emoji: '🐾', label: 'Animales' },
+    { key: 'esclavos', emoji: '⛓️', label: 'Esclavos' },
+    { key: 'otros', emoji: '📦', label: 'Otros' }
+  ];
+
+  mainContent.innerHTML =
+    '<div class="card"><h3>💎 Patrimonio de ' + currentUser.username + '</h3></div>' +
+    '<div class="categorias-grid">' +
+      categorias.map(function(c) {
+        return '<button class="categoria-btn" data-key="' + c.key + '"><span>' + c.emoji + '</span><span>' + c.label + '</span></button>';
+      }).join('') +
+    '</div>' +
+    '<button class="btn btn-secondary btn-full" id="btn-historial-patrimonio" style="margin-top:0.5rem">📋 Historial del inventario</button>' +
+    ((esAdmin || esRegidor) ? '<button class="btn btn-secondary btn-full" id="btn-panel-admin-patrimonio" style="margin-top:0.5rem;border-color:var(--accent);color:var(--accent)">🔍 ' + (esAdmin ? 'Panel Admin' : 'Ver patrimonio de usuario') + '</button>' : '') +
+    '<div id="patrimonio-panel"></div>';
+
+  mainContent.querySelectorAll('.categoria-btn[data-key]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      renderCategoriaPatrimonio(btn.dataset.key, categorias.find(function(c) { return c.key === btn.dataset.key; }), currentUser.uid, currentUser.username, esAdmin, false);
+    });
+  });
+
+  document.getElementById('btn-historial-patrimonio').addEventListener('click', function() {
+    renderHistorialPatrimonio(currentUser.uid, currentUser.username, esAdmin);
+  });
+
+  if (esAdmin || esRegidor) {
+    document.getElementById('btn-panel-admin-patrimonio').addEventListener('click', function() {
+      renderPanelAdminPatrimonio(esAdmin, esRegidor);
+    });
+  }
+}
+
+function renderCategoriaPatrimonio(categoriaKey, categoriaObj, uid, username, esAdmin, esModoAdmin) {
+  var panel = document.getElementById('patrimonio-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-patrimonio-cat">← Patrimonio</button>' +
+      '<h3>' + categoriaObj.emoji + ' ' + categoriaObj.label + (esModoAdmin ? ' — ' + username : '') + '</h3>' +
+    '</div>' +
+    '<div id="items-patrimonio"><p style="color:var(--text-secondary);font-size:0.85rem;text-align:center;padding:1rem">Cargando...</p></div>' +
+    (!esModoAdmin || esAdmin
+      ? '<button class="btn btn-primary btn-full" id="btn-agregar-item-patrimonio" style="margin-top:0.75rem">+ Añadir objeto</button>'
+      : '') +
+    '<div id="patrimonio-form"></div>';
+
+  document.getElementById('back-patrimonio-cat').addEventListener('click', function() {
+    panel.innerHTML = '';
+    if (esModoAdmin) renderPanelAdminPatrimonio(esAdmin, false);
+  });
+
+  cargarItemsPatrimonio(uid, username, categoriaKey, categoriaObj, esAdmin, esModoAdmin);
+
+  var btnAgregar = document.getElementById('btn-agregar-item-patrimonio');
+  if (btnAgregar) {
+    btnAgregar.addEventListener('click', function() {
+      mostrarFormAgregarItem(uid, username, categoriaKey, categoriaObj, esAdmin, esModoAdmin, null);
+    });
+  }
+}
+
+function cargarItemsPatrimonio(uid, username, categoriaKey, categoriaObj, esAdmin, esModoAdmin) {
+  var lista = document.getElementById('items-patrimonio');
+  onSnapshot(
+    query(collection(db, 'patrimonio'), where('uid', '==', uid), where('categoria', '==', categoriaKey), where('activo', '==', true), orderBy('creadoEn', 'desc')),
+    function(snap) {
+      if (!lista) return;
+      if (snap.empty) {
+        lista.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;text-align:center;padding:1rem">No hay objetos en esta categoría.</p>';
+        return;
+      }
+      lista.innerHTML = snap.docs.map(function(d) {
+        var item = d.data();
+        return '<div class="patrimonio-item">' +
+          (item.imagen ? '<img src="' + item.imagen + '" class="patrimonio-img" onerror="this.style.display=\'none\'" />' : '') +
+          '<div class="patrimonio-info">' +
+            '<p class="patrimonio-nombre">' + item.nombre + (item.cantidad > 1 ? ' ×' + item.cantidad : '') + '</p>' +
+            (item.descripcion ? '<p class="patrimonio-desc">' + item.descripcion + '</p>' : '') +
+            '<p class="patrimonio-meta">Compra: £' + (item.precioCompra || 0).toLocaleString('es-CO') + ' · Mercado: £' + (item.precioMercado || 0).toLocaleString('es-CO') + '</p>' +
+            '<p class="patrimonio-meta" style="font-size:0.72rem">' + new Date(item.creadoEn).toLocaleString('es-CO') + '</p>' +
+          '</div>' +
+          '<div class="patrimonio-acciones">' +
+            '<button class="btn-pat-editar" data-id="' + d.id + '">✏️</button>' +
+            '<button class="btn-pat-borrar" data-id="' + d.id + '">🗑️</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      lista.querySelectorAll('.btn-pat-editar').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          var snap2 = await getDoc(doc(db, 'patrimonio', btn.dataset.id));
+          if (snap2.exists()) mostrarFormAgregarItem(uid, username, categoriaKey, categoriaObj, esAdmin, esModoAdmin, { id: btn.dataset.id, ...snap2.data() });
+        });
+      });
+
+      lista.querySelectorAll('.btn-pat-borrar').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          mostrarFormBorrarItem(btn.dataset.id, uid, username, categoriaKey, categoriaObj, esAdmin, esModoAdmin);
+        });
+      });
+    }
+  );
+}
+
+function mostrarFormAgregarItem(uid, username, categoriaKey, categoriaObj, esAdmin, esModoAdmin, itemExistente) {
+  var form = document.getElementById('patrimonio-form');
+  var esEdicion = itemExistente !== null;
+  form.innerHTML =
+    '<div class="card" style="margin-top:1rem">' +
+      '<h3 style="margin-bottom:0.75rem">' + (esEdicion ? '✏️ Editar objeto' : '+ Añadir objeto') + (esModoAdmin ? ' — ' + username : '') + '</h3>' +
+      '<input type="text" id="pat-nombre" placeholder="Nombre del objeto" value="' + (esEdicion ? itemExistente.nombre : '') + '" />' +
+      '<input type="number" id="pat-cantidad" placeholder="Cantidad" value="' + (esEdicion ? itemExistente.cantidad : '1') + '" min="1" style="margin-top:0.5rem" />' +
+      '<textarea id="pat-desc" placeholder="Descripción (opcional)" style="margin-top:0.5rem;min-height:70px;resize:vertical">' + (esEdicion ? (itemExistente.descripcion || '') : '') + '</textarea>' +
+      '<input type="number" id="pat-precio-compra" placeholder="Precio de compra £" value="' + (esEdicion ? itemExistente.precioCompra : '') + '" min="0" style="margin-top:0.5rem" />' +
+      '<input type="number" id="pat-precio-mercado" placeholder="Precio de mercado £" value="' + (esEdicion ? itemExistente.precioMercado : '') + '" min="0" style="margin-top:0.5rem" />' +
+      '<input type="url" id="pat-imagen" placeholder="URL de imagen (opcional)" value="' + (esEdicion ? (itemExistente.imagen || '') : '') + '" style="margin-top:0.5rem" />' +
+      (esModoAdmin
+        ? '<input type="text" id="pat-motivo-admin" placeholder="Motivo del cambio (obligatorio)" style="margin-top:0.5rem" />'
+        : '') +
+      '<button class="btn btn-primary btn-full" id="btn-guardar-pat-item" style="margin-top:0.75rem">' + (esEdicion ? 'Guardar cambios' : 'Añadir al inventario') + '</button>' +
+      '<div id="pat-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+    '</div>';
+
+  form.querySelectorAll('input, textarea').forEach(function(el) {
+    el.style.cssText += ';width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block';
+  });
+
+  document.getElementById('btn-guardar-pat-item').addEventListener('click', async function() {
+    var nombre = document.getElementById('pat-nombre').value.trim();
+    var cantidad = parseInt(document.getElementById('pat-cantidad').value) || 1;
+    var desc = document.getElementById('pat-desc').value.trim();
+    var precioCompra = parseFloat(document.getElementById('pat-precio-compra').value) || 0;
+    var precioMercado = parseFloat(document.getElementById('pat-precio-mercado').value) || 0;
+    var imagen = document.getElementById('pat-imagen').value.trim();
+    var motivoAdmin = esModoAdmin ? (document.getElementById('pat-motivo-admin') ? document.getElementById('pat-motivo-admin').value.trim() : '') : '';
+    var msg = document.getElementById('pat-msg');
+
+    if (!nombre) { msg.textContent = 'El nombre es obligatorio'; msg.style.color = 'var(--danger)'; return; }
+    if (esModoAdmin && !motivoAdmin) { msg.textContent = 'El motivo es obligatorio'; msg.style.color = 'var(--danger)'; return; }
+
+    var btn = document.getElementById('btn-guardar-pat-item');
+    btn.disabled = true; btn.textContent = 'Guardando...';
+
+    var ahora = new Date().toISOString();
+    var descripcionHistorial = esModoAdmin
+      ? (esEdicion ? 'Editado por admin ' + currentUser.username + '. Motivo: ' + motivoAdmin : 'Añadido por admin ' + currentUser.username + '. Motivo: ' + motivoAdmin)
+      : (esEdicion ? 'Editado por el usuario' : 'Añadido manualmente');
+
+    try {
+      if (esEdicion) {
+        await updateDoc(doc(db, 'patrimonio', itemExistente.id), {
+          nombre: nombre, cantidad: cantidad, descripcion: desc,
+          precioCompra: precioCompra, precioMercado: precioMercado,
+          imagen: imagen, editadoEn: ahora
+        });
+        await addDoc(collection(db, 'patrimonio_historial'), {
+          uid: uid, username: username, tipo: 'editado',
+          itemNombre: nombre, categoria: categoriaKey,
+          descripcion: descripcionHistorial, fecha: ahora
+        });
+      } else {
+        await addDoc(collection(db, 'patrimonio'), {
+          uid: uid, username: username, categoria: categoriaKey,
+          nombre: nombre, cantidad: cantidad, descripcion: desc,
+          precioCompra: precioCompra, precioMercado: precioMercado,
+          imagen: imagen, activo: true, creadoEn: ahora,
+          creadoPor: currentUser.username
+        });
+        await addDoc(collection(db, 'patrimonio_historial'), {
+          uid: uid, username: username, tipo: 'añadido',
+          itemNombre: nombre, categoria: categoriaKey,
+          descripcion: descripcionHistorial, fecha: ahora
+        });
+      }
+      msg.textContent = '✓ ' + (esEdicion ? 'Cambios guardados' : 'Objeto añadido');
+      msg.style.color = 'var(--success)';
+      form.innerHTML = '';
+    } catch (err) {
+      msg.textContent = 'Error: ' + err.message;
+      msg.style.color = 'var(--danger)';
+      btn.disabled = false; btn.textContent = esEdicion ? 'Guardar cambios' : 'Añadir al inventario';
+    }
+  });
+}
+
+function mostrarFormBorrarItem(itemId, uid, username, categoriaKey, categoriaObj, esAdmin, esModoAdmin) {
+  var form = document.getElementById('patrimonio-form');
+  form.innerHTML =
+    '<div class="card" style="margin-top:1rem;border-color:var(--danger)">' +
+      '<h3 style="margin-bottom:0.75rem;color:var(--danger)">🗑️ Eliminar objeto</h3>' +
+      '<textarea id="pat-motivo-borrar" placeholder="Motivo de eliminación (obligatorio)" style="min-height:70px;resize:vertical"></textarea>' +
+      '<button class="btn btn-primary btn-full" id="btn-confirmar-borrar-pat" style="margin-top:0.75rem;background:var(--danger)">Confirmar eliminación</button>' +
+      '<button class="btn btn-secondary btn-full" id="btn-cancelar-borrar-pat" style="margin-top:0.5rem">Cancelar</button>' +
+      '<div id="pat-borrar-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+    '</div>';
+
+  form.querySelector('textarea').style.cssText = 'width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block';
+
+  document.getElementById('btn-cancelar-borrar-pat').addEventListener('click', function() { form.innerHTML = ''; });
+
+  document.getElementById('btn-confirmar-borrar-pat').addEventListener('click', async function() {
+    var motivo = document.getElementById('pat-motivo-borrar').value.trim();
+    var msg = document.getElementById('pat-borrar-msg');
+    if (!motivo) { msg.textContent = 'El motivo es obligatorio'; msg.style.color = 'var(--danger)'; return; }
+
+    var btn = document.getElementById('btn-confirmar-borrar-pat');
+    btn.disabled = true; btn.textContent = 'Eliminando...';
+
+    var snap2 = await getDoc(doc(db, 'patrimonio', itemId));
+    var itemData = snap2.data();
+    var ahora = new Date().toISOString();
+    var descripcionHistorial = esModoAdmin
+      ? 'Eliminado por admin ' + currentUser.username + '. Motivo: ' + motivo
+      : 'Eliminado. Motivo: ' + motivo;
+
+    await updateDoc(doc(db, 'patrimonio', itemId), { activo: false, eliminadoEn: ahora });
+    await addDoc(collection(db, 'patrimonio_historial'), {
+      uid: uid, username: username, tipo: 'eliminado',
+      itemNombre: itemData.nombre, categoria: categoriaKey,
+      descripcion: descripcionHistorial, fecha: ahora
+    });
+
+    form.innerHTML = '';
+  });
+}
+
+function renderHistorialPatrimonio(uid, username, esAdmin) {
+  var panel = document.getElementById('patrimonio-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-historial-pat">← Patrimonio</button>' +
+      '<h3>📋 Historial — ' + username + '</h3>' +
+    '</div>' +
+    '<div class="categorias-grid" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:0.75rem">' +
+      '<button class="btn-historial-tab active" data-tipo="añadido" style="padding:0.5rem;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:white;font-size:0.78rem;cursor:pointer">➕ Añadido</button>' +
+      '<button class="btn-historial-tab" data-tipo="editado" style="padding:0.5rem;border-radius:8px;border:1px solid var(--bg-card);background:var(--bg-secondary);color:var(--text-primary);font-size:0.78rem;cursor:pointer">✏️ Editado</button>' +
+      '<button class="btn-historial-tab" data-tipo="eliminado" style="padding:0.5rem;border-radius:8px;border:1px solid var(--bg-card);background:var(--bg-secondary);color:var(--text-primary);font-size:0.78rem;cursor:pointer">🗑️ Eliminado</button>' +
+    '</div>' +
+    '<div id="historial-lista"><p style="color:var(--text-secondary);font-size:0.85rem;text-align:center;padding:1rem">Cargando...</p></div>';
+
+  document.getElementById('back-historial-pat').addEventListener('click', function() { panel.innerHTML = ''; });
+
+  cargarHistorialPatrimonio(uid, 'añadido');
+
+  panel.querySelectorAll('.btn-historial-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      panel.querySelectorAll('.btn-historial-tab').forEach(function(t) {
+        t.style.background = 'var(--bg-secondary)';
+        t.style.borderColor = 'var(--bg-card)';
+        t.style.color = 'var(--text-primary)';
+      });
+      tab.style.background = 'var(--accent)';
+      tab.style.borderColor = 'var(--accent)';
+      tab.style.color = 'white';
+      cargarHistorialPatrimonio(uid, tab.dataset.tipo);
+    });
+  });
+}
+
+function cargarHistorialPatrimonio(uid, tipo) {
+  var lista = document.getElementById('historial-lista');
+  if (!lista) return;
+  lista.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;text-align:center;padding:1rem">Cargando...</p>';
+  onSnapshot(
+    query(collection(db, 'patrimonio_historial'), where('uid', '==', uid), where('tipo', '==', tipo), orderBy('fecha', 'desc')),
+    function(snap) {
+      if (!lista) return;
+      if (snap.empty) { lista.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;text-align:center;padding:1rem">Sin registros.</p>'; return; }
+      lista.innerHTML = snap.docs.map(function(d) {
+        var h = d.data();
+        return '<div class="movimiento-item">' +
+          '<div class="movimiento-info">' +
+            '<p class="movimiento-desc">' + h.itemNombre + ' — ' + h.categoria + '</p>' +
+            '<p class="movimiento-meta">' + h.descripcion + '</p>' +
+            '<p class="movimiento-meta">' + new Date(h.fecha).toLocaleString('es-CO') + '</p>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+  );
+}
+
+function renderPanelAdminPatrimonio(esAdmin, esRegidor) {
+  var panel = document.getElementById('patrimonio-panel');
+  var soloCiudad = esRegidor && !esAdmin;
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-admin-pat">← Patrimonio</button>' +
+      '<h3>' + (esAdmin ? '🔍 Panel Admin' : '🔍 Ver patrimonio') + '</h3>' +
+    '</div>' +
+    '<div style="position:relative">' +
+      '<input type="text" id="admin-pat-usuario" placeholder="Buscar usuario..." autocomplete="off" style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block" />' +
+      '<div id="admin-pat-lista" class="usuarios-lista"></div>' +
+    '</div>' +
+    '<button class="btn btn-primary btn-full" id="btn-buscar-pat-usuario" style="margin-top:0.5rem">Buscar</button>' +
+    '<div id="admin-pat-resultado"></div>';
+
+  document.getElementById('back-admin-pat').addEventListener('click', function() { panel.innerHTML = ''; });
+  crearBuscadorUsuarios('admin-pat-usuario', 'admin-pat-lista', null, soloCiudad);
+
+  document.getElementById('btn-buscar-pat-usuario').addEventListener('click', async function() {
+    var username = document.getElementById('admin-pat-usuario').value.trim().toLowerCase();
+    if (!username) return;
+    var usernameSnap = await getDoc(doc(db, 'usernames', username));
+    if (!usernameSnap.exists()) { document.getElementById('admin-pat-resultado').innerHTML = '<p style="color:var(--danger);margin-top:0.5rem">Usuario no encontrado</p>'; return; }
+    var uid = usernameSnap.data().uid;
+    var userSnap = await getDoc(doc(db, 'usuarios', uid));
+    var userData = userSnap.data();
+    if (soloCiudad && userData.ciudad !== currentUser.ciudad) {
+      document.getElementById('admin-pat-resultado').innerHTML = '<p style="color:var(--danger);margin-top:0.5rem">No tienes permiso para ver usuarios de otra ciudad</p>';
+      return;
+    }
+
+    var categorias = [
+      { key: 'armas', emoji: '⚔️', label: 'Armas' },
+      { key: 'vehiculos', emoji: '🚗', label: 'Vehículos' },
+      { key: 'casas', emoji: '🏠', label: 'Casas' },
+      { key: 'terrenos', emoji: '🏔️', label: 'Terrenos' },
+      { key: 'construcciones', emoji: '🏗️', label: 'Construcciones' },
+      { key: 'comida', emoji: '🍽️', label: 'Comida' },
+      { key: 'materiales_armas', emoji: '🔩', label: 'Materiales para armas' },
+      { key: 'materiales_construccion', emoji: '🧱', label: 'Materiales de construcción' },
+      { key: 'metales_preciosos', emoji: '💎', label: 'Metales preciosos/joyas' },
+      { key: 'artilugios', emoji: '🔮', label: 'Artilugios' },
+      { key: 'animales', emoji: '🐾', label: 'Animales' },
+      { key: 'esclavos', emoji: '⛓️', label: 'Esclavos' },
+      { key: 'otros', emoji: '📦', label: 'Otros' }
+    ];
+
+    document.getElementById('admin-pat-resultado').innerHTML =
+      '<div class="card" style="margin-top:1rem">' +
+        '<h3>' + userData.username + ' · ' + (userData.ciudad || 'Sin ciudad') + '</h3>' +
+        '<p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.75rem">Rol: ' + userData.rol + '</p>' +
+      '</div>' +
+      '<div class="categorias-grid">' +
+        categorias.map(function(c) {
+          return '<button class="categoria-btn btn-admin-pat-cat" data-key="' + c.key + '" data-uid="' + uid + '" data-username="' + userData.username + '"><span>' + c.emoji + '</span><span>' + c.label + '</span></button>';
+        }).join('') +
+      '</div>' +
+      '<button class="btn btn-secondary btn-full btn-admin-pat-historial" data-uid="' + uid + '" data-username="' + userData.username + '" style="margin-top:0.5rem">📋 Ver historial</button>';
+
+    document.querySelectorAll('.btn-admin-pat-cat').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var cat = categorias.find(function(c) { return c.key === btn.dataset.key; });
+        renderCategoriaPatrimonio(btn.dataset.key, cat, btn.dataset.uid, btn.dataset.username, esAdmin, true);
+      });
+    });
+
+    document.querySelector('.btn-admin-pat-historial').addEventListener('click', function() {
+      renderHistorialPatrimonio(this.dataset.uid, this.dataset.username, esAdmin);
+    });
+  });
 }
 
 function renderProximamente(seccion) {
