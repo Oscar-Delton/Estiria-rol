@@ -166,7 +166,521 @@ function setNav(section) {
 }
 
 function renderBiblioteca() {
-  mainContent.innerHTML = '<div class="card"><h3>Biblioteca</h3><p>Proximamente...</p></div>';
+  var esBibliotecario = currentUser && (currentUser.rol === 'dev' || currentUser.rol === 'lider_suprema' || currentUser.rol === 'bibliotecario');
+  var esSuperior = currentUser && (currentUser.rol === 'dev' || currentUser.rol === 'lider_suprema');
+  var categorias = ['Historia', 'Bestiarios', 'Divulgación Científica', 'Leyes'];
+
+  mainContent.innerHTML =
+    '<div class="card biblioteca-header">' +
+      '<h3>📚 Biblioteca de Estiria</h3>' +
+      '<p style="color:var(--text-secondary);font-size:0.85rem">Selecciona una categoría</p>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" data-cat="Historia"><span>📜</span><span>Historia</span></button>' +
+      '<button class="categoria-btn" data-cat="Bestiarios"><span>🐉</span><span>Bestiarios</span></button>' +
+      '<button class="categoria-btn" data-cat="Divulgación Científica"><span>🔬</span><span>Divulgación Científica</span></button>' +
+      '<button class="categoria-btn" data-cat="Leyes"><span>⚖️</span><span>Leyes</span></button>' +
+    '</div>' +
+    '<div class="categorias-grid" style="margin-top:0">' +
+      '<button class="categoria-btn" data-cat="PDFs"><span>📄</span><span>Archivos PDF</span></button>' +
+      '<button class="categoria-btn" data-cat="Libros"><span>📖</span><span>Libros Escritos</span></button>' +
+    '</div>' +
+    '<div id="biblioteca-panel"></div>';
+
+  mainContent.querySelectorAll('.categoria-btn[data-cat]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      renderBibliotecaCategoria(btn.dataset.cat, esBibliotecario, esSuperior);
+    });
+  });
+}
+
+function renderBibliotecaCategoria(categoria, esBibliotecario, esSuperior) {
+  var panel = document.getElementById('biblioteca-panel');
+  var iconos = {
+    'Historia': '📜', 'Bestiarios': '🐉',
+    'Divulgación Científica': '🔬', 'Leyes': '⚖️',
+    'PDFs': '📄', 'Libros': '📖'
+  };
+
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-biblioteca">← Biblioteca</button>' +
+      '<h3>' + (iconos[categoria] || '📚') + ' ' + categoria + '</h3>' +
+    '</div>' +
+    '<div id="subcats-lista"><p style="color:var(--text-secondary);font-size:0.85rem;text-align:center;padding:1rem">Cargando...</p></div>' +
+    (esBibliotecario && categoria !== 'PDFs' && categoria !== 'Libros'
+      ? '<button class="btn btn-secondary btn-full" id="btn-nueva-subcat" style="margin-top:0.75rem">+ Nueva subcategoría</button>'
+      : '') +
+    (categoria === 'PDFs' && esBibliotecario
+      ? '<button class="btn btn-primary btn-full" id="btn-subir-pdf" style="margin-top:0.75rem">+ Subir PDF</button>'
+      : '') +
+    (categoria === 'Libros' && esBibliotecario
+      ? '<button class="btn btn-primary btn-full" id="btn-nuevo-libro" style="margin-top:0.75rem">+ Escribir libro</button>'
+      : '') +
+    '<div id="biblioteca-form"></div>';
+
+  document.getElementById('back-biblioteca').addEventListener('click', function() {
+    panel.innerHTML = '';
+  });
+
+  // Cargar contenido según categoría
+  if (categoria === 'PDFs') {
+    cargarPDFs(esBibliotecario, esSuperior);
+  } else if (categoria === 'Libros') {
+    cargarLibros(esBibliotecario, esSuperior);
+  } else {
+    cargarSubcategorias(categoria, esBibliotecario, esSuperior);
+  }
+
+  // Botón nueva subcategoría
+  var btnNueva = document.getElementById('btn-nueva-subcat');
+  if (btnNueva) {
+    btnNueva.addEventListener('click', function() {
+      mostrarFormNuevaSubcat(categoria, esSuperior);
+    });
+  }
+
+  // Botón subir PDF
+  var btnPDF = document.getElementById('btn-subir-pdf');
+  if (btnPDF) {
+    btnPDF.addEventListener('click', function() { mostrarFormSubirPDF(); });
+  }
+
+  // Botón nuevo libro
+  var btnLibro = document.getElementById('btn-nuevo-libro');
+  if (btnLibro) {
+    btnLibro.addEventListener('click', function() { mostrarEditorLibro(null, null); });
+  }
+}
+
+function cargarSubcategorias(categoria, esBibliotecario, esSuperior) {
+  var lista = document.getElementById('subcats-lista');
+  onSnapshot(
+    query(collection(db, 'biblioteca_subcats'), where('categoria', '==', categoria), orderBy('creadoEn', 'asc')),
+    function(snap) {
+      if (!lista) return;
+      if (snap.empty) {
+        lista.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;text-align:center;padding:1rem">No hay subcategorías aún.</p>';
+        return;
+      }
+      lista.innerHTML = snap.docs.map(function(d) {
+        var s = d.data();
+        return '<div class="subcat-card" id="subcat-' + d.id + '">' +
+          (s.imagen ? '<img src="' + s.imagen + '" class="subcat-img" onerror="this.style.display=\'none\'" />' : '') +
+          '<div class="subcat-info">' +
+            '<p class="subcat-titulo">' + s.titulo + '</p>' +
+            '<p class="subcat-desc">' + s.descripcion + '</p>' +
+          '</div>' +
+          '<div class="subcat-acciones">' +
+            '<button class="btn-subcat-ver" data-id="' + d.id + '" data-titulo="' + s.titulo + '">Ver →</button>' +
+            (esSuperior ? '<button class="btn-subcat-borrar" data-id="' + d.id + '">🗑️</button>' : '') +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      lista.querySelectorAll('.btn-subcat-ver').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          renderContenidoSubcat(btn.dataset.id, btn.dataset.titulo, categoria, esBibliotecario, esSuperior);
+        });
+      });
+
+      if (esSuperior) {
+        lista.querySelectorAll('.btn-subcat-borrar').forEach(function(btn) {
+          btn.addEventListener('click', async function() {
+            if (!confirm('¿Borrar esta subcategoría y todo su contenido?')) return;
+            await deleteDoc(doc(db, 'biblioteca_subcats', btn.dataset.id));
+          });
+        });
+      }
+    }
+  );
+}
+
+function mostrarFormNuevaSubcat(categoria, esSuperior) {
+  var form = document.getElementById('biblioteca-form');
+  form.innerHTML =
+    '<div class="card" style="margin-top:1rem">' +
+      '<h3 style="margin-bottom:0.75rem">Nueva subcategoría</h3>' +
+      '<input type="text" id="nueva-subcat-titulo" placeholder="Título de la subcategoría" />' +
+      '<textarea id="nueva-subcat-desc" placeholder="Breve descripción..." style="margin-top:0.5rem;min-height:80px;resize:vertical"></textarea>' +
+      '<input type="url" id="nueva-subcat-img" placeholder="URL de imagen (opcional)" style="margin-top:0.5rem" />' +
+      '<button class="btn btn-primary btn-full" id="btn-guardar-subcat" style="margin-top:0.75rem">Guardar subcategoría</button>' +
+      '<div id="subcat-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+    '</div>';
+
+  // Estilos inline para inputs dentro del form
+  form.querySelectorAll('input, textarea').forEach(function(el) {
+    el.style.cssText = 'width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block';
+  });
+
+  document.getElementById('btn-guardar-subcat').addEventListener('click', async function() {
+    var titulo = document.getElementById('nueva-subcat-titulo').value.trim();
+    var desc = document.getElementById('nueva-subcat-desc').value.trim();
+    var img = document.getElementById('nueva-subcat-img').value.trim();
+    var msg = document.getElementById('subcat-msg');
+    if (!titulo) { msg.textContent = 'El título es obligatorio'; msg.style.color = 'var(--danger)'; return; }
+    if (!desc) { msg.textContent = 'La descripción es obligatoria'; msg.style.color = 'var(--danger)'; return; }
+
+    // Verificar nombre duplicado
+    var existSnap = await getDocs(query(collection(db, 'biblioteca_subcats'), where('categoria', '==', categoria), where('titulo', '==', titulo)));
+    if (!existSnap.empty) { msg.textContent = 'Ya existe una subcategoría con ese nombre'; msg.style.color = 'var(--danger)'; return; }
+
+    var btn = document.getElementById('btn-guardar-subcat');
+    btn.disabled = true; btn.textContent = 'Guardando...';
+
+    await addDoc(collection(db, 'biblioteca_subcats'), {
+      categoria: categoria,
+      titulo: titulo,
+      descripcion: desc,
+      imagen: img || '',
+      creadoEn: new Date().toISOString(),
+      creadoPor: currentUser.username
+    });
+
+    msg.textContent = '✓ Subcategoría creada'; msg.style.color = 'var(--success)';
+    document.getElementById('nueva-subcat-titulo').value = '';
+    document.getElementById('nueva-subcat-desc').value = '';
+    document.getElementById('nueva-subcat-img').value = '';
+    btn.disabled = false; btn.textContent = 'Guardar subcategoría';
+  });
+}
+
+function renderContenidoSubcat(subcatId, subcatTitulo, categoria, esBibliotecario, esSuperior) {
+  var panel = document.getElementById('biblioteca-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-subcat-lista">← ' + categoria + '</button>' +
+      '<h3>📂 ' + subcatTitulo + '</h3>' +
+    '</div>' +
+    '<div id="docs-lista"><p style="color:var(--text-secondary);font-size:0.85rem;text-align:center;padding:1rem">Cargando...</p></div>' +
+    (esBibliotecario
+      ? '<button class="btn btn-primary btn-full" id="btn-subir-doc" style="margin-top:0.75rem">+ Subir documento</button>'
+      : '') +
+    '<div id="doc-form"></div>';
+
+  document.getElementById('back-subcat-lista').addEventListener('click', function() {
+    renderBibliotecaCategoria(categoria, esBibliotecario, esSuperior);
+  });
+
+  cargarDocumentosSubcat(subcatId, esBibliotecario, esSuperior);
+
+  var btnSubir = document.getElementById('btn-subir-doc');
+  if (btnSubir) {
+    btnSubir.addEventListener('click', function() {
+      mostrarFormSubirDocumento(subcatId, subcatTitulo, categoria, esBibliotecario, esSuperior);
+    });
+  }
+}
+
+function cargarDocumentosSubcat(subcatId, esBibliotecario, esSuperior) {
+  var lista = document.getElementById('docs-lista');
+  onSnapshot(
+    query(collection(db, 'biblioteca_docs'), where('subcatId', '==', subcatId), orderBy('creadoEn', 'desc')),
+    function(snap) {
+      if (!lista) return;
+      if (snap.empty) {
+        lista.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;text-align:center;padding:1rem">No hay documentos aún.</p>';
+        return;
+      }
+      lista.innerHTML = snap.docs.map(function(d) {
+        var doc2 = d.data();
+        return '<div class="doc-item">' +
+          '<div class="doc-info">' +
+            '<p class="doc-titulo">📄 ' + doc2.titulo + '</p>' +
+            '<p class="doc-meta">Por ' + doc2.autor + ' · ' + new Date(doc2.creadoEn).toLocaleDateString('es-CO') + '</p>' +
+          '</div>' +
+          '<button class="btn-doc-ver" data-id="' + d.id + '">Ver</button>' +
+        '</div>';
+      }).join('');
+
+      lista.querySelectorAll('.btn-doc-ver').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          var snap2 = await getDoc(doc(db, 'biblioteca_docs', btn.dataset.id));
+          if (snap2.exists()) mostrarDocumento(snap2.data(), btn.dataset.id, esBibliotecario, esSuperior);
+        });
+      });
+    }
+  );
+}
+
+function mostrarFormSubirDocumento(subcatId, subcatTitulo, categoria, esBibliotecario, esSuperior) {
+  var form = document.getElementById('doc-form');
+  form.innerHTML =
+    '<div class="card" style="margin-top:1rem">' +
+      '<h3 style="margin-bottom:0.75rem">Subir documento</h3>' +
+      '<input type="text" id="doc-titulo" placeholder="Título del documento" />' +
+      '<input type="url" id="doc-pdf-url" placeholder="URL del PDF (Google Drive)" style="margin-top:0.5rem" />' +
+      '<p style="color:var(--text-secondary);font-size:0.78rem;margin:0.3rem 0 0.75rem">Comparte el PDF en Drive como público y pega el enlace aquí</p>' +
+      '<button class="btn btn-primary btn-full" id="btn-guardar-doc">Subir documento</button>' +
+      '<div id="doc-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+    '</div>';
+
+  form.querySelectorAll('input').forEach(function(el) {
+    el.style.cssText = 'width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block';
+  });
+
+  document.getElementById('btn-guardar-doc').addEventListener('click', async function() {
+    var titulo = document.getElementById('doc-titulo').value.trim();
+    var url = document.getElementById('doc-pdf-url').value.trim();
+    var msg = document.getElementById('doc-msg');
+    if (!titulo) { msg.textContent = 'El título es obligatorio'; msg.style.color = 'var(--danger)'; return; }
+    if (!url) { msg.textContent = 'La URL es obligatoria'; msg.style.color = 'var(--danger)'; return; }
+    var btn = document.getElementById('btn-guardar-doc');
+    btn.disabled = true; btn.textContent = 'Subiendo...';
+    await addDoc(collection(db, 'biblioteca_docs'), {
+      subcatId: subcatId,
+      titulo: titulo,
+      url: url,
+      tipo: 'pdf',
+      autor: currentUser.username,
+      autorUid: currentUser.uid,
+      creadoEn: new Date().toISOString()
+    });
+    msg.textContent = '✓ Documento subido'; msg.style.color = 'var(--success)';
+    btn.disabled = false; btn.textContent = 'Subir documento';
+    form.innerHTML = '';
+  });
+}
+
+function mostrarDocumento(datos, docId, esBibliotecario, esSuperior) {
+  var puedeEditar = esSuperior || datos.autorUid === currentUser.uid;
+  var panel = document.getElementById('biblioteca-panel');
+
+  // Convertir URL de Drive a embed
+  var embedUrl = datos.url;
+  if (embedUrl && embedUrl.includes('drive.google.com')) {
+    var fileId = embedUrl.match(/[-\w]{25,}/);
+    if (fileId) embedUrl = 'https://drive.google.com/file/d/' + fileId[0] + '/preview';
+  }
+
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-doc">← Atrás</button>' +
+      '<h3>📄 ' + datos.titulo + '</h3>' +
+    '</div>' +
+    '<p style="color:var(--text-secondary);font-size:0.78rem;margin-bottom:0.75rem">Por ' + datos.autor + '</p>' +
+    (datos.tipo === 'pdf'
+      ? '<iframe src="' + embedUrl + '" class="biblioteca-iframe"></iframe>'
+      : '<div class="libro-render">' + renderizarTextoLibro(datos.contenido || '') + '</div>'
+    ) +
+    (puedeEditar
+      ? '<button class="btn btn-secondary btn-full" id="btn-borrar-doc" style="margin-top:1rem;border-color:var(--danger);color:var(--danger)">🗑️ Eliminar documento</button>'
+      : '');
+
+  document.getElementById('back-doc').addEventListener('click', function() {
+    history.back();
+    renderBiblioteca();
+  });
+
+  if (puedeEditar) {
+    document.getElementById('btn-borrar-doc').addEventListener('click', async function() {
+      if (!confirm('¿Eliminar este documento?')) return;
+      await deleteDoc(doc(db, 'biblioteca_docs', docId));
+      renderBiblioteca();
+    });
+  }
+}
+
+function cargarPDFs(esBibliotecario, esSuperior) {
+  var lista = document.getElementById('subcats-lista');
+  onSnapshot(
+    query(collection(db, 'biblioteca_docs'), where('tipo', '==', 'pdf'), where('subcatId', '==', 'general'), orderBy('creadoEn', 'desc')),
+    function(snap) {
+      if (!lista) return;
+      if (snap.empty) { lista.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;text-align:center;padding:1rem">No hay PDFs aún.</p>'; return; }
+      lista.innerHTML = snap.docs.map(function(d) {
+        var doc2 = d.data();
+        return '<div class="doc-item"><div class="doc-info"><p class="doc-titulo">📄 ' + doc2.titulo + '</p><p class="doc-meta">Por ' + doc2.autor + '</p></div><button class="btn-doc-ver" data-id="' + d.id + '">Ver</button></div>';
+      }).join('');
+      lista.querySelectorAll('.btn-doc-ver').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          var snap2 = await getDoc(doc(db, 'biblioteca_docs', btn.dataset.id));
+          if (snap2.exists()) mostrarDocumento(snap2.data(), btn.dataset.id, esBibliotecario, esSuperior);
+        });
+      });
+    }
+  );
+}
+
+function mostrarFormSubirPDF() {
+  var form = document.getElementById('biblioteca-form');
+  form.innerHTML =
+    '<div class="card" style="margin-top:1rem">' +
+      '<h3 style="margin-bottom:0.75rem">Subir PDF general</h3>' +
+      '<input type="text" id="pdf-titulo" placeholder="Título del PDF" />' +
+      '<input type="url" id="pdf-url" placeholder="URL del PDF (Google Drive)" style="margin-top:0.5rem" />' +
+      '<button class="btn btn-primary btn-full" id="btn-guardar-pdf" style="margin-top:0.75rem">Subir PDF</button>' +
+      '<div id="pdf-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+    '</div>';
+
+  form.querySelectorAll('input').forEach(function(el) {
+    el.style.cssText = 'width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block';
+  });
+
+  document.getElementById('btn-guardar-pdf').addEventListener('click', async function() {
+    var titulo = document.getElementById('pdf-titulo').value.trim();
+    var url = document.getElementById('pdf-url').value.trim();
+    var msg = document.getElementById('pdf-msg');
+    if (!titulo || !url) { msg.textContent = 'Completa todos los campos'; msg.style.color = 'var(--danger)'; return; }
+    var btn = document.getElementById('btn-guardar-pdf');
+    btn.disabled = true; btn.textContent = 'Subiendo...';
+    await addDoc(collection(db, 'biblioteca_docs'), {
+      subcatId: 'general', titulo: titulo, url: url, tipo: 'pdf',
+      autor: currentUser.username, autorUid: currentUser.uid, creadoEn: new Date().toISOString()
+    });
+    msg.textContent = '✓ PDF subido'; msg.style.color = 'var(--success)';
+    btn.disabled = false; btn.textContent = 'Subir PDF';
+    form.innerHTML = '';
+  });
+}
+
+function cargarLibros(esBibliotecario, esSuperior) {
+  var lista = document.getElementById('subcats-lista');
+  onSnapshot(
+    query(collection(db, 'biblioteca_docs'), where('tipo', '==', 'libro'), orderBy('creadoEn', 'desc')),
+    function(snap) {
+      if (!lista) return;
+      if (snap.empty) { lista.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;text-align:center;padding:1rem">No hay libros aún.</p>'; return; }
+      lista.innerHTML = snap.docs.map(function(d) {
+        var doc2 = d.data();
+        return '<div class="doc-item"><div class="doc-info"><p class="doc-titulo">📖 ' + doc2.titulo + '</p><p class="doc-meta">Por ' + doc2.autor + '</p></div><button class="btn-doc-ver" data-id="' + d.id + '">Leer</button></div>';
+      }).join('');
+      lista.querySelectorAll('.btn-doc-ver').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          var snap2 = await getDoc(doc(db, 'biblioteca_docs', btn.dataset.id));
+          if (snap2.exists()) mostrarDocumento(snap2.data(), btn.dataset.id, esBibliotecario, esSuperior);
+        });
+      });
+    }
+  );
+}
+
+function mostrarEditorLibro(docId, datosExistentes) {
+  var panel = document.getElementById('biblioteca-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-editor">← Biblioteca</button>' +
+      '<h3>✍️ ' + (docId ? 'Editar libro' : 'Nuevo libro') + '</h3>' +
+    '</div>' +
+    '<input type="text" id="libro-titulo" placeholder="Título del libro" value="' + (datosExistentes ? datosExistentes.titulo : '') + '" style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block;margin-bottom:0.5rem" />' +
+    '<div class="editor-toolbar">' +
+      '<button class="editor-btn" data-formato="**">B</button>' +
+      '<button class="editor-btn" data-formato="_"><i>I</i></button>' +
+      '<button class="editor-btn" data-formato="">⌨️</button>' +
+      '<button class="editor-btn" data-formato="#" data-tipo="titulo">#T</button>' +
+      '<button class="editor-btn" data-formato=">">❝</button>' +
+      '<button class="editor-btn" data-tipo="imagen">🖼️</button>' +
+    '</div>' +
+    '<textarea id="libro-contenido" placeholder="Escribe aquí tu libro...\n\n*negrita* _cursiva_ #título# \`\`\`monoespacio\`\`\` > cita" style="width:100%;min-height:300px;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;resize:vertical;margin-top:0.5rem">' + (datosExistentes ? datosExistentes.contenido : '') + '</textarea>' +
+    '<div class="editor-preview-wrap">' +
+      '<p style="font-size:0.78rem;color:var(--text-secondary);margin:0.75rem 0 0.3rem">Vista previa:</p>' +
+      '<div id="libro-preview" class="libro-render"></div>' +
+    '</div>' +
+    '<button class="btn btn-primary btn-full" id="btn-publicar-libro" style="margin-top:0.75rem">' + (docId ? '💾 Guardar cambios' : '📖 Publicar libro') + '</button>' +
+    '<div id="libro-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>';
+
+  document.getElementById('back-editor').addEventListener('click', function() { renderBiblioteca(); });
+
+  // Preview en tiempo real
+  document.getElementById('libro-contenido').addEventListener('input', function() {
+    document.getElementById('libro-preview').innerHTML = renderizarTextoLibro(this.value);
+  });
+
+  if (datosExistentes) {
+    document.getElementById('libro-preview').innerHTML = renderizarTextoLibro(datosExistentes.contenido || '');
+  }
+
+  // Botones de formato
+  document.querySelectorAll('.editor-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var textarea = document.getElementById('libro-contenido');
+      var start = textarea.selectionStart;
+      var end = textarea.selectionEnd;
+      var seleccion = textarea.value.substring(start, end);
+      var formato = btn.dataset.formato;
+      var tipo = btn.dataset.tipo;
+      var insertar = '';
+
+      if (tipo === 'imagen') {
+        var url = prompt('URL de la imagen:');
+        if (!url) return;
+        insertar = '
+
+![imagen](' + url + ')
+
+';
+        textarea.value = textarea.value.substring(0, start) + insertar + textarea.value.substring(end);
+      } else if (tipo === 'titulo') {
+        insertar = '#' + (seleccion || 'Título') + '#';
+        textarea.value = textarea.value.substring(0, start) + insertar + textarea.value.substring(end);
+      } else if (formato === '') {
+        insertar = '' + (seleccion || 'código') + '';
+        textarea.value = textarea.value.substring(0, start) + insertar + textarea.value.substring(end);
+      } else if (formato === '>') {
+        insertar = '> ' + (seleccion || 'cita');
+        textarea.value = textarea.value.substring(0, start) + insertar + textarea.value.substring(end);
+      } else {
+        insertar = formato + (seleccion || 'texto') + formato;
+        textarea.value = textarea.value.substring(0, start) + insertar + textarea.value.substring(end);
+      }
+      document.getElementById('libro-preview').innerHTML = renderizarTextoLibro(textarea.value);
+    });
+  });
+
+  document.getElementById('btn-publicar-libro').addEventListener('click', async function() {
+    var titulo = document.getElementById('libro-titulo').value.trim();
+    var contenido = document.getElementById('libro-contenido').value.trim();
+    var msg = document.getElementById('libro-msg');
+    if (!titulo) { msg.textContent = 'El título es obligatorio'; msg.style.color = 'var(--danger)'; return; }
+    if (!contenido) { msg.textContent = 'El contenido no puede estar vacío'; msg.style.color = 'var(--danger)'; return; }
+    var btn = document.getElementById('btn-publicar-libro');
+    btn.disabled = true; btn.textContent = 'Publicando...';
+    if (docId) {
+      await updateDoc(doc(db, 'biblioteca_docs', docId), { titulo: titulo, contenido: contenido, editadoEn: new Date().toISOString() });
+    } else {
+      await addDoc(collection(db, 'biblioteca_docs'), {
+        subcatId: 'libros_general', titulo: titulo, contenido: contenido, tipo: 'libro',
+        autor: currentUser.username, autorUid: currentUser.uid, creadoEn: new Date().toISOString()
+      });
+    }
+    msg.textContent = '✓ ' + (docId ? 'Cambios guardados' : 'Libro publicado');
+    msg.style.color = 'var(--success)';
+    btn.disabled = false; btn.textContent = docId ? '💾 Guardar cambios' : '📖 Publicar libro';
+  });
+}
+
+function renderizarTextoLibro(texto) {
+  if (!texto) return '';
+  var lineas = texto.split('\n');
+  var html = lineas.map(function(linea) {
+    // Cita (> al inicio)
+    if (linea.startsWith('> ')) {
+      var contenidoCita = linea.substring(2);
+      contenidoCita = aplicarFormatos(contenidoCita);
+      return '<div class="libro-cita">' + contenidoCita + '</div>';
+    }
+    linea = aplicarFormatos(linea);
+    return '<p class="libro-parrafo">' + linea + '</p>';
+  }).join('');
+  return html;
+}
+
+function aplicarFormatos(texto) {
+  // Título #texto#
+  texto = texto.replace(/#([^#]+)#/g, '<span class="libro-titulo">$1</span>');
+  // Negrita texto
+  texto = texto.replace(/\([^]+)\*/g, '<strong>$1</strong>');
+  // Cursiva texto
+  texto = texto.replace(/([^]+)_/g, '<em>$1</em>');
+  // Monoespacio texto
+  texto = texto.replace(/([^`]+)/g, '<code class="libro-code">$1</code>');
+  // Imagen 
+
+![imagen](url)
+
+
+  texto = texto.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" class="libro-img" alt="$1" />');
+  return texto;
 }
 
 // ===== TIENDA =====

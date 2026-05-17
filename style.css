@@ -1035,3 +1035,188 @@
   font-size: 0.9rem;
   padding: 0.4rem 0;
 }
+
+/* ===== BIBLIOTECA ===== */
+.biblioteca-header {
+  margin-bottom: 0.75rem;
+}
+
+.subcat-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-card);
+  border-radius: 12px;
+  margin-bottom: 0.5rem;
+}
+
+.subcat-img {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.subcat-info {
+  flex: 1;
+}
+
+.subcat-titulo {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.2rem;
+}
+
+.subcat-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.subcat-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: flex-end;
+}
+
+.btn-subcat-ver {
+  background: var(--accent);
+  border: none;
+  color: white;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-subcat-borrar {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.2rem;
+}
+
+.doc-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-card);
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+}
+
+.doc-info { flex: 1; }
+
+.doc-titulo {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+
+.doc-meta {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.btn-doc-ver {
+  background: var(--accent);
+  border: none;
+  color: white;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.biblioteca-iframe {
+  width: 100%;
+  height: 500px;
+  border: none;
+  border-radius: 12px;
+  background: var(--bg-secondary);
+}
+
+/* ===== EDITOR DE LIBROS ===== */
+.editor-toolbar {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.editor-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.editor-btn:active {
+  border-color: var(--accent);
+}
+
+/* ===== RENDER LIBRO ===== */
+.libro-render {
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-card);
+  border-radius: 12px;
+  padding: 1rem;
+  min-height: 60px;
+}
+
+.libro-parrafo {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+  line-height: 1.6;
+}
+
+.libro-titulo {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+.libro-cita {
+  border-left: 3px solid var(--text-secondary);
+  padding-left: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.6;
+}
+
+.libro-code {
+  font-family: monospace;
+  background: var(--bg-primary);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.libro-img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 0.5rem 0;
+}
+
+.editor-preview-wrap {
+  margin-top: 0.5rem;
+}
