@@ -136,7 +136,7 @@ function navigateTo(section) {
     case 'patrimonio': renderPatrimonio(); break;
     case 'tienda': renderTienda(); break;
     case 'casino': renderProximamente('casino'); break;
-    case 'citas': renderProximamente('citas'); break;
+    case 'citas': renderCitas(); break;
     case 'misiones': renderProximamente('misiones'); break;
   }
 }
@@ -2345,6 +2345,421 @@ var catalogosIrkustk = {
     return catalogos[categoria][subcategoria];
   }
   return [];
+}
+
+function renderCitas() {
+  mainContent.innerHTML =
+    '<div class="card"><h3>💘 Citas</h3></div>' +
+    '<div id="citas-panel"></div>';
+  
+  verificarPerfilCitas();
+}
+
+async function verificarPerfilCitas() {
+  var panel = document.getElementById('citas-panel');
+  var snap = await getDoc(doc(db, 'citas_perfiles', currentUser.uid));
+  
+  if (!snap.exists()) {
+    renderRegistroCitas(panel);
+  } else {
+    renderMenuCitas(panel, snap.data());
+  }
+}
+
+function renderRegistroCitas(panel) {
+  panel.innerHTML =
+    '<div class="card" style="text-align:center;padding:2rem">' +
+      '<p style="font-size:2rem">💘</p>' +
+      '<h3 style="margin-bottom:0.5rem">Bienvenido a Citas</h3>' +
+      '<p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:1.5rem">Para aparecer en el buscador y ver otros perfiles, primero completa tu perfil de citas.</p>' +
+      '<button class="btn btn-primary btn-full" id="btn-crear-perfil-citas">💘 Crear mi perfil de citas</button>' +
+    '</div>';
+
+  document.getElementById('btn-crear-perfil-citas').addEventListener('click', function() {
+    renderFormularioCitas(panel, null);
+  });
+}
+
+function renderFormularioCitas(panel, datosExistentes) {
+  var esEdicion = datosExistentes !== null;
+  panel.innerHTML =
+    '<div class="card">' +
+      '<h3 style="margin-bottom:1rem">' + (esEdicion ? '✏️ Editar perfil de citas' : '💘 Crear perfil de citas') + '</h3>' +
+
+      '<p class="edit-section-title">Género</p>' +
+      '<div class="citas-opciones" id="citas-genero">' +
+        ['Masculino', 'Femenino', 'Otro'].map(function(g) {
+          return '<button class="citas-opcion' + (datosExistentes && datosExistentes.genero === g ? ' selected' : '') + '" data-val="' + g + '">' + g + '</button>';
+        }).join('') +
+      '</div>' +
+
+      '<p class="edit-section-title" style="margin-top:1rem">Orientación sexual</p>' +
+      '<div class="citas-opciones" id="citas-orientacion">' +
+        ['Heterosexual', 'Homosexual', 'Bisexual', 'Pansexual', 'Otro'].map(function(o) {
+          return '<button class="citas-opcion' + (datosExistentes && datosExistentes.orientacion === o ? ' selected' : '') + '" data-val="' + o + '">' + o + '</button>';
+        }).join('') +
+      '</div>' +
+      '<div id="orientacion-otro-wrap" class="hidden">' +
+        '<input type="text" id="orientacion-otro-input" placeholder="Escribe tu orientación (máx. 20 caracteres)" maxlength="20" style="margin-top:0.5rem;width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block" value="' + (datosExistentes && datosExistentes.orientacionCustom ? datosExistentes.orientacionCustom : '') + '" />' +
+      '</div>' +
+
+      '<p class="edit-section-title" style="margin-top:1rem">Estado civil</p>' +
+      '<div class="citas-opciones" id="citas-estado">' +
+        ['Soltero/a', 'Viudo/a', 'Relación polígama'].map(function(e) {
+          return '<button class="citas-opcion' + (datosExistentes && datosExistentes.estadoCivil === e ? ' selected' : '') + '" data-val="' + e + '">' + e + '</button>';
+        }).join('') +
+      '</div>' +
+
+      '<p class="edit-section-title" style="margin-top:1rem">¿Qué tipo de relación buscas? <span style="color:var(--text-secondary);font-size:0.75rem">(máx. 100 caracteres)</span></p>' +
+      '<input type="text" id="citas-busca" maxlength="100" placeholder="Ej: Una relación seria y estable..." value="' + (datosExistentes ? (datosExistentes.queBusca || '') : '') + '" style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block" />' +
+
+      '<p class="edit-section-title" style="margin-top:1rem">Descripción breve <span style="color:var(--text-secondary);font-size:0.75rem">(máx. 150 caracteres)</span></p>' +
+      '<textarea id="citas-descripcion" maxlength="150" placeholder="Cuéntanos un poco sobre ti..." style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block;min-height:80px;resize:vertical">' + (datosExistentes ? (datosExistentes.descripcion || '') : '') + '</textarea>' +
+
+      '<p class="edit-section-title" style="margin-top:1rem">Frase (opcional)</p>' +
+      '<input type="text" id="citas-frase" placeholder="Una frase que te represente..." value="' + (datosExistentes ? (datosExistentes.frase || '') : '') + '" style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block" />' +
+
+      '<button class="btn btn-primary btn-full" id="btn-guardar-perfil-citas" style="margin-top:1rem">' + (esEdicion ? '💾 Guardar cambios' : '💘 Publicar perfil') + '</button>' +
+      (esEdicion ? '<button class="btn btn-secondary btn-full" id="btn-cancelar-edicion-citas" style="margin-top:0.5rem">Cancelar</button>' : '') +
+      '<div id="citas-form-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+    '</div>';
+
+  // Lógica de selección de opciones
+  ['citas-genero', 'citas-orientacion', 'citas-estado'].forEach(function(grupoId) {
+    document.getElementById(grupoId).querySelectorAll('.citas-opcion').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.getElementById(grupoId).querySelectorAll('.citas-opcion').forEach(function(b) { b.classList.remove('selected'); });
+        btn.classList.add('selected');
+        if (grupoId === 'citas-orientacion') {
+          var otroWrap = document.getElementById('orientacion-otro-wrap');
+          if (btn.dataset.val === 'Otro') otroWrap.classList.remove('hidden');
+          else otroWrap.classList.add('hidden');
+        }
+      });
+    });
+  });
+
+  // Mostrar campo "otro" si ya estaba seleccionado
+  if (datosExistentes && datosExistentes.orientacion === 'Otro') {
+    document.getElementById('orientacion-otro-wrap').classList.remove('hidden');
+  }
+
+  if (esEdicion) {
+    document.getElementById('btn-cancelar-edicion-citas').addEventListener('click', function() {
+      verificarPerfilCitas();
+    });
+  }
+
+  document.getElementById('btn-guardar-perfil-citas').addEventListener('click', async function() {
+    var generoBtn = document.querySelector('#citas-genero .citas-opcion.selected');
+    var orientacionBtn = document.querySelector('#citas-orientacion .citas-opcion.selected');
+    var estadoBtn = document.querySelector('#citas-estado .citas-opcion.selected');
+    var queBusca = document.getElementById('citas-busca').value.trim();
+    var descripcion = document.getElementById('citas-descripcion').value.trim();
+    var frase = document.getElementById('citas-frase').value.trim();
+    var msg = document.getElementById('citas-form-msg');
+
+    if (!generoBtn) { msg.textContent = 'Selecciona un género'; msg.style.color = 'var(--danger)'; return; }
+    if (!orientacionBtn) { msg.textContent = 'Selecciona una orientación'; msg.style.color = 'var(--danger)'; return; }
+    if (!estadoBtn) { msg.textContent = 'Selecciona tu estado civil'; msg.style.color = 'var(--danger)'; return; }
+    if (!queBusca) { msg.textContent = 'Indica qué tipo de relación buscas'; msg.style.color = 'var(--danger)'; return; }
+    if (!descripcion) { msg.textContent = 'Escribe una descripción'; msg.style.color = 'var(--danger)'; return; }
+
+    var orientacion = orientacionBtn.dataset.val;
+    var orientacionCustom = '';
+    if (orientacion === 'Otro') {
+      orientacionCustom = document.getElementById('orientacion-otro-input').value.trim();
+      if (!orientacionCustom) { msg.textContent = 'Escribe tu orientación'; msg.style.color = 'var(--danger)'; return; }
+    }
+
+    var btn = document.getElementById('btn-guardar-perfil-citas');
+    btn.disabled = true; btn.textContent = 'Guardando...';
+
+    var datos = {
+      uid: currentUser.uid,
+      username: currentUser.username,
+      genero: generoBtn.dataset.val,
+      orientacion: orientacion,
+      orientacionCustom: orientacionCustom,
+      estadoCivil: estadoBtn.dataset.val,
+      queBusca: queBusca,
+      descripcion: descripcion,
+      frase: frase,
+      activo: true,
+      actualizadoEn: new Date().toISOString()
+    };
+
+    try {
+      await setDoc(doc(db, 'citas_perfiles', currentUser.uid), datos);
+      msg.textContent = '✓ Perfil ' + (esEdicion ? 'actualizado' : 'publicado');
+      msg.style.color = 'var(--success)';
+      setTimeout(function() { verificarPerfilCitas(); }, 1000);
+    } catch (err) {
+      msg.textContent = 'Error: ' + err.message;
+      msg.style.color = 'var(--danger)';
+      btn.disabled = false;
+      btn.textContent = esEdicion ? '💾 Guardar cambios' : '💘 Publicar perfil';
+    }
+  });
+}
+
+function renderMenuCitas(panel, miPerfil) {
+  panel.innerHTML =
+    '<div class="citas-menu-btns">' +
+      '<button class="btn-citas-menu" id="btn-explorar-citas"><span>🃏</span><span>Explorar</span></button>' +
+      '<button class="btn-citas-menu" id="btn-mis-matches"><span>💞</span><span>Mis Matches</span></button>' +
+    '</div>' +
+    '<div class="citas-menu-secundario">' +
+      '<button class="btn btn-secondary" id="btn-editar-perfil-citas" style="flex:1;font-size:0.82rem">✏️ Editar mi perfil</button>' +
+      '<button class="btn btn-secondary" id="btn-borrar-perfil-citas" style="flex:1;font-size:0.82rem;border-color:var(--danger);color:var(--danger)">🗑️ Eliminar perfil</button>' +
+    '</div>' +
+    '<div id="citas-contenido"></div>';
+
+  document.getElementById('btn-explorar-citas').addEventListener('click', function() {
+    renderExplorarCitas(miPerfil);
+  });
+  document.getElementById('btn-mis-matches').addEventListener('click', function() {
+    renderMisMatches();
+  });
+  document.getElementById('btn-editar-perfil-citas').addEventListener('click', function() {
+    renderFormularioCitas(panel, miPerfil);
+  });
+  document.getElementById('btn-borrar-perfil-citas').addEventListener('click', async function() {
+    if (!confirm('¿Eliminar tu perfil de citas? Perderás tus matches.')) return;
+    await deleteDoc(doc(db, 'citas_perfiles', currentUser.uid));
+    verificarPerfilCitas();
+  });
+}
+
+async function renderExplorarCitas(miPerfil) {
+  var contenido = document.getElementById('citas-contenido');
+  contenido.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<h3>🃏 Explorar perfiles</h3>' +
+      '<button class="btn-filtrar-citas" id="btn-filtrar-citas">⚙️ Filtrar</button>' +
+    '</div>' +
+    '<div id="filtros-citas" class="hidden card" style="margin-bottom:0.75rem">' +
+      '<p class="edit-section-title">Género</p>' +
+      '<div class="citas-opciones" id="filtro-genero">' +
+        ['Todos', 'Masculino', 'Femenino', 'Otro'].map(function(g) {
+          return '<button class="citas-opcion' + (g === 'Todos' ? ' selected' : '') + '" data-val="' + g + '">' + g + '</button>';
+        }).join('') +
+      '</div>' +
+      '<p class="edit-section-title" style="margin-top:0.75rem">Orientación</p>' +
+      '<div class="citas-opciones" id="filtro-orientacion">' +
+        ['Todos', 'Heterosexual', 'Homosexual', 'Bisexual', 'Pansexual', 'Otro'].map(function(o) {
+          return '<button class="citas-opcion' + (o === 'Todos' ? ' selected' : '') + '" data-val="' + o + '">' + o + '</button>';
+        }).join('') +
+      '</div>' +
+      '<p class="edit-section-title" style="margin-top:0.75rem">Estado civil</p>' +
+      '<div class="citas-opciones" id="filtro-estado">' +
+        ['Todos', 'Soltero/a', 'Viudo/a', 'Relación polígama'].map(function(e) {
+          return '<button class="citas-opcion' + (e === 'Todos' ? ' selected' : '') + '" data-val="' + e + '">' + e + '</button>';
+        }).join('') +
+      '</div>' +
+      '<p class="edit-section-title" style="margin-top:0.75rem">Ciudad</p>' +
+      '<div class="citas-opciones" id="filtro-ciudad">' +
+        ['Todas', 'Ryazan', 'Ryla', 'Kemerov', 'Navarra', 'Gresit', 'Odrekao', 'Irkustk'].map(function(c) {
+          return '<button class="citas-opcion' + (c === 'Todas' ? ' selected' : '') + '" data-val="' + c + '">' + c + '</button>';
+        }).join('') +
+      '</div>' +
+      '<button class="btn btn-primary btn-full" id="btn-aplicar-filtros" style="margin-top:0.75rem">Aplicar filtros</button>' +
+    '</div>' +
+    '<div id="tarjetas-citas"></div>';
+
+  document.getElementById('btn-filtrar-citas').addEventListener('click', function() {
+    document.getElementById('filtros-citas').classList.toggle('hidden');
+  });
+
+  ['filtro-genero', 'filtro-orientacion', 'filtro-estado', 'filtro-ciudad'].forEach(function(grupoId) {
+    document.getElementById(grupoId).querySelectorAll('.citas-opcion').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.getElementById(grupoId).querySelectorAll('.citas-opcion').forEach(function(b) { b.classList.remove('selected'); });
+        btn.classList.add('selected');
+      });
+    });
+  });
+
+  document.getElementById('btn-aplicar-filtros').addEventListener('click', function() {
+    document.getElementById('filtros-citas').classList.add('hidden');
+    cargarTarjetasCitas(miPerfil);
+  });
+
+  cargarTarjetasCitas(miPerfil);
+}
+
+async function cargarTarjetasCitas(miPerfil) {
+  var tarjetas = document.getElementById('tarjetas-citas');
+  tarjetas.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p>';
+
+  var filtroGenero = document.querySelector('#filtro-genero .citas-opcion.selected');
+  var filtroOrientacion = document.querySelector('#filtro-orientacion .citas-opcion.selected');
+  var filtroEstado = document.querySelector('#filtro-estado .citas-opcion.selected');
+  var filtroCiudad = document.querySelector('#filtro-ciudad .citas-opcion.selected');
+
+  var snap = await getDocs(query(collection(db, 'citas_perfiles'), where('activo', '==', true)));
+  var perfiles = snap.docs
+    .map(function(d) { return Object.assign({ id: d.id }, d.data()); })
+    .filter(function(p) { return p.uid !== currentUser.uid; });
+
+  // Aplicar filtros
+  if (filtroGenero && filtroGenero.dataset.val !== 'Todos') {
+    perfiles = perfiles.filter(function(p) { return p.genero === filtroGenero.dataset.val; });
+  }
+  if (filtroOrientacion && filtroOrientacion.dataset.val !== 'Todos') {
+    perfiles = perfiles.filter(function(p) { return p.orientacion === filtroOrientacion.dataset.val; });
+  }
+  if (filtroEstado && filtroEstado.dataset.val !== 'Todos') {
+    perfiles = perfiles.filter(function(p) { return p.estadoCivil === filtroEstado.dataset.val; });
+  }
+  if (filtroCiudad && filtroCiudad.dataset.val !== 'Todas') {
+    perfiles = perfiles.filter(function(p) { return p.ciudad === filtroCiudad.dataset.val; });
+  }
+
+  // Cargar likes ya dados
+  var likesSnap = await getDocs(query(collection(db, 'citas_likes'), where('de', '==', currentUser.uid)));
+  var yaLike = {};
+  likesSnap.docs.forEach(function(d) { yaLike[d.data().para] = true; });
+
+  // Filtrar los que ya tienen like
+  perfiles = perfiles.filter(function(p) { return !yaLike[p.uid]; });
+
+  if (perfiles.length === 0) {
+    tarjetas.innerHTML = '<div style="text-align:center;padding:3rem"><p style="font-size:2rem">😔</p><p style="color:var(--text-secondary)">No hay más perfiles por explorar.</p></div>';
+    return;
+  }
+
+  var indice = 0;
+
+  function mostrarTarjeta() {
+    if (indice >= perfiles.length) {
+      tarjetas.innerHTML = '<div style="text-align:center;padding:3rem"><p style="font-size:2rem">🎉</p><p style="color:var(--text-secondary)">Has visto todos los perfiles disponibles.</p></div>';
+      return;
+    }
+    var p = perfiles[indice];
+    tarjetas.innerHTML =
+      '<div class="citas-tarjeta">' +
+        (p.fotoPerfil ? '<img src="' + p.fotoPerfil + '" class="citas-tarjeta-foto" onerror="this.style.display=\'none\'" />' : '<div class="citas-tarjeta-foto-placeholder">👤</div>') +
+        '<div class="citas-tarjeta-info">' +
+          '<h3 class="citas-tarjeta-nombre">' + p.username + '</h3>' +
+          '<p class="citas-tarjeta-dato">' + (p.ciudad || 'Sin ciudad') + ' · Nv.' + (p.nivel || '?') + ' · ' + (p.raza || '?') + '</p>' +
+          (p.frase ? '<p class="citas-tarjeta-frase">"' + p.frase + '"</p>' : '') +
+          '<button class="btn btn-secondary citas-tarjeta-ver-mas" id="btn-ver-mas-citas">Ver perfil completo ▼</button>' +
+          '<div id="citas-perfil-completo" class="hidden">' +
+            '<div class="citas-dato-row"><span>🎭 Género</span><span>' + p.genero + '</span></div>' +
+            '<div class="citas-dato-row"><span>💫 Orientación</span><span>' + (p.orientacion === 'Otro' ? p.orientacionCustom : p.orientacion) + '</span></div>' +
+            '<div class="citas-dato-row"><span>💍 Estado civil</span><span>' + p.estadoCivil + '</span></div>' +
+            '<div class="citas-dato-row"><span>🎂 Edad</span><span>' + (p.edad || 'No indicada') + '</span></div>' +
+            '<div class="citas-dato-row"><span>📱 WhatsApp</span><span>' + (p.whatsapp || 'No registrado') + '</span></div>' +
+            '<div class="citas-dato-row"><span>✨ Dato curioso</span><span>' + (p.datoCurioso || 'Sin dato') + '</span></div>' +
+            '<p style="margin-top:0.75rem;font-size:0.85rem;color:var(--text-secondary)">🔍 Busca:</p>' +
+            '<p style="font-size:0.88rem;color:var(--text-primary);margin-bottom:0.5rem">' + p.queBusca + '</p>' +
+            '<p style="font-size:0.85rem;color:var(--text-secondary)">📝 Sobre mí:</p>' +
+            '<p style="font-size:0.88rem;color:var(--text-primary)">' + p.descripcion + '</p>' +
+          '</div>' +
+        '</div>' +
+        '<div class="citas-tarjeta-acciones">' +
+          '<button class="btn-citas-no" id="btn-citas-no">✕</button>' +
+          '<button class="btn-citas-si" id="btn-citas-si">♥</button>' +
+        '</div>' +
+      '</div>' +
+      '<p style="color:var(--text-secondary);font-size:0.78rem;text-align:center;margin-top:0.5rem">' + (indice + 1) + ' de ' + perfiles.length + ' perfiles</p>';
+
+    document.getElementById('btn-ver-mas-citas').addEventListener('click', function() {
+      var completo = document.getElementById('citas-perfil-completo');
+      completo.classList.toggle('hidden');
+      this.textContent = completo.classList.contains('hidden') ? 'Ver perfil completo ▼' : 'Ocultar ▲';
+    });
+
+    document.getElementById('btn-citas-no').addEventListener('click', function() {
+      indice++;
+      mostrarTarjeta();
+    });
+
+    document.getElementById('btn-citas-si').addEventListener('click', async function() {
+      var para = p.uid;
+      await setDoc(doc(db, 'citas_likes', currentUser.uid + '_' + para), {
+        de: currentUser.uid, para: para,
+        deUsername: currentUser.username, paraUsername: p.username,
+        fecha: new Date().toISOString()
+      });
+
+      // Verificar match
+      var likeReverso = await getDoc(doc(db, 'citas_likes', para + '_' + currentUser.uid));
+      if (likeReverso.exists()) {
+        await setDoc(doc(db, 'citas_matches', currentUser.uid + '_' + para), {
+          usuarios: [currentUser.uid, para],
+          usernames: [currentUser.username, p.username],
+          fecha: new Date().toISOString()
+        });
+        await setDoc(doc(db, 'citas_matches', para + '_' + currentUser.uid), {
+          usuarios: [para, currentUser.uid],
+          usernames: [p.username, currentUser.username],
+          fecha: new Date().toISOString()
+        });
+        tarjetas.innerHTML =
+          '<div class="citas-match-banner">' +
+            '<p style="font-size:3rem">💞</p>' +
+            '<h3>¡Es un match!</h3>' +
+            '<p style="color:var(--text-secondary)">Tú y ' + p.username + ' se han gustado mutuamente</p>' +
+            '<button class="btn btn-primary btn-full" id="btn-match-continuar" style="margin-top:1rem">Seguir explorando</button>' +
+          '</div>';
+        document.getElementById('btn-match-continuar').addEventListener('click', function() {
+          indice++;
+          mostrarTarjeta();
+        });
+        return;
+      }
+
+      indice++;
+      mostrarTarjeta();
+    });
+  }
+
+  mostrarTarjeta();
+}
+
+async function renderMisMatches() {
+  var contenido = document.getElementById('citas-contenido');
+  contenido.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<h3>💞 Mis Matches</h3>' +
+    '</div>' +
+    '<div id="matches-lista"><p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p></div>';
+
+  var snap = await getDocs(query(collection(db, 'citas_matches'), where('usuarios', 'array-contains', currentUser.uid)));
+
+  var lista = document.getElementById('matches-lista');
+  if (snap.empty) {
+    lista.innerHTML = '<div style="text-align:center;padding:3rem"><p style="font-size:2rem">💔</p><p style="color:var(--text-secondary)">Aún no tienes matches.</p></div>';
+    return;
+  }
+
+  var matchesUids = [];
+  snap.docs.forEach(function(d) {
+    var data = d.data();
+    var otroUid = data.usuarios.find(function(u) { return u !== currentUser.uid; });
+    if (otroUid && !matchesUids.includes(otroUid)) matchesUids.push(otroUid);
+  });
+
+  var perfilesHTML = await Promise.all(matchesUids.map(async function(uid) {
+    var perfilSnap = await getDoc(doc(db, 'citas_perfiles', uid));
+    var usuarioSnap = await getDoc(doc(db, 'usuarios', uid));
+    if (!perfilSnap.exists()) return '';
+    var p = perfilSnap.data();
+    var u = usuarioSnap.exists() ? usuarioSnap.data() : {};
+    return '<div class="citas-match-card">' +
+      (u.fotoPerfil ? '<img src="' + u.fotoPerfil + '" class="citas-match-foto" onerror="this.style.display=\'none\'" />' : '<div class="citas-match-foto-placeholder">👤</div>') +
+      '<div class="citas-match-info">' +
+        '<p class="citas-match-nombre">' + p.username + '</p>' +
+        '<p class="citas-match-dato">' + (u.ciudad || 'Sin ciudad') + ' · Nv.' + (u.nivel || '?') + '</p>' +
+        (u.whatsapp ? '<p class="citas-match-wa">📱 ' + u.whatsapp + '</p>' : '<p class="citas-match-wa" style="color:var(--text-secondary)">Sin WhatsApp registrado</p>') +
+      '</div>' +
+      '<span style="font-size:1.5rem">💞</span>' +
+    '</div>';
+  }));
+
+  lista.innerHTML = perfilesHTML.join('');
 }
 
 function renderPatrimonio() {

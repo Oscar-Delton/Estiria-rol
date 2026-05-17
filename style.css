@@ -1277,3 +1277,238 @@
   cursor: pointer;
   font-size: 0.9rem;
 }
+
+/* ===== CITAS ===== */
+.citas-menu-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.btn-citas-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 1.5rem 0.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-card);
+  border-radius: 16px;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.btn-citas-menu span:first-child { font-size: 2rem; }
+.btn-citas-menu:active { border-color: var(--accent); }
+
+.citas-menu-secundario {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.citas-opciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.citas-opcion {
+  padding: 0.4rem 0.75rem;
+  border-radius: 20px;
+  border: 1px solid var(--bg-card);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.citas-opcion.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.btn-filtrar-citas {
+  background: var(--bg-card);
+  border: none;
+  color: var(--text-primary);
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+/* Tarjeta de citas */
+.citas-tarjeta {
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-card);
+  border-radius: 20px;
+  overflow: hidden;
+  margin-top: 0.75rem;
+}
+
+.citas-tarjeta-foto {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+}
+
+.citas-tarjeta-foto-placeholder {
+  width: 100%;
+  height: 220px;
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 5rem;
+}
+
+.citas-tarjeta-info {
+  padding: 1rem;
+}
+
+.citas-tarjeta-nombre {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.citas-tarjeta-dato {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.citas-tarjeta-frase {
+  font-size: 0.85rem;
+  color: var(--accent);
+  font-style: italic;
+  margin-bottom: 0.75rem;
+}
+
+.citas-tarjeta-ver-mas {
+  width: 100%;
+  font-size: 0.8rem;
+  padding: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.citas-dato-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--bg-card);
+  color: var(--text-secondary);
+}
+
+.citas-dato-row span:last-child {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.citas-tarjeta-acciones {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  padding: 1rem;
+  border-top: 1px solid var(--bg-card);
+}
+
+.btn-citas-no {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2px solid var(--danger);
+  background: none;
+  color: var(--danger);
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-citas-si {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2px solid var(--success);
+  background: none;
+  color: var(--success);
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-citas-no:active { background: var(--danger); color: white; }
+.btn-citas-si:active { background: var(--success); color: white; }
+
+.citas-match-banner {
+  text-align: center;
+  padding: 2rem 1rem;
+  background: linear-gradient(135deg, var(--bg-card), var(--accent-soft));
+  border-radius: 20px;
+  margin-top: 0.75rem;
+}
+
+/* Matches */
+.citas-match-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-card);
+  border-radius: 12px;
+  margin-bottom: 0.5rem;
+}
+
+.citas-match-foto {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--accent);
+  flex-shrink: 0;
+}
+
+.citas-match-foto-placeholder {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.citas-match-info { flex: 1; }
+
+.citas-match-nombre {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.15rem;
+}
+
+.citas-match-dato {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.15rem;
+}
+
+.citas-match-wa {
+  font-size: 0.78rem;
+  color: var(--success);
+  font-weight: 500;
+}
