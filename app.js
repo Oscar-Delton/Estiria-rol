@@ -245,15 +245,18 @@ function cargarSubcategorias(categoria, esBibliotecario, esSuperior) {
           ? '<img src="' + subcat.imagen + '" style="width:40px;height:40px;border-radius:8px;object-fit:cover" />'
           : '<span style="font-size:1.5rem">📂</span>';
 
-        return '<div class="doc-item" style="display:flex;align-items:center;justify-content:between;padding:0.75rem;background:var(--bg-card);border-radius:10px;margin-bottom:0.5rem">' +
-          '<div style="display:flex;align-items:center;gap:0.75rem">' +
+        return '<div class="doc-item" style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem;background:var(--bg-card);border-radius:10px;margin-bottom:0.5rem">' +
+          '<div style="display:flex;align-items:center;gap:0.75rem;flex:1">' +
             imagenHTML +
             '<div>' +
               '<p class="doc-titulo" style="font-weight:600;margin:0;font-size:0.9rem">' + subcat.titulo + '</p>' +
               '<p class="doc-meta" style="font-size:0.75rem;color:var(--text-secondary);margin:0">' + subcat.descripcion + '</p>' +
             '</div>' +
           '</div>' +
-          '<button class="btn-subcat-entrar btn" data-id="' + d.id + '" data-titulo="' + subcat.titulo + '" style="padding:0.4rem 0.8rem;font-size:0.8rem">Entrar</button>' +
+          '<div style="display:flex;gap:0.4rem;align-items:center">' +
+            '<button class="btn-subcat-entrar btn" data-id="' + d.id + '" data-titulo="' + subcat.titulo + '" style="padding:0.4rem 0.8rem;font-size:0.8rem">Entrar</button>' +
+            (esSuperior ? '<button class="btn-subcat-borrar" data-id="' + d.id + '" style="background:none;border:none;color:var(--danger);font-size:1.1rem;cursor:pointer;padding:0.2rem">🗑️</button>' : '') +
+          '</div>' +
         '</div>';
       }).join('');
 
@@ -262,6 +265,15 @@ function cargarSubcategorias(categoria, esBibliotecario, esSuperior) {
           renderContenidoSubcat(btn.dataset.id, btn.dataset.titulo, categoria, esBibliotecario, esSuperior);
         });
       });
+
+      if (esSuperior) {
+        lista.querySelectorAll('.btn-subcat-borrar').forEach(function(btn) {
+          btn.addEventListener('click', async function() {
+            if (!confirm('¿Borrar esta subcategoría y todo su contenido?')) return;
+            await deleteDoc(doc(db, 'biblioteca_subcats', btn.dataset.id));
+          });
+        });
+      }
     },
     function(error) {
       console.error("Error al cargar subcategorías:", error);
