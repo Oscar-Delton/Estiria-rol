@@ -666,19 +666,10 @@ function renderizarTextoLibro(texto) {
 }
 
 function aplicarFormatos(texto) {
-  // Título #texto#
   texto = texto.replace(/#([^#]+)#/g, '<span class="libro-titulo">$1</span>');
-  // Negrita texto
-  texto = texto.replace(/\([^]+)\*/g, '<strong>$1</strong>');
-  // Cursiva texto
-  texto = texto.replace(/([^]+)_/g, '<em>$1</em>');
-  // Monoespacio texto
-  texto = texto.replace(/([^`]+)/g, '<code class="libro-code">$1</code>');
-  // Imagen 
-
-![imagen](url)
-
-
+  texto = texto.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  texto = texto.replace(/_([^_]+)_/g, '<em>$1</em>');
+  texto = texto.replace(/`([^`]+)`/g, '<code class="libro-code">$1</code>');
   texto = texto.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" class="libro-img" alt="$1" />');
   return texto;
 }
