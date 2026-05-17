@@ -604,11 +604,10 @@ function mostrarEditorLibro(docId, datosExistentes) {
       if (tipo === 'imagen') {
         var url = prompt('URL de la imagen:');
         if (!url) return;
-        insertar = '
-
-![imagen](' + url + ')
-
-';
+        // CORREGIDO: Usamos comillas invertidas (Template Literals) para saltos de línea
+        insertar = `
+![imagen](${url})
+`;
         textarea.value = textarea.value.substring(0, start) + insertar + textarea.value.substring(end);
       } else if (tipo === 'titulo') {
         insertar = '#' + (seleccion || 'Título') + '#';
