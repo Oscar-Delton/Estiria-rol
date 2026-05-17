@@ -3098,12 +3098,15 @@ function renderPerfil() {
       '<div class="perfil-info-lista">' +
         '<div class="perfil-info-item"><span class="perfil-info-label">🏙️ Ciudad</span><span class="perfil-info-valor">' + (currentUser && currentUser.ciudad ? currentUser.ciudad : 'Sin asignar') + '</span></div>' +
         '<div class="perfil-info-item"><span class="perfil-info-label">📱 WhatsApp</span><span class="perfil-info-valor">' + (currentUser && currentUser.whatsapp ? currentUser.whatsapp : 'No registrado') + '</span></div>' +
+        '<div class="perfil-info-item"><span class="perfil-info-label">⚔️ Nivel</span><span class="perfil-info-valor">' + (currentUser && currentUser.nivel ? currentUser.nivel : 'No definido') + '</span></div>' +
+        '<div class="perfil-info-item"><span class="perfil-info-label">🧬 Raza</span><span class="perfil-info-valor">' + (currentUser && currentUser.raza ? currentUser.raza : 'No definida') + '</span></div>' +
+        '<div class="perfil-info-item"><span class="perfil-info-label">🎂 Edad</span><span class="perfil-info-valor">' + (currentUser && currentUser.edad ? currentUser.edad : 'No definida') + '</span></div>' +
+        '<div class="perfil-info-item"><span class="perfil-info-label">✨ Dato curioso</span><span class="perfil-info-valor">' + (currentUser && currentUser.datoCurioso ? currentUser.datoCurioso : 'No definido') + '</span></div>' +
       '</div>' +
       '<button class="btn btn-primary btn-full" id="btn-abrir-editar-perfil" style="margin-top:1rem">✏️ Editar perfil</button>' +
     '</div>' +
     '<button class="btn btn-secondary btn-full" id="logout-btn" style="margin-top:0.5rem">Cerrar sesion</button>' +
 
-    // MODAL
     '<div id="modal-editar-perfil" class="modal-overlay hidden">' +
       '<div class="modal-box">' +
         '<div class="modal-header">' +
@@ -3112,7 +3115,6 @@ function renderPerfil() {
         '</div>' +
         '<div class="modal-body">' +
 
-          // FOTO
           '<div class="edit-section">' +
             '<p class="edit-section-title">🖼️ Foto de perfil</p>' +
             '<div class="foto-preview-wrap">' +
@@ -3131,7 +3133,6 @@ function renderPerfil() {
 
           '<hr class="edit-divider" />' +
 
-          // CIUDAD
           (!esRegidor
             ? '<div class="edit-section">' +
                 '<p class="edit-section-title">🏙️ Ciudad</p>' +
@@ -3144,7 +3145,6 @@ function renderPerfil() {
             : '<div class="edit-section"><p class="edit-section-title">🏙️ Ciudad</p><p style="color:var(--text-secondary);font-size:0.85rem">Los regidores no pueden cambiar su ciudad.</p></div><hr class="edit-divider" />'
           ) +
 
-          // WHATSAPP
           '<div class="edit-section">' +
             '<p class="edit-section-title">📱 WhatsApp</p>' +
             '<input type="tel" id="perfil-whatsapp" placeholder="Numero de WhatsApp" value="' + (currentUser && currentUser.whatsapp ? currentUser.whatsapp : '') + '" />' +
@@ -3154,7 +3154,42 @@ function renderPerfil() {
 
           '<hr class="edit-divider" />' +
 
-          // CONTRASEÑA
+          '<div class="edit-section">' +
+            '<p class="edit-section-title">⚔️ Nivel del personaje</p>' +
+            '<input type="number" id="perfil-nivel" placeholder="Nivel del personaje" min="1" value="' + (currentUser && currentUser.nivel ? currentUser.nivel : '') + '" />' +
+            '<button class="btn btn-primary btn-full" id="btn-guardar-nivel" style="margin-top:0.5rem">Guardar nivel</button>' +
+            '<div id="nivel-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+          '</div>' +
+
+          '<hr class="edit-divider" />' +
+
+          '<div class="edit-section">' +
+            '<p class="edit-section-title">🧬 Raza</p>' +
+            '<input type="text" id="perfil-raza" placeholder="Raza del personaje" value="' + (currentUser && currentUser.raza ? currentUser.raza : '') + '" />' +
+            '<button class="btn btn-primary btn-full" id="btn-guardar-raza" style="margin-top:0.5rem">Guardar raza</button>' +
+            '<div id="raza-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+          '</div>' +
+
+          '<hr class="edit-divider" />' +
+
+          '<div class="edit-section">' +
+            '<p class="edit-section-title">🎂 Edad</p>' +
+            '<input type="number" id="perfil-edad" placeholder="Edad del personaje" min="1" value="' + (currentUser && currentUser.edad ? currentUser.edad : '') + '" />' +
+            '<button class="btn btn-primary btn-full" id="btn-guardar-edad" style="margin-top:0.5rem">Guardar edad</button>' +
+            '<div id="edad-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+          '</div>' +
+
+          '<hr class="edit-divider" />' +
+
+          '<div class="edit-section">' +
+            '<p class="edit-section-title">✨ Dato curioso <span style="color:var(--text-secondary);font-size:0.75rem">(máx. 75 caracteres)</span></p>' +
+            '<input type="text" id="perfil-dato" placeholder="Dato curioso sobre tu personaje" maxlength="75" value="' + (currentUser && currentUser.datoCurioso ? currentUser.datoCurioso : '') + '" />' +
+            '<button class="btn btn-primary btn-full" id="btn-guardar-dato" style="margin-top:0.5rem">Guardar dato curioso</button>' +
+            '<div id="dato-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+          '</div>' +
+
+          '<hr class="edit-divider" />' +
+
           '<div class="edit-section">' +
             '<p class="edit-section-title">🔑 Cambiar contrasena</p>' +
             '<input type="password" id="perfil-pass-nueva" placeholder="Nueva contrasena (min 6 caracteres)" />' +
@@ -3167,7 +3202,6 @@ function renderPerfil() {
       '</div>' +
     '</div>';
 
-  // Abrir/cerrar modal
   document.getElementById('btn-abrir-editar-perfil').addEventListener('click', function() {
     document.getElementById('modal-editar-perfil').classList.remove('hidden');
   });
@@ -3178,7 +3212,6 @@ function renderPerfil() {
     if (e.target === this) this.classList.add('hidden');
   });
 
-  // Previsualizar foto
   document.getElementById('btn-previsualizar-foto').addEventListener('click', function() {
     var url = document.getElementById('perfil-foto-url').value.trim();
     var container = document.getElementById('foto-preview-container');
@@ -3194,7 +3227,6 @@ function renderPerfil() {
     });
   });
 
-  // Guardar foto
   document.getElementById('btn-guardar-foto').addEventListener('click', async function() {
     var url = document.getElementById('perfil-foto-url').value.trim();
     var msg = document.getElementById('foto-msg');
@@ -3210,7 +3242,6 @@ function renderPerfil() {
     btn.disabled = false; btn.textContent = 'Guardar foto';
   });
 
-  // Ciudad
   if (!esRegidor) {
     document.getElementById('btn-guardar-ciudad').addEventListener('click', async function() {
       var ciudad = document.getElementById('perfil-ciudad').value;
@@ -3222,7 +3253,6 @@ function renderPerfil() {
     });
   }
 
-  // WhatsApp
   document.getElementById('btn-guardar-whatsapp').addEventListener('click', async function() {
     var whatsapp = document.getElementById('perfil-whatsapp').value.trim();
     var msg = document.getElementById('whatsapp-msg');
@@ -3232,7 +3262,42 @@ function renderPerfil() {
     msg.textContent = 'WhatsApp actualizado'; msg.style.color = 'var(--success)';
   });
 
-  // Contraseña
+  document.getElementById('btn-guardar-nivel').addEventListener('click', async function() {
+    var nivel = parseInt(document.getElementById('perfil-nivel').value);
+    var msg = document.getElementById('nivel-msg');
+    if (!nivel || nivel < 1) { msg.textContent = 'Ingresa un nivel válido'; msg.style.color = 'var(--danger)'; return; }
+    await updateDoc(doc(db, 'usuarios', currentUser.uid), { nivel: nivel });
+    currentUser.nivel = nivel;
+    msg.textContent = 'Nivel actualizado'; msg.style.color = 'var(--success)';
+  });
+
+  document.getElementById('btn-guardar-raza').addEventListener('click', async function() {
+    var raza = document.getElementById('perfil-raza').value.trim();
+    var msg = document.getElementById('raza-msg');
+    if (!raza) { msg.textContent = 'Ingresa una raza'; msg.style.color = 'var(--danger)'; return; }
+    await updateDoc(doc(db, 'usuarios', currentUser.uid), { raza: raza });
+    currentUser.raza = raza;
+    msg.textContent = 'Raza actualizada'; msg.style.color = 'var(--success)';
+  });
+
+  document.getElementById('btn-guardar-edad').addEventListener('click', async function() {
+    var edad = parseInt(document.getElementById('perfil-edad').value);
+    var msg = document.getElementById('edad-msg');
+    if (!edad || edad < 1) { msg.textContent = 'Ingresa una edad válida'; msg.style.color = 'var(--danger)'; return; }
+    await updateDoc(doc(db, 'usuarios', currentUser.uid), { edad: edad });
+    currentUser.edad = edad;
+    msg.textContent = 'Edad actualizada'; msg.style.color = 'var(--success)';
+  });
+
+  document.getElementById('btn-guardar-dato').addEventListener('click', async function() {
+    var dato = document.getElementById('perfil-dato').value.trim();
+    var msg = document.getElementById('dato-msg');
+    if (!dato) { msg.textContent = 'Ingresa un dato curioso'; msg.style.color = 'var(--danger)'; return; }
+    await updateDoc(doc(db, 'usuarios', currentUser.uid), { datoCurioso: dato });
+    currentUser.datoCurioso = dato;
+    msg.textContent = 'Dato curioso actualizado'; msg.style.color = 'var(--success)';
+  });
+
   document.getElementById('btn-cambiar-pass').addEventListener('click', async function() {
     var nueva = document.getElementById('perfil-pass-nueva').value;
     var confirmar = document.getElementById('perfil-pass-confirmar').value;
