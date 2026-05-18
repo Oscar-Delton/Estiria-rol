@@ -137,7 +137,7 @@ function navigateTo(section) {
     case 'tienda': renderTienda(); break;
     case 'casino': renderProximamente('casino'); break;
     case 'citas': renderCitas(); break;
-    case 'misiones': renderProximamente('misiones'); break
+    case 'misiones': renderProximamente('misiones'); break;
   }
 }
 
