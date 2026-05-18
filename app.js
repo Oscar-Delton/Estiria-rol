@@ -2602,7 +2602,6 @@ async function cargarTarjetasCitas(miPerfil) {
     .map(function(d) { return Object.assign({ id: d.id }, d.data()); })
     .filter(function(p) { return p.uid !== currentUser.uid; });
 
-  // Aplicar filtros
   if (filtroGenero && filtroGenero.dataset.val !== 'Todos') {
     perfiles = perfiles.filter(function(p) { return p.genero === filtroGenero.dataset.val; });
   }
@@ -2612,16 +2611,29 @@ async function cargarTarjetasCitas(miPerfil) {
   if (filtroEstado && filtroEstado.dataset.val !== 'Todos') {
     perfiles = perfiles.filter(function(p) { return p.estadoCivil === filtroEstado.dataset.val; });
   }
+
+  // Cruzar con datos de usuarios
+  perfiles = await Promise.all(perfiles.map(async function(p) {
+    var uSnap = await getDoc(doc(db, 'usuarios', p.uid));
+    var uData = uSnap.exists() ? uSnap.data() : {};
+    return Object.assign({}, p, {
+      fotoPerfil: uData.fotoPerfil || '',
+      ciudad: uData.ciudad || '',
+      nivel: uData.nivel || '?',
+      raza: uData.raza || '?',
+      edad: uData.edad || '',
+      whatsapp: uData.whatsapp || '',
+      datoCurioso: uData.datoCurioso || ''
+    });
+  }));
+
   if (filtroCiudad && filtroCiudad.dataset.val !== 'Todas') {
     perfiles = perfiles.filter(function(p) { return p.ciudad === filtroCiudad.dataset.val; });
   }
 
-  // Cargar likes ya dados
   var likesSnap = await getDocs(query(collection(db, 'citas_likes'), where('de', '==', currentUser.uid)));
   var yaLike = {};
   likesSnap.docs.forEach(function(d) { yaLike[d.data().para] = true; });
-
-  // Filtrar los que ya tienen like
   perfiles = perfiles.filter(function(p) { return !yaLike[p.uid]; });
 
   if (perfiles.length === 0) {
@@ -2642,7 +2654,7 @@ async function cargarTarjetasCitas(miPerfil) {
         (p.fotoPerfil ? '<img src="' + p.fotoPerfil + '" class="citas-tarjeta-foto" onerror="this.style.display=\'none\'" />' : '<div class="citas-tarjeta-foto-placeholder">👤</div>') +
         '<div class="citas-tarjeta-info">' +
           '<h3 class="citas-tarjeta-nombre">' + p.username + '</h3>' +
-          '<p class="citas-tarjeta-dato">' + (p.ciudad || 'Sin ciudad') + ' · Nv.' + (p.nivel || '?') + ' · ' + (p.raza || '?') + '</p>' +
+          '<p class="citas-tarjeta-dato">' + (p.ciudad || 'Sin ciudad') + ' · Nv.' + p.nivel + ' · ' + p.raza + '</p>' +
           (p.frase ? '<p class="citas-tarjeta-frase">"' + p.frase + '"</p>' : '') +
           '<button class="btn btn-secondary citas-tarjeta-ver-mas" id="btn-ver-mas-citas">Ver perfil completo ▼</button>' +
           '<div id="citas-perfil-completo" class="hidden">' +
@@ -2684,7 +2696,6 @@ async function cargarTarjetasCitas(miPerfil) {
         fecha: new Date().toISOString()
       });
 
-      // Verificar match
       var likeReverso = await getDoc(doc(db, 'citas_likes', para + '_' + currentUser.uid));
       if (likeReverso.exists()) {
         await setDoc(doc(db, 'citas_matches', currentUser.uid + '_' + para), {
