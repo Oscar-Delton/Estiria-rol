@@ -137,7 +137,7 @@ function navigateTo(section) {
     case 'tienda': renderTienda(); break;
     case 'casino': renderProximamente('casino'); break;
     case 'citas': renderCitas(); break;
-    case 'misiones': renderProximamente('misiones'); break;
+    case 'misiones': renderMisiones(); break;
   }
 }
 
@@ -2771,6 +2771,534 @@ async function renderMisMatches() {
   }));
 
   lista.innerHTML = perfilesHTML.join('');
+}
+
+function esMisionAdmin() {
+  if (!currentUser) return false;
+  var r = currentUser.rol ? currentUser.rol.toLowerCase() : '';
+  return r === 'dev' || r === 'lider_suprema' || r === 'narrador' || r === 'alcalde';
+}
+
+function esMisionSuperAdmin() {
+  if (!currentUser) return false;
+  var r = currentUser.rol ? currentUser.rol.toLowerCase() : '';
+  return r === 'dev' || r === 'lider_suprema';
+}
+
+function puedeVerMisionDeUsuario(misionCiudad) {
+  if (esMisionSuperAdmin()) return true;
+  var r = currentUser.rol ? currentUser.rol.toLowerCase() : '';
+  if (r === 'narrador' || r === 'alcalde') {
+    return misionCiudad === currentUser.ciudad;
+  }
+  return false;
+}
+
+function puedeEditarMision(mision) {
+  if (esMisionSuperAdmin()) return true;
+  var r = currentUser.rol ? currentUser.rol.toLowerCase() : '';
+  if (r === 'alcalde') return mision.ciudad === currentUser.ciudad;
+  if (r === 'narrador') return mision.autorUid === currentUser.uid;
+  return false;
+}
+
+function renderMisiones() {
+  var esAdmin = esMisionAdmin();
+  mainContent.innerHTML =
+    '<div class="card"><h3>⚔️ Misiones</h3></div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" id="btn-misiones-individuales"><span>🗡️</span><span>Individuales</span></button>' +
+      '<button class="categoria-btn" id="btn-misiones-grupales"><span>⚔️</span><span>Grupales</span></button>' +
+    '</div>' +
+    '<button class="btn btn-secondary btn-full" id="btn-misiones-en-curso" style="margin-bottom:0.5rem">📋 Mis misiones en curso</button>' +
+    (esAdmin ? '<button class="btn btn-secondary btn-full" id="btn-panel-misiones-admin" style="border-color:var(--accent);color:var(--accent)">🔍 Panel de misiones</button>' : '') +
+    '<div id="misiones-panel"></div>';
+
+  document.getElementById('btn-misiones-individuales').addEventListener('click', function() {
+    renderListaMisiones('individual');
+  });
+  document.getElementById('btn-misiones-grupales').addEventListener('click', function() {
+    renderListaMisiones('grupal');
+  });
+  document.getElementById('btn-misiones-en-curso').addEventListener('click', function() {
+    renderMisionesEnCurso();
+  });
+  if (esAdmin) {
+    document.getElementById('btn-panel-misiones-admin').addEventListener('click', function() {
+      renderPanelAdminMisiones();
+    });
+  }
+}
+
+async function renderListaMisiones(tipo) {
+  var panel = document.getElementById('misiones-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-misiones">← Misiones</button>' +
+      '<h3>' + (tipo === 'individual' ? '🗡️ Misiones individuales' : '⚔️ Misiones grupales') + '</h3>' +
+    '</div>' +
+    (esMisionAdmin() ? '<button class="btn btn-primary btn-full" id="btn-crear-mision" style="margin-bottom:0.75rem">+ Crear misión</button>' : '') +
+    '<div id="lista-misiones"><p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p></div>' +
+    '<div id="mision-form"></div>';
+
+  document.getElementById('back-misiones').addEventListener('click', function() {
+    panel.innerHTML = '';
+  });
+
+  if (esMisionAdmin()) {
+    document.getElementById('btn-crear-mision').addEventListener('click', function() {
+      renderFormCrearMision(tipo, null);
+    });
+  }
+
+  cargarListaMisiones(tipo);
+}
+
+function cargarListaMisiones(tipo) {
+  var lista = document.getElementById('lista-misiones');
+  onSnapshot(
+    query(collection(db, 'misiones'), where('tipo', '==', tipo), where('activa', '==', true), orderBy('creadoEn', 'desc')),
+    function(snap) {
+      if (!lista) return;
+      if (snap.empty) {
+        lista.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">No hay misiones disponibles.</p>';
+        return;
+      }
+      lista.innerHTML = snap.docs.map(function(d) {
+        var m = d.data();
+        return '<div class="mision-item" data-id="' + d.id + '">' +
+          '<div class="mision-item-info">' +
+            '<p class="mision-titulo">' + m.titulo + '</p>' +
+            '<p class="mision-meta">💷 £' + (m.recompensaDinero || 0).toLocaleString('es-CO') + (m.recompensaObjeto ? ' + ' + m.recompensaObjeto : '') + '</p>' +
+          '</div>' +
+          '<span class="mision-arrow">›</span>' +
+        '</div>';
+      }).join('');
+
+      lista.querySelectorAll('.mision-item').forEach(function(item) {
+        item.addEventListener('click', function() {
+          var id = item.dataset.id;
+          var snap2 = snap.docs.find(function(d) { return d.id === id; });
+          if (snap2) renderDetalleMision(snap2.id, snap2.data(), tipo);
+        });
+      });
+    }
+  );
+}
+
+function renderDetalleMision(misionId, mision, tipo) {
+  var panel = document.getElementById('misiones-panel');
+  var puedeEditar = puedeEditarMision(mision);
+
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-lista-misiones">← Lista</button>' +
+      '<h3>⚔️ ' + mision.titulo + '</h3>' +
+    '</div>' +
+    '<div class="card">' +
+      '<p class="edit-section-title">📜 Descripción</p>' +
+      '<p style="font-size:0.88rem;color:var(--text-primary);margin-bottom:0.75rem">' + mision.descripcion + '</p>' +
+      '<div class="mision-dato-row"><span>💷 Recompensa dinero</span><span>£' + (mision.recompensaDinero || 0).toLocaleString('es-CO') + '</span></div>' +
+      (mision.recompensaObjeto ? '<div class="mision-dato-row"><span>🎁 Recompensa objeto</span><span>' + mision.recompensaObjeto + '</span></div>' : '') +
+      '<div class="mision-dato-row"><span>💬 Mín. mensajes</span><span>' + mision.minMensajes + '</span></div>' +
+      '<div class="mision-dato-row"><span>📝 Mín. líneas/mensaje</span><span>' + mision.minLineas + '</span></div>' +
+      (tipo === 'grupal' ? '<div class="mision-dato-row"><span>👥 Tipo</span><span>Grupal (2-5 jugadores)</span></div>' : '') +
+      '<p style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.5rem">Creada por ' + mision.autorUsername + '</p>' +
+    '</div>' +
+    '<button class="btn btn-primary btn-full" id="btn-tomar-mision" style="margin-top:0.75rem">⚔️ Tomar misión</button>' +
+    (puedeEditar ? '<div style="display:flex;gap:0.5rem;margin-top:0.5rem">' +
+      '<button class="btn btn-secondary" id="btn-editar-mision" style="flex:1">✏️ Editar</button>' +
+      '<button class="btn btn-secondary" id="btn-borrar-mision" style="flex:1;border-color:var(--danger);color:var(--danger)">🗑️ Borrar</button>' +
+    '</div>' : '') +
+    '<div id="tomar-mision-form"></div>';
+
+  document.getElementById('back-lista-misiones').addEventListener('click', function() {
+    renderListaMisiones(tipo);
+  });
+
+  document.getElementById('btn-tomar-mision').addEventListener('click', function() {
+    if (tipo === 'grupal') {
+      mostrarFormTomarGrupal(misionId, mision);
+    } else {
+      tomarMisionIndividual(misionId, mision);
+    }
+  });
+
+  if (puedeEditar) {
+    document.getElementById('btn-editar-mision').addEventListener('click', function() {
+      renderFormCrearMision(tipo, Object.assign({ id: misionId }, mision));
+    });
+    document.getElementById('btn-borrar-mision').addEventListener('click', async function() {
+      if (!confirm('¿Borrar esta misión?')) return;
+      await updateDoc(doc(db, 'misiones', misionId), { activa: false });
+      renderListaMisiones(tipo);
+    });
+  }
+}
+
+async function tomarMisionIndividual(misionId, mision) {
+  var form = document.getElementById('tomar-mision-form');
+  form.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:0.5rem">Procesando...</p>';
+
+  var yaEnCurso = await getDocs(query(collection(db, 'misiones_en_curso'),
+    where('uid', '==', currentUser.uid),
+    where('misionId', '==', misionId)
+  ));
+
+  if (!yaEnCurso.empty) {
+    form.innerHTML = '<p style="color:var(--danger);text-align:center;padding:0.5rem">Ya tienes esta misión en curso.</p>';
+    return;
+  }
+
+  await addDoc(collection(db, 'misiones_en_curso'), {
+    uid: currentUser.uid,
+    username: currentUser.username,
+    ciudad: currentUser.ciudad || '',
+    misionId: misionId,
+    titulo: mision.titulo,
+    recompensaDinero: mision.recompensaDinero || 0,
+    recompensaObjeto: mision.recompensaObjeto || '',
+    tipo: 'individual',
+    miembros: [{ uid: currentUser.uid, username: currentUser.username }],
+    tomadaEn: new Date().toISOString(),
+    estado: 'en_curso'
+  });
+
+  form.innerHTML = '<p style="color:var(--success);text-align:center;padding:0.5rem">✓ Misión tomada. Aparece en "Mis misiones en curso".</p>';
+}
+
+function mostrarFormTomarGrupal(misionId, mision) {
+  var form = document.getElementById('tomar-mision-form');
+  form.innerHTML =
+    '<div class="card" style="margin-top:0.75rem">' +
+      '<h3 style="margin-bottom:0.75rem">👥 Añadir compañeros</h3>' +
+      '<p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:0.75rem">Puedes añadir hasta 4 compañeros (5 en total contigo)</p>' +
+      '<div style="position:relative">' +
+        '<input type="text" id="grupal-buscar-usuario" placeholder="Buscar usuario..." autocomplete="off" style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block" />' +
+        '<div id="grupal-usuario-lista" class="usuarios-lista"></div>' +
+      '</div>' +
+      '<div id="grupal-seleccionados" style="margin-top:0.5rem"></div>' +
+      '<button class="btn btn-primary btn-full" id="btn-confirmar-grupal" style="margin-top:0.75rem">⚔️ Tomar misión grupal</button>' +
+      '<div id="grupal-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+    '</div>';
+
+  var seleccionados = [];
+  crearBuscadorUsuarios('grupal-buscar-usuario', 'grupal-usuario-lista', currentUser.username, false);
+
+  document.getElementById('grupal-buscar-usuario').addEventListener('change', function() {
+    var username = this.value.trim().toLowerCase();
+    if (!username || seleccionados.find(function(s) { return s.username === username; })) return;
+    if (seleccionados.length >= 4) {
+      document.getElementById('grupal-msg').textContent = 'Máximo 4 compañeros';
+      document.getElementById('grupal-msg').style.color = 'var(--danger)';
+      return;
+    }
+    seleccionados.push({ username: username });
+    actualizarSeleccionadosGrupal(seleccionados);
+    this.value = '';
+  });
+
+  document.getElementById('btn-confirmar-grupal').addEventListener('click', async function() {
+    var msg = document.getElementById('grupal-msg');
+    if (seleccionados.length === 0) { msg.textContent = 'Añade al menos un compañero'; msg.style.color = 'var(--danger)'; return; }
+    var btn = this; btn.disabled = true; btn.textContent = 'Procesando...';
+
+    var miembros = [{ uid: currentUser.uid, username: currentUser.username }];
+    for (var i = 0; i < seleccionados.length; i++) {
+      var uSnap = await getDoc(doc(db, 'usernames', seleccionados[i].username));
+      if (uSnap.exists()) miembros.push({ uid: uSnap.data().uid, username: seleccionados[i].username });
+    }
+
+    await addDoc(collection(db, 'misiones_en_curso'), {
+      uid: currentUser.uid,
+      username: currentUser.username,
+      ciudad: currentUser.ciudad || '',
+      misionId: misionId,
+      titulo: mision.titulo,
+      recompensaDinero: mision.recompensaDinero || 0,
+      recompensaObjeto: mision.recompensaObjeto || '',
+      tipo: 'grupal',
+      miembros: miembros,
+      tomadaEn: new Date().toISOString(),
+      estado: 'en_curso'
+    });
+
+    msg.textContent = '✓ Misión grupal iniciada'; msg.style.color = 'var(--success)';
+    btn.disabled = false; btn.textContent = '⚔️ Tomar misión grupal';
+  });
+}
+
+function actualizarSeleccionadosGrupal(seleccionados) {
+  var cont = document.getElementById('grupal-seleccionados');
+  if (seleccionados.length === 0) { cont.innerHTML = ''; return; }
+  cont.innerHTML = '<p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:0.3rem">Compañeros:</p>' +
+    seleccionados.map(function(u, i) {
+      return '<span class="tag-usuario" data-i="' + i + '">' + u.username + ' ✕</span>';
+    }).join('');
+  cont.querySelectorAll('.tag-usuario').forEach(function(tag) {
+    tag.addEventListener('click', function() {
+      seleccionados.splice(parseInt(tag.dataset.i), 1);
+      actualizarSeleccionadosGrupal(seleccionados);
+    });
+  });
+}
+
+function renderFormCrearMision(tipo, misionExistente) {
+  var panel = document.getElementById('misiones-panel');
+  var esEdicion = misionExistente !== null;
+  var m = misionExistente || {};
+
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-form-mision">← Atrás</button>' +
+      '<h3>' + (esEdicion ? '✏️ Editar misión' : '+ Crear misión') + '</h3>' +
+    '</div>' +
+    '<div class="card">' +
+      '<input type="text" id="mision-titulo" placeholder="Título de la misión" value="' + (m.titulo || '') + '" style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block;margin-bottom:0.5rem" />' +
+      '<textarea id="mision-descripcion" placeholder="Descripción detallada de la misión..." style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block;min-height:120px;resize:vertical;margin-bottom:0.5rem">' + (m.descripcion || '') + '</textarea>' +
+      '<input type="number" id="mision-recompensa-dinero" placeholder="Recompensa en £ (0 si no hay)" min="0" value="' + (m.recompensaDinero || 0) + '" style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block;margin-bottom:0.5rem" />' +
+      '<input type="text" id="mision-recompensa-objeto" placeholder="Recompensa objeto (opcional)" value="' + (m.recompensaObjeto || '') + '" style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block;margin-bottom:0.5rem" />' +
+      '<input type="number" id="mision-min-mensajes" placeholder="Mínimo de mensajes requeridos" min="1" value="' + (m.minMensajes || '') + '" style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block;margin-bottom:0.5rem" />' +
+      '<input type="number" id="mision-min-lineas" placeholder="Mínimo de líneas por mensaje" min="1" value="' + (m.minLineas || '') + '" style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block;margin-bottom:0.5rem" />' +
+      '<button class="btn btn-primary btn-full" id="btn-guardar-mision">' + (esEdicion ? '💾 Guardar cambios' : '📤 Publicar misión') + '</button>' +
+      '<div id="mision-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+    '</div>';
+
+  document.getElementById('back-form-mision').addEventListener('click', function() {
+    renderListaMisiones(tipo);
+  });
+
+  document.getElementById('btn-guardar-mision').addEventListener('click', async function() {
+    var titulo = document.getElementById('mision-titulo').value.trim();
+    var descripcion = document.getElementById('mision-descripcion').value.trim();
+    var recompensaDinero = parseInt(document.getElementById('mision-recompensa-dinero').value) || 0;
+    var recompensaObjeto = document.getElementById('mision-recompensa-objeto').value.trim();
+    var minMensajes = parseInt(document.getElementById('mision-min-mensajes').value);
+    var minLineas = parseInt(document.getElementById('mision-min-lineas').value);
+    var msg = document.getElementById('mision-msg');
+
+    if (!titulo) { msg.textContent = 'El título es obligatorio'; msg.style.color = 'var(--danger)'; return; }
+    if (!descripcion) { msg.textContent = 'La descripción es obligatoria'; msg.style.color = 'var(--danger)'; return; }
+    if (!minMensajes || minMensajes < 1) { msg.textContent = 'Ingresa el mínimo de mensajes'; msg.style.color = 'var(--danger)'; return; }
+    if (!minLineas || minLineas < 1) { msg.textContent = 'Ingresa el mínimo de líneas'; msg.style.color = 'var(--danger)'; return; }
+
+    var btn = document.getElementById('btn-guardar-mision');
+    btn.disabled = true; btn.textContent = 'Guardando...';
+
+    var datos = {
+      titulo: titulo,
+      descripcion: descripcion,
+      recompensaDinero: recompensaDinero,
+      recompensaObjeto: recompensaObjeto,
+      minMensajes: minMensajes,
+      minLineas: minLineas,
+      tipo: tipo,
+      activa: true,
+      autorUid: currentUser.uid,
+      autorUsername: currentUser.username,
+      ciudad: currentUser.ciudad || ''
+    };
+
+    try {
+      if (esEdicion) {
+        await updateDoc(doc(db, 'misiones', misionExistente.id), datos);
+      } else {
+        datos.creadoEn = new Date().toISOString();
+        await addDoc(collection(db, 'misiones'), datos);
+      }
+      msg.textContent = '✓ ' + (esEdicion ? 'Misión actualizada' : 'Misión publicada');
+      msg.style.color = 'var(--success)';
+      setTimeout(function() { renderListaMisiones(tipo); }, 1000);
+    } catch (err) {
+      msg.textContent = 'Error: ' + err.message;
+      msg.style.color = 'var(--danger)';
+      btn.disabled = false;
+      btn.textContent = esEdicion ? '💾 Guardar cambios' : '📤 Publicar misión';
+    }
+  });
+}
+
+function renderMisionesEnCurso() {
+  var panel = document.getElementById('misiones-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-en-curso">← Misiones</button>' +
+      '<h3>📋 Mis misiones en curso</h3>' +
+    '</div>' +
+    '<div id="en-curso-lista"><p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p></div>';
+
+  document.getElementById('back-en-curso').addEventListener('click', function() { panel.innerHTML = ''; });
+
+  onSnapshot(
+    query(collection(db, 'misiones_en_curso'), where('uid', '==', currentUser.uid), where('estado', '==', 'en_curso')),
+    function(snap) {
+      var lista = document.getElementById('en-curso-lista');
+      if (!lista) return;
+      if (snap.empty) {
+        lista.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">No tienes misiones en curso.</p>';
+        return;
+      }
+      lista.innerHTML = snap.docs.map(function(d) {
+        var m = d.data();
+        var miembrosStr = m.miembros && m.miembros.length > 1
+          ? m.miembros.map(function(mb) { return mb.username; }).join(', ')
+          : 'Individual';
+        return '<div class="mision-en-curso-card">' +
+          '<div class="mision-en-curso-info">' +
+            '<p class="mision-titulo">' + m.titulo + '</p>' +
+            '<p class="mision-meta">💷 £' + (m.recompensaDinero || 0).toLocaleString('es-CO') + (m.recompensaObjeto ? ' + ' + m.recompensaObjeto : '') + '</p>' +
+            '<p class="mision-meta">👥 ' + miembrosStr + '</p>' +
+            '<p class="mision-meta" style="font-size:0.72rem">' + new Date(m.tomadaEn).toLocaleDateString('es-CO') + '</p>' +
+          '</div>' +
+          '<div class="mision-en-curso-acciones">' +
+            '<button class="btn-mision-terminar" data-id="' + d.id + '">✅ Terminar</button>' +
+            '<button class="btn-mision-cancelar" data-id="' + d.id + '">❌ Cancelar</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      lista.querySelectorAll('.btn-mision-terminar').forEach(function(btn) {
+  btn.addEventListener('click', async function() {
+    if (!confirm('¿Reportar esta misión como completada?')) return;
+    var snap2 = await getDoc(doc(db, 'misiones_en_curso', btn.dataset.id));
+    var mData = snap2.data();
+    await addDoc(collection(db, 'misiones_terminadas'), Object.assign({}, mData, {
+      misionEnCursoId: btn.dataset.id,
+      terminadaEn: new Date().toISOString(),
+      estado: 'pendiente_revision'
+    }));
+    await updateDoc(doc(db, 'misiones_en_curso', btn.dataset.id), { estado: 'reportada' });
+  });
+});
+
+      lista.querySelectorAll('.btn-mision-cancelar').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (!confirm('¿Cancelar esta misión?')) return;
+          await updateDoc(doc(db, 'misiones_en_curso', btn.dataset.id), { estado: 'cancelada' });
+        });
+      });
+    }
+  );
+}
+
+function renderPanelAdminMisiones() {
+  var panel = document.getElementById('misiones-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-admin-misiones">← Misiones</button>' +
+      '<h3>🔍 Panel de misiones</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" id="btn-admin-en-progreso"><span>⏳</span><span>En progreso</span></button>' +
+      '<button class="categoria-btn" id="btn-admin-completadas"><span>✅</span><span>Completadas</span></button>' +
+    '</div>' +
+    '<div id="admin-misiones-contenido"></div>';
+
+  document.getElementById('back-admin-misiones').addEventListener('click', function() { panel.innerHTML = ''; });
+  document.getElementById('btn-admin-en-progreso').addEventListener('click', function() { renderAdminEnProgreso(); });
+  document.getElementById('btn-admin-completadas').addEventListener('click', function() { renderAdminCompletadas(); });
+}
+
+function renderAdminEnProgreso() {
+  var contenido = document.getElementById('admin-misiones-contenido');
+  contenido.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p>';
+
+  onSnapshot(
+    query(collection(db, 'misiones_en_curso'), where('estado', '==', 'en_curso')),
+    function(snap) {
+      if (!contenido) return;
+      var docs = snap.docs.filter(function(d) {
+        return puedeVerMisionDeUsuario(d.data().ciudad);
+      });
+      if (docs.length === 0) {
+        contenido.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">No hay misiones en progreso.</p>';
+        return;
+      }
+      contenido.innerHTML = '<h3 style="margin:0.75rem 0 0.5rem">⏳ En progreso</h3>' +
+        docs.map(function(d) {
+          var m = d.data();
+          var miembros = m.miembros ? m.miembros.map(function(mb) { return mb.username; }).join(', ') : m.username;
+          return '<div class="mision-admin-card">' +
+            '<p class="mision-titulo">' + m.titulo + '</p>' +
+            '<p class="mision-meta">👤 ' + miembros + ' · 🏙️ ' + (m.ciudad || 'Sin ciudad') + '</p>' +
+            '<p class="mision-meta">' + new Date(m.tomadaEn).toLocaleDateString('es-CO') + '</p>' +
+          '</div>';
+        }).join('');
+    }
+  );
+}
+
+function renderAdminCompletadas() {
+  var contenido = document.getElementById('admin-misiones-contenido');
+  contenido.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p>';
+
+  onSnapshot(
+    query(collection(db, 'misiones_terminadas'), where('estado', '==', 'pendiente_revision')),
+    function(snap) {
+      if (!contenido) return;
+      var docs = snap.docs.filter(function(d) {
+        return puedeVerMisionDeUsuario(d.data().ciudad);
+      });
+      if (docs.length === 0) {
+        contenido.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">No hay misiones pendientes de revisión.</p>';
+        return;
+      }
+      contenido.innerHTML = '<h3 style="margin:0.75rem 0 0.5rem">✅ Pendientes de revisión</h3>' +
+        docs.map(function(d) {
+          var m = d.data();
+          var miembros = m.miembros ? m.miembros.map(function(mb) { return mb.username; }).join(', ') : m.username;
+          return '<div class="mision-admin-card">' +
+            '<p class="mision-titulo">' + m.titulo + '</p>' +
+            '<p class="mision-meta">👤 ' + miembros + '</p>' +
+            '<p class="mision-meta">💷 £' + (m.recompensaDinero || 0).toLocaleString('es-CO') + (m.recompensaObjeto ? ' + 🎁 ' + m.recompensaObjeto : '') + '</p>' +
+            '<p class="mision-meta">🏙️ ' + (m.ciudad || 'Sin ciudad') + ' · ' + new Date(m.terminadaEn).toLocaleDateString('es-CO') + '</p>' +
+            '<div style="display:flex;gap:0.5rem;margin-top:0.5rem">' +
+              '<button class="btn btn-primary btn-confirmar-mision" data-id="' + d.id + '" style="flex:1;font-size:0.82rem;padding:0.5rem">✅ Confirmar</button>' +
+              '<button class="btn btn-secondary btn-rechazar-mision" data-id="' + d.id + '" style="flex:1;font-size:0.82rem;padding:0.5rem;border-color:var(--danger);color:var(--danger)">❌ Rechazar</button>' +
+            '</div>' +
+            (m.recompensaObjeto ? '<p style="font-size:0.75rem;color:var(--warning);margin-top:0.4rem">⚠️ Recuerda dar manualmente: ' + m.recompensaObjeto + '</p>' : '') +
+          '</div>';
+        }).join('');
+
+      contenido.querySelectorAll('.btn-confirmar-mision').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (!confirm('¿Confirmar misión como completada?')) return;
+          btn.disabled = true; btn.textContent = 'Procesando...';
+          var snap2 = await getDoc(doc(db, 'misiones_terminadas', btn.dataset.id));
+          var mData = snap2.data();
+
+          if (mData.recompensaDinero && mData.recompensaDinero > 0) {
+            for (var i = 0; i < mData.miembros.length; i++) {
+              var miembro = mData.miembros[i];
+              await updateDoc(doc(db, 'usuarios', miembro.uid), { saldo: increment(mData.recompensaDinero) });
+              await registrarTransaccion({
+                tipo: 'recompensa_mision',
+                de: 'sistema',
+                deUsername: 'Sistema Misiones',
+                para: miembro.uid,
+                paraUsername: miembro.username,
+                monto: mData.recompensaDinero,
+                descripcion: 'Recompensa por completar misión: ' + mData.titulo
+              });
+            }
+          }
+
+          await updateDoc(doc(db, 'misiones_terminadas', btn.dataset.id), { estado: 'confirmada' });
+          await updateDoc(doc(db, 'misiones_en_curso', mData.misionEnCursoId || btn.dataset.id), { estado: 'completada' });
+        });
+      });
+
+      contenido.querySelectorAll('.btn-rechazar-mision').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (!confirm('¿Rechazar esta misión? Volverá a estar en curso para el jugador.')) return;
+          var snap2 = await getDoc(doc(db, 'misiones_terminadas', btn.dataset.id));
+          var mData = snap2.data();
+          await updateDoc(doc(db, 'misiones_terminadas', btn.dataset.id), { estado: 'rechazada' });
+          await updateDoc(doc(db, 'misiones_en_curso', mData.misionEnCursoId || btn.dataset.id), { estado: 'en_curso' });
+        });
+      });
+    }
+  );
 }
 
 function renderPatrimonio() {

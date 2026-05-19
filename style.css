@@ -1512,3 +1512,105 @@
   color: var(--success);
   font-weight: 500;
 }
+
+/* ===== MISIONES ===== */
+.mision-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-card);
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.mision-item:active { border-color: var(--accent); }
+
+.mision-item-info { flex: 1; }
+
+.mision-titulo {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.2rem;
+}
+
+.mision-meta {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.1rem;
+}
+
+.mision-arrow {
+  font-size: 1.3rem;
+  color: var(--text-secondary);
+}
+
+.mision-dato-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--bg-card);
+  color: var(--text-secondary);
+}
+
+.mision-dato-row span:last-child {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.mision-en-curso-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-card);
+  border-radius: 12px;
+  margin-bottom: 0.5rem;
+  gap: 0.5rem;
+}
+
+.mision-en-curso-info { flex: 1; }
+
+.mision-en-curso-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.btn-mision-terminar {
+  background: var(--success);
+  border: none;
+  color: white;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-mision-cancelar {
+  background: var(--bg-card);
+  border: none;
+  color: var(--danger);
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mision-admin-card {
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-card);
+  border-radius: 12px;
+  margin-bottom: 0.5rem;
+}
