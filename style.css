@@ -1614,3 +1614,32 @@
   border-radius: 12px;
   margin-bottom: 0.5rem;
 }
+
+/* ===== MISIONES IA ===== */
+.dice-tabla {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.dice-fila {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  align-items: flex-start;
+  line-height: 1.4;
+}
+
+.dice-rango {
+  font-weight: 700;
+  white-space: nowrap;
+  min-width: 42px;
+}
+
+.dice-fila.critico-fallo { background: rgba(255, 50, 50, 0.12); color: #ff5555; }
+.dice-fila.fallo         { background: rgba(255, 100, 50, 0.10); color: var(--danger); }
+.dice-fila.neutro        { background: var(--bg-secondary); color: var(--text-secondary); }
+.dice-fila.exito         { background: rgba(50, 200, 100, 0.10); color: var(--success); }
+.dice-fila.critico-exito { background: rgba(255, 215, 0, 0.12); color: gold; }

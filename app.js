@@ -21,6 +21,88 @@ const navBtns = document.querySelectorAll('.nav-btn');
 let currentUser = null;
 let todosLosUsuarios = [];
 
+const GROQ_API_KEY = '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';
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
+
+async function llamarGroq(mensajes, maxTokens = 1200) {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + GROQ_API_KEY
+    },
+    body: JSON.stringify({
+      model: GROQ_MODEL,
+      max_tokens: maxTokens,
+      messages: mensajes
+    })
+  });
+  if (!response.ok) throw new Error('Error Groq: ' + response.status);
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
+
+const SISTEMA_MISIONES = `Eres el Narrador Supremo de un universo de roleplay de fantasía/ciencia ficción llamado Estiria. Tu trabajo es generar misiones personalizadas épicas y gestionar eventos aleatorios.
+
+FÓRMULA DE ESTADÍSTICAS BASE:
+stat = (20 + nivel) × 365 × 26 / 12
+Cada stat tiene 20 puntos base. La fórmula aplica a: Fuerza (kg), Resistencia (kg), Velocidad (km/h), Energía (reserva para habilidades). Las auras y habilidades especiales pueden modificar drásticamente estos valores.
+
+SISTEMA DE NIVELES Y PODER:
+- Niveles 1-10: Novato. Fuerza ~17.000-26.000 kg. Velocidad subsónica. Habilidades básicas o nulas.
+- Niveles 11-50: Aficionado. Fuerza ~27.000-67.000 kg. Velocidad sónica baja. Primeras habilidades activas.
+- Niveles 51-100: Intermedio bajo. Fuerza ~68.000-116.000 kg. Velocidad sónica media. Técnicas definidas.
+- Niveles 101-300: Intermedio. Fuerza ~116.000-310.000 kg. Velocidad hipersónica. Habilidades múltiples.
+- Niveles 301-600: Avanzado. Fuerza ~310.000-590.000 kg. Velocidad Mach 200-500. Arsenal amplio.
+- Niveles 601-1000: Élite. Fuerza ~590.000-980.000 kg. Velocidad Mach 500-800. Técnicas de gran escala.
+- Niveles 1001-1500: Superior. Fuerza ~980.000-1.460.000 kg (~1.500 ton). Velocidad Mach 800-1.200. Habilidades de nivel planetario bajo.
+- Niveles 1501-2000: Trascendente. Fuerza ~1.460.000-1.946.000 kg (~2.000 ton). Velocidad Mach 1.200-1.600. Escala continental.
+- Niveles 2001-3000: Cósmico bajo. Fuerza ~1.946.000-2.911.000 kg (~3.000 ton). Velocidad Mach 1.600-2.400. Escala planetaria baja. Habilidades estelares incipientes.
+- Niveles 3001-4500: Cósmico medio. Fuerza ~2.911.000-4.358.000 kg. Velocidad Mach 2.400-3.600. Influencia estelar parcial. Técnicas de manipulación espacial.
+- Niveles 4501-6000: Cósmico alto. Fuerza ~4.358.000-5.805.000 kg. Velocidad Mach 3.600-4.900. Control estelar activo. Restructuración de materia.
+- Niveles 6001-8000: Primordial. Fuerza ~5.805.000-7.741.000 kg. Velocidad Mach 4.900-6.350. Escala galáctica baja. Poder más allá de lo conocido.
+- Niveles 8000+: Incalculable. La fórmula base pierde referencia. El poder trasciende la física convencional.
+
+NOTA IMPORTANTE SOBRE AURAS Y BONOS:
+Las estadísticas base son solo el punto de partida. Auras, técnicas activas y habilidades pasivas pueden multiplicar o sumar enormemente estos valores. Por ejemplo, un aura que añada +200.000.000 de resistencia supera en órdenes de magnitud la resistencia base de cualquier nivel bajo. Considera siempre las habilidades listadas por el jugador al evaluar el poder real.
+
+DIFICULTADES (relativas al poder del personaje, no al número de nivel):
+- Fácil: El desafío está claramente por debajo del poder base del personaje. Victoria casi segura.
+- Normal: El desafío iguala o supera levemente el poder base. Requiere estrategia y uso de habilidades.
+- Difícil: El enemigo o situación supera el poder base. El personaje debe usar todo su arsenal.
+- Extrema: El desafío supera incluso las habilidades avanzadas. Alta probabilidad de derrota parcial.
+- Imposible: Solo superable mediante estrategia perfecta, sacrificios o condiciones muy específicas.
+
+REGLAS DE MISIONES:
+- Cada misión tiene: título épico, descripción narrativa inmersiva, objetivo claro, recompensa acorde al nivel, requisito mínimo de posts y líneas.
+- El evento especial se activa en un post específico (entre el 60% y 80% del total de posts).
+- Los eventos especiales se basan en una tirada de D20 que el jugador hace.
+- Las recompensas en dinero deben ser acordes al nivel y dificultad. Personajes de nivel alto merecen recompensas altas.
+- La narrativa debe reflejar la escala de poder del personaje: un nivel 3000 no lucha contra bandidos, enfrenta amenazas estelares o cósmicas.
+
+FORMATO DE RESPUESTA — responde ÚNICAMENTE con este JSON, sin texto adicional, sin markdown, sin backticks:
+{
+  "titulo": "...",
+  "descripcion": "...",
+  "objetivo": "...",
+  "dificultadReal": "Fácil/Normal/Difícil/Extrema/Imposible",
+  "recompensaDinero": número,
+  "recompensaObjeto": "...",
+  "minMensajes": número,
+  "minLineas": 10,
+  "postEventoEspecial": número,
+  "descripcionEventoBase": "En el post [N], algo cambia en la misión...",
+  "tablaDice": {
+    "critico_fallo": "1-2: descripción evento catastrófico acorde al nivel del personaje",
+    "fallo": "3-7: descripción evento negativo acorde al nivel del personaje",
+    "neutro": "8-12: descripción evento neutro o ambiguo",
+    "exito": "13-18: descripción evento favorable",
+    "critico_exito": "19-20: descripción evento excepcional, puede revelar lore o recompensa extra"
+  }
+}`;
+
+
+
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = await loadUserProfile(user);
@@ -2810,6 +2892,7 @@ function renderMisiones() {
       '<button class="categoria-btn" id="btn-misiones-individuales"><span>🗡️</span><span>Individuales</span></button>' +
       '<button class="categoria-btn" id="btn-misiones-grupales"><span>⚔️</span><span>Grupales</span></button>' +
     '</div>' +
+    '<button class="btn btn-secondary btn-full" id="btn-mision-ia" style="margin-bottom:0.5rem;border-color:var(--accent);color:var(--accent)">🤖 Misión con IA</button>' +
     '<button class="btn btn-secondary btn-full" id="btn-misiones-en-curso" style="margin-bottom:0.5rem">📋 Mis misiones en curso</button>' +
     (esAdmin ? '<button class="btn btn-secondary btn-full" id="btn-panel-misiones-admin" style="border-color:var(--accent);color:var(--accent)">🔍 Panel de misiones</button>' : '') +
     '<div id="misiones-panel"></div>';
@@ -2822,6 +2905,9 @@ function renderMisiones() {
   });
   document.getElementById('btn-misiones-en-curso').addEventListener('click', function() {
     renderMisionesEnCurso();
+  });
+  document.getElementById('btn-mision-ia').addEventListener('click', function() {
+  renderFormMisionIA();
   });
   if (esAdmin) {
     document.getElementById('btn-panel-misiones-admin').addEventListener('click', function() {
@@ -3116,6 +3202,295 @@ function renderFormCrearMision(tipo, misionExistente) {
       btn.textContent = esEdicion ? '💾 Guardar cambios' : '📤 Publicar misión';
     }
   });
+}
+
+function renderFormMisionIA() {
+  var panel = document.getElementById('misiones-panel');
+  var iStyle = 'width:100%;padding:0.75rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.88rem;outline:none;font-family:inherit;display:block;box-sizing:border-box;margin-bottom:0.5rem';
+  var sStyle = 'width:100%;padding:0.75rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.88rem;outline:none;font-family:inherit;display:block;box-sizing:border-box;margin-bottom:0.5rem';
+
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-mision-ia">← Misiones</button>' +
+      '<h3>🤖 Misión personalizada con IA</h3>' +
+    '</div>' +
+    '<div class="card" style="display:flex;flex-direction:column;gap:0.1rem">' +
+
+      '<input type="number" id="ia-nivel" placeholder="Nivel del personaje (ej: 1, 50, 500...)" min="1" style="' + iStyle + '" />' +
+      '<input type="text" id="ia-raza" placeholder="Raza o especie (ej: humano, demonio, dios...)" style="' + iStyle + '" />' +
+      '<textarea id="ia-habilidades" placeholder="Habilidades especiales (una por línea o separadas por coma)" style="' + iStyle + 'min-height:70px;resize:vertical"></textarea>' +
+
+      '<p class="edit-section-title" style="margin:0.3rem 0 0.2rem">💪 Fuerza máxima</p>' +
+      '<div style="display:flex;gap:0.5rem;margin-bottom:0.5rem">' +
+        '<input type="text" id="ia-fuerza-val" placeholder="Valor (ej: 5.2 o 3e8)" style="' + iStyle + 'flex:2;margin:0" />' +
+        '<select id="ia-fuerza-unit" style="' + sStyle + 'flex:1;margin:0">' +
+          '<option value="kg">kg</option>' +
+          '<option value="toneladas">ton</option>' +
+          '<option value="masas planetarias">M. Planet.</option>' +
+          '<option value="masas solares">M. Solar</option>' +
+        '</select>' +
+      '</div>' +
+
+      '<p class="edit-section-title" style="margin:0.3rem 0 0.2rem">🛡️ Resistencia máxima</p>' +
+      '<div style="display:flex;gap:0.5rem;margin-bottom:0.5rem">' +
+        '<input type="text" id="ia-resist-val" placeholder="Valor" style="' + iStyle + 'flex:2;margin:0" />' +
+        '<select id="ia-resist-unit" style="' + sStyle + 'flex:1;margin:0">' +
+          '<option value="kg">kg</option>' +
+          '<option value="toneladas">ton</option>' +
+          '<option value="masas planetarias">M. Planet.</option>' +
+          '<option value="masas solares">M. Solar</option>' +
+        '</select>' +
+      '</div>' +
+
+      '<p class="edit-section-title" style="margin:0.3rem 0 0.2rem">⚡ Velocidad máxima</p>' +
+      '<div style="display:flex;gap:0.5rem;margin-bottom:0.5rem">' +
+        '<input type="text" id="ia-vel-val" placeholder="Valor" style="' + iStyle + 'flex:2;margin:0" />' +
+        '<select id="ia-vel-unit" style="' + sStyle + 'flex:1;margin:0">' +
+          '<option value="m/s">m/s</option>' +
+          '<option value="km/h">km/h</option>' +
+          '<option value="km/s">km/s</option>' +
+          '<option value="c (velocidad de la luz)">× c (luz)</option>' +
+        '</select>' +
+      '</div>' +
+
+      '<p class="edit-section-title" style="margin:0.3rem 0 0.2rem">⚙️ Parámetros de misión</p>' +
+      '<select id="ia-tipo-mision" style="' + sStyle + '">' +
+        '<option value="combate">⚔️ Combate</option>' +
+        '<option value="exploracion">🗺️ Exploración</option>' +
+        '<option value="infiltracion">🕵️ Infiltración</option>' +
+        '<option value="rescate">🏥 Rescate</option>' +
+        '<option value="caceria">🎯 Cacería</option>' +
+        '<option value="defensa">🏰 Defensa</option>' +
+        '<option value="libre">✨ Libre (la IA decide)</option>' +
+      '</select>' +
+      '<select id="ia-dificultad" style="' + sStyle + '">' +
+        '<option value="Fácil">😌 Fácil</option>' +
+        '<option value="Normal" selected>⚔️ Normal</option>' +
+        '<option value="Difícil">🔥 Difícil</option>' +
+        '<option value="Extrema">💀 Extrema</option>' +
+        '<option value="Imposible">☠️ Imposible</option>' +
+      '</select>' +
+      '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem">' +
+        '<label style="font-size:0.85rem;color:var(--text-secondary);white-space:nowrap;min-width:90px">👥 Participantes:</label>' +
+        '<input type="number" id="ia-participantes" value="1" min="1" max="5" style="' + iStyle + 'margin:0;width:80px" />' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem">' +
+        '<label style="font-size:0.85rem;color:var(--text-secondary);white-space:nowrap;min-width:90px">📝 Posts (10-50):</label>' +
+        '<input type="number" id="ia-posts" value="15" min="10" max="50" style="' + iStyle + 'margin:0;width:80px" />' +
+      '</div>' +
+      '<textarea id="ia-contexto" placeholder="Contexto especial (opcional): lugar, restricciones, condiciones únicas, peticiones especiales..." style="' + iStyle + 'min-height:80px;resize:vertical"></textarea>' +
+
+      '<button class="btn btn-primary btn-full" id="btn-generar-mision-ia">🤖 Generar misión con IA</button>' +
+      '<div id="ia-msg" style="font-size:0.85rem;text-align:center;margin-top:0.3rem"></div>' +
+    '</div>' +
+    '<div id="ia-resultado"></div>';
+
+  document.getElementById('back-mision-ia').addEventListener('click', function() {
+    panel.innerHTML = '';
+  });
+
+  document.getElementById('btn-generar-mision-ia').addEventListener('click', async function() {
+    await generarMisionConIA();
+  });
+}
+
+async function generarMisionConIA() {
+  var msg = document.getElementById('ia-msg');
+  var btn = document.getElementById('btn-generar-mision-ia');
+  var resultado = document.getElementById('ia-resultado');
+
+  var nivel = document.getElementById('ia-nivel').value.trim();
+  var raza = document.getElementById('ia-raza').value.trim();
+  var habilidades = document.getElementById('ia-habilidades').value.trim();
+  var fuerzaVal = document.getElementById('ia-fuerza-val').value.trim();
+  var fuerzaUnit = document.getElementById('ia-fuerza-unit').value;
+  var resistVal = document.getElementById('ia-resist-val').value.trim();
+  var resistUnit = document.getElementById('ia-resist-unit').value;
+  var velVal = document.getElementById('ia-vel-val').value.trim();
+  var velUnit = document.getElementById('ia-vel-unit').value;
+  var tipoMision = document.getElementById('ia-tipo-mision').value;
+  var dificultad = document.getElementById('ia-dificultad').value;
+  var participantes = Math.max(1, Math.min(5, parseInt(document.getElementById('ia-participantes').value) || 1));
+  var posts = Math.max(10, Math.min(50, parseInt(document.getElementById('ia-posts').value) || 15));
+  var contexto = document.getElementById('ia-contexto').value.trim();
+
+  if (!nivel || !raza) {
+    msg.textContent = 'El nivel y la raza son obligatorios';
+    msg.style.color = 'var(--danger)';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Generando misión...';
+  msg.textContent = 'La IA está creando tu misión épica...';
+  msg.style.color = 'var(--text-secondary)';
+  resultado.innerHTML = '';
+
+  var postEventoMin = Math.floor(posts * 0.6);
+  var postEventoMax = Math.floor(posts * 0.8);
+
+  var prompt = 'Genera una misión personalizada para este personaje:\n\n' +
+    'PERSONAJE:\n' +
+    '- Nivel: ' + nivel + '\n' +
+    '- Raza: ' + (raza || 'no especificada') + '\n' +
+    '- Habilidades especiales: ' + (habilidades || 'ninguna especificada') + '\n' +
+    '- Fuerza máxima: ' + (fuerzaVal || '?') + ' ' + fuerzaUnit + '\n' +
+    '- Resistencia máxima: ' + (resistVal || '?') + ' ' + resistUnit + '\n' +
+    '- Velocidad máxima: ' + (velVal || '?') + ' ' + velUnit + '\n\n' +
+    'PARÁMETROS:\n' +
+    '- Tipo de misión deseada: ' + tipoMision + '\n' +
+    '- Dificultad buscada: ' + dificultad + '\n' +
+    '- Participantes: ' + participantes + ' jugador' + (participantes > 1 ? 'es' : '') + '\n' +
+    '- Cantidad de posts: ' + posts + ' (mínimo 10 líneas por post)\n' +
+    '- El post del evento especial debe estar entre el post ' + postEventoMin + ' y el post ' + postEventoMax + '\n' +
+    (contexto ? '- Contexto especial del jugador: ' + contexto + '\n' : '') +
+    '\nResponde ÚNICAMENTE con el JSON indicado. Sin texto adicional, sin markdown, sin backticks.';
+
+  try {
+    var respuesta = await llamarGroq([
+      { role: 'system', content: SISTEMA_MISIONES },
+      { role: 'user', content: prompt }
+    ], 1500);
+
+    var jsonLimpio = respuesta.replace(/```json|```/g, '').trim();
+    var mision = JSON.parse(jsonLimpio);
+    renderResultadoMisionIA(mision, participantes, posts);
+    msg.textContent = '';
+  } catch (err) {
+    msg.textContent = 'Error generando la misión: ' + err.message;
+    msg.style.color = 'var(--danger)';
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🤖 Generar misión con IA';
+}
+
+function renderResultadoMisionIA(mision, participantes, totalPosts) {
+  var resultado = document.getElementById('ia-resultado');
+
+  resultado.innerHTML =
+    '<div class="card" style="margin-top:1rem;border-color:var(--accent)">' +
+      '<p class="edit-section-title">⚔️ ' + mision.titulo + '</p>' +
+      '<p style="font-size:0.85rem;color:var(--text-primary);margin-bottom:0.75rem">' + mision.descripcion + '</p>' +
+      '<div class="mision-dato-row"><span>🎯 Objetivo</span><span style="font-size:0.8rem;text-align:right;max-width:60%">' + mision.objetivo + '</span></div>' +
+      '<div class="mision-dato-row"><span>⚠️ Dificultad real</span><span>' + mision.dificultadReal + '</span></div>' +
+      '<div class="mision-dato-row"><span>💷 Recompensa</span><span>£' + (mision.recompensaDinero || 0).toLocaleString('es-CO') + (mision.recompensaObjeto ? ' + ' + mision.recompensaObjeto : '') + '</span></div>' +
+      '<div class="mision-dato-row"><span>📝 Posts / Líneas mín.</span><span>' + mision.minMensajes + ' posts · ' + mision.minLineas + ' líneas</span></div>' +
+      '<div class="mision-dato-row" style="border:none"><span>🎲 Evento especial en</span><span>Post ' + mision.postEventoEspecial + '</span></div>' +
+      '<p style="font-size:0.78rem;color:var(--text-secondary);margin-top:0.4rem;font-style:italic">' + mision.descripcionEventoBase + '</p>' +
+    '</div>' +
+
+    '<div class="card" style="margin-top:0.5rem">' +
+      '<p class="edit-section-title">🎲 Tabla de eventos D20</p>' +
+      '<div class="dice-tabla">' +
+        '<div class="dice-fila critico-fallo"><span class="dice-rango">1–2</span><span>' + mision.tablaDice.critico_fallo + '</span></div>' +
+        '<div class="dice-fila fallo"><span class="dice-rango">3–7</span><span>' + mision.tablaDice.fallo + '</span></div>' +
+        '<div class="dice-fila neutro"><span class="dice-rango">8–12</span><span>' + mision.tablaDice.neutro + '</span></div>' +
+        '<div class="dice-fila exito"><span class="dice-rango">13–18</span><span>' + mision.tablaDice.exito + '</span></div>' +
+        '<div class="dice-fila critico-exito"><span class="dice-rango">19–20</span><span>' + mision.tablaDice.critico_exito + '</span></div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card" style="margin-top:0.5rem">' +
+      '<p class="edit-section-title">🎲 Activar evento especial</p>' +
+      '<p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:0.75rem">Cuando llegues al post ' + mision.postEventoEspecial + ', tira el dado y envíaselo al narrador IA.</p>' +
+      '<button class="btn btn-primary btn-full" id="btn-tirar-dado">🎲 Tirar D20</button>' +
+      '<div id="dado-resultado" style="margin-top:0.5rem"></div>' +
+    '</div>' +
+
+    '<div class="card" style="margin-top:0.5rem">' +
+      '<p class="edit-section-title">💬 Narrador IA</p>' +
+      '<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.5rem">Cuéntale al narrador qué ocurre en tu misión, envíale el resultado del dado, o pregúntale lo que necesites.</p>' +
+      '<div id="chat-ia-mensajes" style="max-height:300px;overflow-y:auto;margin-bottom:0.75rem;display:flex;flex-direction:column;gap:0.5rem"></div>' +
+      '<div style="display:flex;gap:0.5rem">' +
+        '<textarea id="chat-ia-input" placeholder="Describe lo que haces, el resultado del dado, o pregunta al narrador..." style="flex:1;padding:0.7rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none;font-family:inherit;resize:none;min-height:60px;box-sizing:border-box"></textarea>' +
+        '<button class="btn btn-primary" id="btn-enviar-chat-ia" style="padding:0.7rem 1rem;align-self:flex-end">Enviar</button>' +
+      '</div>' +
+      '<div id="chat-ia-msg" style="font-size:0.82rem;margin-top:0.3rem"></div>' +
+    '</div>' +
+
+    '<button class="btn btn-primary btn-full" id="btn-tomar-mision-ia" style="margin-top:0.75rem">⚔️ Tomar esta misión</button>';
+
+  var historialChat = [
+    { role: 'system', content: SISTEMA_MISIONES + '\n\nMISIÓN ACTIVA:\n' + JSON.stringify(mision) }
+  ];
+
+  document.getElementById('btn-tirar-dado').addEventListener('click', function() {
+    var dado = Math.floor(Math.random() * 20) + 1;
+    var categoria, color;
+    if (dado <= 2)       { categoria = 'FALLO CRÍTICO'; color = '#ff3333'; }
+    else if (dado <= 7)  { categoria = 'FALLO'; color = 'var(--danger)'; }
+    else if (dado <= 12) { categoria = 'NEUTRO'; color = 'var(--text-secondary)'; }
+    else if (dado <= 18) { categoria = 'ÉXITO'; color = 'var(--success)'; }
+    else                 { categoria = 'ÉXITO CRÍTICO ✨'; color = 'var(--accent)'; }
+
+    document.getElementById('dado-resultado').innerHTML =
+      '<div style="text-align:center;padding:0.75rem;background:var(--bg-secondary);border-radius:10px;border:2px solid ' + color + '">' +
+        '<p style="font-size:2.5rem;margin:0;line-height:1">' + dado + '</p>' +
+        '<p style="color:' + color + ';font-weight:700;margin:0.3rem 0;font-size:0.95rem">' + categoria + '</p>' +
+        '<p style="font-size:0.78rem;color:var(--text-secondary)">Envíalo al narrador ↓</p>' +
+      '</div>';
+
+    document.getElementById('chat-ia-input').value = 'Tiré el D20 y obtuve un ' + dado + ' (' + categoria + '). ¿Qué ocurre en el evento especial?';
+    document.getElementById('chat-ia-input').focus();
+  });
+
+  document.getElementById('btn-enviar-chat-ia').addEventListener('click', async function() {
+    var input = document.getElementById('chat-ia-input');
+    var chatMsg = document.getElementById('chat-ia-msg');
+    var texto = input.value.trim();
+    if (!texto) return;
+
+    var btn = this;
+    btn.disabled = true;
+    chatMsg.textContent = 'El narrador está respondiendo...';
+    chatMsg.style.color = 'var(--text-secondary)';
+
+    agregarMensajeChat('user', texto);
+    historialChat.push({ role: 'user', content: texto });
+    input.value = '';
+
+    try {
+      var respuesta = await llamarGroq(historialChat, 800);
+      historialChat.push({ role: 'assistant', content: respuesta });
+      agregarMensajeChat('assistant', respuesta);
+      chatMsg.textContent = '';
+    } catch (err) {
+      chatMsg.textContent = 'Error: ' + err.message;
+      chatMsg.style.color = 'var(--danger)';
+    }
+    btn.disabled = false;
+  });
+
+  document.getElementById('btn-tomar-mision-ia').addEventListener('click', async function() {
+    var tipo = participantes > 1 ? 'grupal' : 'individual';
+    var misionAdaptada = Object.assign({}, mision, {
+      tipo: tipo,
+      autorUsername: 'IA Narradora',
+      ciudad: currentUser.ciudad || '',
+      autorUid: currentUser.uid
+    });
+    var misionId = 'ia_' + Date.now();
+
+    if (tipo === 'grupal') {
+      mostrarFormTomarGrupal(misionId, misionAdaptada);
+    } else {
+      await tomarMisionIndividual(misionId, misionAdaptada);
+    }
+  });
+}
+
+function agregarMensajeChat(rol, texto) {
+  var cont = document.getElementById('chat-ia-mensajes');
+  if (!cont) return;
+  var div = document.createElement('div');
+  div.style.cssText = 'padding:0.6rem 0.8rem;border-radius:10px;font-size:0.83rem;line-height:1.5;' +
+    (rol === 'user'
+      ? 'background:var(--accent);color:white;align-self:flex-end;margin-left:20%'
+      : 'background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--bg-card);margin-right:20%');
+  div.textContent = texto;
+  cont.appendChild(div);
+  cont.scrollTop = cont.scrollHeight;
 }
 
 function renderMisionesEnCurso() {
