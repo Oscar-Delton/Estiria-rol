@@ -5779,6 +5779,14 @@ async function mostrarResultadoTragaperras(resultado, multiplicador, ganancia, a
     resultadoEl.innerHTML =
       '<p style="color:var(--text-secondary);font-size:0.88rem">Sin suerte esta vez 😔</p>';
   }
+
+  // Rehabilitar botón siempre al final
+  girando = false;
+  var btn = document.getElementById('btn-girar');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = '🎰 GIRAR';
+  }
 }
 
 function showError(msg) { loginError.textContent = msg; loginError.classList.remove('hidden'); }
