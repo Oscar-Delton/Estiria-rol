@@ -1643,3 +1643,65 @@
 .dice-fila.neutro        { background: var(--bg-secondary); color: var(--text-secondary); }
 .dice-fila.exito         { background: rgba(50, 200, 100, 0.10); color: var(--success); }
 .dice-fila.critico-exito { background: rgba(255, 215, 0, 0.12); color: gold; }
+
+/* ===== CASINO ===== */
+.ruleta-menu {
+  margin-bottom: 1rem;
+}
+
+.salas-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+  overflow-x: auto;
+}
+
+.sala-tab {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--bg-card);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.sala-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.sala-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--bg-card);
+  border-radius: 12px;
+  margin-bottom: 0.5rem;
+}
+
+.sala-info { flex: 1; }
+
+.sala-nombre {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.2rem;
+}
+
+.sala-estado {
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.sala-btn {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
