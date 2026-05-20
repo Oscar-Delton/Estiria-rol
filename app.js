@@ -4786,14 +4786,17 @@ function renderCasino() {
     '</div>' +
     '<div id="casino-panel"></div>';
 
+  function renderCasino() {
+  mainContent.innerHTML = `...`;
+
   document.getElementById('casino-ruleta-rusa').addEventListener('click', function() {
     renderRuletaRusa();
   });
-}
 
-document.getElementById('casino-tragaperras').addEventListener('click', function() {
-  renderTragaperras();
-});
+  document.getElementById('casino-tragaperras').addEventListener('click', function() {
+    renderTragaperras();
+  });
+}
 
 // ===== RULETA RUSA =====
 
