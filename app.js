@@ -4780,7 +4780,7 @@ function renderCasino() {
     '<div class="card"><h3>🎰 Casino de Estiria</h3><p style="color:var(--text-secondary);font-size:0.85rem">Elige un juego</p></div>' +
     '<div class="categorias-grid">' +
       '<button class="categoria-btn" id="casino-ruleta-rusa"><span>🔫</span><span>Ruleta Rusa</span></button>' +
-      '<button class="categoria-btn proximamente-btn"><span>🃏</span><span>Poker</span><span class="prox-tag">Próx.</span></button>' +
+      '<button class="categoria-btn" id="casino-tragaperras"><span>🎰</span><span>Tragaperras</span></button>' +
       '<button class="categoria-btn proximamente-btn"><span>🎲</span><span>Dados</span><span class="prox-tag">Próx.</span></button>' +
       '<button class="categoria-btn proximamente-btn"><span>🃏</span><span>Blackjack</span><span class="prox-tag">Próx.</span></button>' +
     '</div>' +
@@ -4790,6 +4790,10 @@ function renderCasino() {
     renderRuletaRusa();
   });
 }
+
+document.getElementById('casino-tragaperras').addEventListener('click', function() {
+  renderTragaperras();
+});
 
 // ===== RULETA RUSA =====
 
@@ -5507,6 +5511,269 @@ function renderEstadoTerminado(container, sala, salaId, yoJugador) {
     salaActualId = null;
     renderRuletaRusa();
   });
+}
+
+// ===== TRAGAPERRAS =====
+
+function renderTragaperras() {
+  var panel = document.getElementById('casino-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-casino-tragaperras">← Casino</button>' +
+      '<h3>🎰 Máquina Tragaperras</h3>' +
+    '</div>' +
+
+    '<div class="card" style="text-align:center;border-color:var(--accent)">' +
+      '<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.75rem">Saldo: £<span id="tragaperras-saldo">' + (currentUser.saldo || 0).toLocaleString('es-CO') + '</span></p>' +
+
+      // Pantalla de carretes
+      '<div id="tragaperras-pantalla" style="display:flex;justify-content:center;gap:0.5rem;margin-bottom:1rem">' +
+        '<div class="carrete-box" id="carrete-0">🎰</div>' +
+        '<div class="carrete-box" id="carrete-1">🎰</div>' +
+        '<div class="carrete-box" id="carrete-2">🎰</div>' +
+      '</div>' +
+
+      // Resultado
+      '<div id="tragaperras-resultado" style="min-height:2rem;margin-bottom:0.75rem"></div>' +
+
+      // Apuesta
+      '<p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:0.4rem">Tu apuesta</p>' +
+      '<div style="display:flex;align-items:center;justify-content:center;gap:0.75rem;margin-bottom:0.75rem">' +
+        '<button class="btn-cantidad" id="tp-minus" style="width:36px;height:36px">−</button>' +
+        '<span id="tp-apuesta-val" style="font-size:1.2rem;font-weight:700;color:var(--accent);min-width:80px;text-align:center">£100</span>' +
+        '<button class="btn-cantidad" id="tp-plus" style="width:36px;height:36px">+</button>' +
+      '</div>' +
+      '<div style="display:flex;gap:0.4rem;justify-content:center;margin-bottom:0.75rem">' +
+        '<button class="btn-apuesta-rapida" data-val="100">£100</button>' +
+        '<button class="btn-apuesta-rapida" data-val="250">£250</button>' +
+        '<button class="btn-apuesta-rapida" data-val="500">£500</button>' +
+        '<button class="btn-apuesta-rapida" data-val="1000">£1k</button>' +
+      '</div>' +
+      '<button class="btn btn-primary btn-full" id="btn-girar" style="font-size:1.1rem;padding:1rem;letter-spacing:1px">🎰 GIRAR</button>' +
+    '</div>' +
+
+    // Tabla de premios
+    '<div class="card" style="margin-top:0.5rem">' +
+      '<p class="edit-section-title" style="margin-bottom:0.75rem">📋 Tabla de premios</p>' +
+      '<div style="display:flex;flex-direction:column;gap:0.3rem">' +
+        [
+          ['💎💎💎', 'JACKPOT', '×500', 'gold'],
+          ['7️⃣7️⃣7️⃣', 'Siete loco', '×100', '#ff9800'],
+          ['⭐⭐⭐', 'Estrella triple', '×25', '#4fc3f7'],
+          ['🔔🔔🔔', 'Campanas', '×10', '#81c784'],
+          ['🍇🍇🍇', 'Uvas', '×5', '#ce93d8'],
+          ['🍋🍋🍋', 'Limones', '×2', '#fff176'],
+          ['❓❓—', '2 iguales', '×1.5', 'var(--text-secondary)']
+        ].map(function(r) {
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.35rem 0.5rem;border-radius:8px;background:var(--bg-primary)">' +
+            '<span style="font-size:1rem">' + r[0] + '</span>' +
+            '<span style="font-size:0.78rem;color:var(--text-secondary)">' + r[1] + '</span>' +
+            '<span style="font-size:0.85rem;font-weight:700;color:' + r[3] + '">' + r[2] + '</span>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+    '</div>';
+
+  document.getElementById('back-casino-tragaperras').addEventListener('click', function() {
+    panel.innerHTML = '';
+    renderCasino();
+  });
+
+  // Estado de la máquina
+  var apuesta = 100;
+  var girando = false;
+
+  var pasos = [100, 250, 500, 1000, 2500];
+
+  function actualizarApuesta() {
+    document.getElementById('tp-apuesta-val').textContent = '£' + apuesta.toLocaleString('es-CO');
+  }
+
+  document.getElementById('tp-minus').addEventListener('click', function() {
+    var idx = pasos.indexOf(apuesta);
+    if (idx > 0) { apuesta = pasos[idx - 1]; actualizarApuesta(); }
+  });
+
+  document.getElementById('tp-plus').addEventListener('click', function() {
+    var idx = pasos.indexOf(apuesta);
+    if (idx < pasos.length - 1) { apuesta = pasos[idx + 1]; actualizarApuesta(); }
+  });
+
+  document.querySelectorAll('.btn-apuesta-rapida').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      apuesta = parseInt(btn.dataset.val);
+      actualizarApuesta();
+    });
+  });
+
+  document.getElementById('btn-girar').addEventListener('click', async function() {
+    if (girando) return;
+
+    // Validaciones
+    var saldoActual = currentUser.saldo || 0;
+    var resultadoEl = document.getElementById('tragaperras-resultado');
+
+    if (apuesta > saldoActual) {
+      resultadoEl.innerHTML = '<p style="color:var(--danger);font-size:0.9rem">Saldo insuficiente</p>';
+      return;
+    }
+    if (apuesta < 100) {
+      resultadoEl.innerHTML = '<p style="color:var(--danger);font-size:0.9rem">Apuesta mínima: £100</p>';
+      return;
+    }
+
+    girando = true;
+    var btnGirar = document.getElementById('btn-girar');
+    btnGirar.disabled = true;
+    btnGirar.textContent = '⏳ Girando...';
+    resultadoEl.innerHTML = '';
+
+    // Descontar apuesta inmediatamente
+    await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(-apuesta) });
+    currentUser.saldo = saldoActual - apuesta;
+    document.getElementById('tragaperras-saldo').textContent = currentUser.saldo.toLocaleString('es-CO');
+
+    // Calcular resultado REAL (antes de la animación)
+    var simbolos = ['🍋', '🍇', '🔔', '⭐', '7️⃣', '💎'];
+
+    // Pesos de probabilidad (mayor = más común)
+    // Total de pesos = 100
+    // 🍋=35, 🍇=28, 🔔=18, ⭐=10, 7️⃣=7, 💎=2
+    var pesos = [35, 28, 18, 10, 7, 2];
+    var totalPeso = pesos.reduce(function(a, b) { return a + b; }, 0);
+
+    function elegirSimbolo() {
+      var rand = Math.random() * totalPeso;
+      var acum = 0;
+      for (var i = 0; i < simbolos.length; i++) {
+        acum += pesos[i];
+        if (rand < acum) return simbolos[i];
+      }
+      return simbolos[0];
+    }
+
+    // El casino tiene ventaja: 65% de probabilidad de que NO haya premio
+    // Para lograr esto, re-evaluamos si "forzar" pérdida
+    var forzarPerdida = Math.random() < 0.65;
+    var resultado;
+
+    if (forzarPerdida) {
+      // Generar 3 símbolos que NO formen combinación ganadora
+      var intentos = 0;
+      do {
+        resultado = [elegirSimbolo(), elegirSimbolo(), elegirSimbolo()];
+        intentos++;
+      } while (
+        intentos < 50 &&
+        (resultado[0] === resultado[1] || resultado[1] === resultado[2] || resultado[0] === resultado[2])
+      );
+    } else {
+      resultado = [elegirSimbolo(), elegirSimbolo(), elegirSimbolo()];
+    }
+
+    // Calcular premio
+    var multiplicador = calcularMultiplicador(resultado);
+    var ganancia = multiplicador > 0 ? Math.floor(apuesta * multiplicador) : 0;
+
+    // Animación de carretes
+    var frames = ['🍋', '🍇', '🔔', '⭐', '7️⃣', '💎'];
+    var duracion = 1800;
+    var intervalos = [null, null, null];
+    var detenidos = [false, false, false];
+    var tiemposStop = [duracion * 0.5, duracion * 0.75, duracion];
+
+    for (var c = 0; c < 3; c++) {
+      (function(idx) {
+        intervalos[idx] = setInterval(function() {
+          if (!detenidos[idx]) {
+            var r = frames[Math.floor(Math.random() * frames.length)];
+            document.getElementById('carrete-' + idx).textContent = r;
+          }
+        }, 80);
+
+        setTimeout(function() {
+          detenidos[idx] = true;
+          clearInterval(intervalos[idx]);
+          document.getElementById('carrete-' + idx).textContent = resultado[idx];
+
+          // Último carrete: mostrar resultado
+          if (idx === 2) {
+            setTimeout(async function() {
+              await mostrarResultadoTragaperras(resultado, multiplicador, ganancia, apuesta);
+              girando = false;
+              btnGirar.disabled = false;
+              btnGirar.textContent = '🎰 GIRAR';
+            }, 300);
+          }
+        }, tiemposStop[idx]);
+      })(c);
+    }
+  });
+}
+
+function calcularMultiplicador(resultado) {
+  var a = resultado[0], b = resultado[1], c = resultado[2];
+
+  // Triple
+  if (a === b && b === c) {
+    if (a === '💎') return 500;
+    if (a === '7️⃣') return 100;
+    if (a === '⭐') return 25;
+    if (a === '🔔') return 10;
+    if (a === '🍇') return 5;
+    if (a === '🍋') return 2;
+  }
+
+  // Dos iguales (cualquier par) → x1.5
+  if (a === b || b === c || a === c) {
+    return 1.5;
+  }
+
+  return 0; // Sin premio
+}
+
+async function mostrarResultadoTragaperras(resultado, multiplicador, ganancia, apuesta) {
+  var resultadoEl = document.getElementById('tragaperras-resultado');
+
+  if (ganancia > 0) {
+    // Acreditar ganancia
+    await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(ganancia) });
+    currentUser.saldo = (currentUser.saldo || 0) + ganancia;
+    document.getElementById('tragaperras-saldo').textContent = currentUser.saldo.toLocaleString('es-CO');
+
+    await registrarTransaccion({
+      tipo: 'casino_tragaperras',
+      de: 'sistema',
+      deUsername: 'Casino Tragaperras',
+      para: currentUser.uid,
+      paraUsername: currentUser.username,
+      monto: ganancia - apuesta,
+      descripcion: 'Tragaperras: ' + resultado.join('') + ' — Ganó £' + ganancia.toLocaleString('es-CO') + ' (apuesta £' + apuesta.toLocaleString('es-CO') + ')'
+    });
+
+    var esJackpot = multiplicador === 500;
+    var esGranPremio = multiplicador >= 25;
+
+    resultadoEl.innerHTML =
+      '<div style="padding:0.75rem;border-radius:12px;background:' + (esJackpot ? 'rgba(255,215,0,0.15)' : 'rgba(76,175,80,0.12)') + ';border:2px solid ' + (esJackpot ? 'gold' : 'var(--success)') + '">' +
+        (esJackpot ? '<p style="font-size:1.5rem;margin-bottom:0.3rem">🎊 JACKPOT 🎊</p>' : esGranPremio ? '<p style="font-size:1.2rem;margin-bottom:0.3rem">🎉 ¡GRAN PREMIO!</p>' : '') +
+        '<p style="color:var(--success);font-size:1rem;font-weight:700">+£' + ganancia.toLocaleString('es-CO') + '</p>' +
+        '<p style="color:var(--text-secondary);font-size:0.75rem">×' + multiplicador + ' tu apuesta</p>' +
+      '</div>';
+  } else {
+    await registrarTransaccion({
+      tipo: 'casino_tragaperras',
+      de: currentUser.uid,
+      deUsername: currentUser.username,
+      para: 'sistema',
+      paraUsername: 'Casino Tragaperras',
+      monto: apuesta,
+      descripcion: 'Tragaperras: ' + resultado.join('') + ' — Sin premio'
+    });
+
+    resultadoEl.innerHTML =
+      '<p style="color:var(--text-secondary);font-size:0.88rem">Sin suerte esta vez 😔</p>';
+  }
 }
 
 function showError(msg) { loginError.textContent = msg; loginError.classList.remove('hidden'); }

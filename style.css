@@ -1705,3 +1705,35 @@
   font-size: 0.8rem;
   white-space: nowrap;
 }
+
+/* ===== TRAGAPERRAS ===== */
+.carrete-box {
+  width: 80px;
+  height: 80px;
+  background: var(--bg-primary);
+  border: 2px solid var(--bg-card);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  transition: border-color 0.2s;
+}
+
+.btn-apuesta-rapida {
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--bg-card);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-apuesta-rapida:active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
