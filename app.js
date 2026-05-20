@@ -5741,6 +5741,7 @@ async function mostrarResultadoTragaperras(resultado, multiplicador, ganancia, a
   var resultadoEl = document.getElementById('tragaperras-resultado');
 
   if (ganancia > 0) {
+    console.log('Hay ganancia, acreditando...');
     // Acreditar ganancia
     await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(ganancia) });
     currentUser.saldo = (currentUser.saldo || 0) + ganancia;
@@ -5780,12 +5781,14 @@ async function mostrarResultadoTragaperras(resultado, multiplicador, ganancia, a
       '<p style="color:var(--text-secondary);font-size:0.88rem">Sin suerte esta vez 😔</p>';
   }
 
-  // Rehabilitar botón siempre al final
+  console.log('Llegué al final de mostrarResultadoTragaperras');
   girando = false;
   var btn = document.getElementById('btn-girar');
+  console.log('btn-girar encontrado:', btn);
   if (btn) {
     btn.disabled = false;
     btn.textContent = '🎰 GIRAR';
+    console.log('Botón rehabilitado');
   }
 }
 
