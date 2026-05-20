@@ -5698,11 +5698,12 @@ function renderTragaperras() {
 
           // Último carrete: mostrar resultado
           if (idx === 2) {
-            setTimeout(async function() {
-              await mostrarResultadoTragaperras(resultado, multiplicador, ganancia, apuesta);
-              girando = false;
-              btnGirar.disabled = false;
-              btnGirar.textContent = '🎰 GIRAR';
+            setTimeout(function() {
+              mostrarResultadoTragaperras(resultado, multiplicador, ganancia, apuesta).then(function() {
+                girando = false;
+                btnGirar.disabled = false;
+                btnGirar.textContent = '🎰 GIRAR';
+              });
             }, 300);
           }
         }, tiemposStop[idx]);
