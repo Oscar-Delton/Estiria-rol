@@ -5741,21 +5741,23 @@ async function mostrarResultadoTragaperras(resultado, multiplicador, ganancia, a
   var resultadoEl = document.getElementById('tragaperras-resultado');
 
   if (ganancia > 0) {
-    console.log('Hay ganancia, acreditando...');
-    // Acreditar ganancia
-    await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(ganancia) });
-    currentUser.saldo = (currentUser.saldo || 0) + ganancia;
-    document.getElementById('tragaperras-saldo').textContent = currentUser.saldo.toLocaleString('es-CO');
+    try {
+      await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(ganancia) });
+      currentUser.saldo = (currentUser.saldo || 0) + ganancia;
+      document.getElementById('tragaperras-saldo').textContent = currentUser.saldo.toLocaleString('es-CO');
 
-    await registrarTransaccion({
-      tipo: 'casino_tragaperras',
-      de: 'sistema',
-      deUsername: 'Casino Tragaperras',
-      para: currentUser.uid,
-      paraUsername: currentUser.username,
-      monto: ganancia - apuesta,
-      descripcion: 'Tragaperras: ' + resultado.join('') + ' — Ganó £' + ganancia.toLocaleString('es-CO') + ' (apuesta £' + apuesta.toLocaleString('es-CO') + ')'
-    });
+      await registrarTransaccion({
+        tipo: 'casino_tragaperras',
+        de: 'sistema',
+        deUsername: 'Casino Tragaperras',
+        para: currentUser.uid,
+        paraUsername: currentUser.username,
+        monto: ganancia - apuesta,
+        descripcion: 'Tragaperras: ' + resultado.join('') + ' — Ganó £' + ganancia.toLocaleString('es-CO') + ' (apuesta £' + apuesta.toLocaleString('es-CO') + ')'
+      });
+    } catch(err) {
+      console.log('Error al acreditar:', err.message);
+    }
 
     var esJackpot = multiplicador === 500;
     var esGranPremio = multiplicador >= 25;
@@ -5767,15 +5769,19 @@ async function mostrarResultadoTragaperras(resultado, multiplicador, ganancia, a
         '<p style="color:var(--text-secondary);font-size:0.75rem">×' + multiplicador + ' tu apuesta</p>' +
       '</div>';
   } else {
-    await registrarTransaccion({
-      tipo: 'casino_tragaperras',
-      de: currentUser.uid,
-      deUsername: currentUser.username,
-      para: 'sistema',
-      paraUsername: 'Casino Tragaperras',
-      monto: apuesta,
-      descripcion: 'Tragaperras: ' + resultado.join('') + ' — Sin premio'
-    });
+    try {
+      await registrarTransaccion({
+        tipo: 'casino_tragaperras',
+        de: currentUser.uid,
+        deUsername: currentUser.username,
+        para: 'sistema',
+        paraUsername: 'Casino Tragaperras',
+        monto: apuesta,
+        descripcion: 'Tragaperras: ' + resultado.join('') + ' — Sin premio'
+      });
+    } catch(err) {
+      console.log('Error al registrar pérdida:', err.message);
+    }
 
     resultadoEl.innerHTML =
       '<p style="color:var(--text-secondary);font-size:0.88rem">Sin suerte esta vez 😔</p>';
