@@ -4799,6 +4799,7 @@ function renderCasino() {
 
 var salaActualId = null;
 var salaListener = null;
+var girando = false;
 
 function renderRuletaRusa() {
   var panel = document.getElementById('casino-panel');
@@ -5581,7 +5582,7 @@ function renderTragaperras() {
 
   // Estado de la máquina
   var apuesta = 100;
-  var girando = false;
+  girando = false;
 
   var pasos = [100, 250, 500, 1000, 2500];
 
@@ -5701,8 +5702,11 @@ function renderTragaperras() {
             setTimeout(function() {
               mostrarResultadoTragaperras(resultado, multiplicador, ganancia, apuesta).then(function() {
                 girando = false;
-                btnGirar.disabled = false;
-                btnGirar.textContent = '🎰 GIRAR';
+                var btn = document.getElementById('btn-girar');
+                if (btn) {
+                  btn.disabled = false;
+                  btn.textContent = '🎰 GIRAR';
+                }
               });
             }, 300);
           }
