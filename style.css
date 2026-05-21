@@ -1742,3 +1742,27 @@
   border-color: var(--accent) !important;
   opacity: 0.85;
 }
+
+@keyframes dadoGirar {
+  0%   { transform: rotate(0deg) scale(1); }
+  25%  { transform: rotate(90deg) scale(1.2); }
+  50%  { transform: rotate(180deg) scale(1); }
+  75%  { transform: rotate(270deg) scale(1.2); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+.dado-animando {
+  display: inline-block;
+  animation: dadoGirar 0.4s linear infinite;
+  font-size: 2.5rem;
+}
+.dado-resultado {
+  display: inline-block;
+  font-size: 2.5rem;
+  transition: all 0.3s ease;
+}
+.dados-container {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem 0;
+}

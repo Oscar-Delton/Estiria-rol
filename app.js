@@ -4782,7 +4782,7 @@ function renderCasino() {
       '<button class="categoria-btn" id="casino-ruleta-rusa"><span>🔫</span><span>Ruleta Rusa</span></button>' +
       '<button class="categoria-btn" id="casino-tragaperras"><span>🎰</span><span>Tragaperras</span></button>' +
       '<button class="categoria-btn" id="casino-ruleta"><span>🎡</span><span>Ruleta</span></button>' +
-      '<button class="categoria-btn proximamente-btn"><span>🎲</span><span>Dados</span><span class="prox-tag">Próx.</span></button>' +
+      '<button class="categoria-btn" id="casino-dados"><span>🎲</span><span>Dados</span></button>' +
       '<button class="categoria-btn proximamente-btn"><span>🃏</span><span>Blackjack</span><span class="prox-tag">Próx.</span></button>' +
     '</div>' +
     '<div id="casino-panel"></div>';
@@ -4797,6 +4797,10 @@ function renderCasino() {
 
   document.getElementById('casino-ruleta').addEventListener('click', function() {
     renderRuleta();
+  });
+
+  document.getElementById('casino-dados').addEventListener('click', function() {
+    renderDados();
   });
 }
 
@@ -6477,6 +6481,632 @@ async function convertirAEspectador(salaId, sala) {
   var nuevosJugadores = (sala.jugadores || []).filter(function(j) { return j.uid !== currentUser.uid; });
   var nuevosEsp = (sala.espectadores || []).concat([{ uid: currentUser.uid, username: currentUser.username }]);
   await updateDoc(doc(db, 'ruleta_salas', salaId), { jugadores: nuevosJugadores, espectadores: nuevosEsp });
+}
+
+// ===== DADOS =====
+
+var dadosListener = null;
+var dadosSalaActualId = null;
+var dadosTimerInterval = null;
+
+var CATEGORIAS_DADOS = [
+  { id: 'pequena', nombre: 'Pequeña', emoji: '🎲', apuesta: 100, color: 'var(--text-secondary)' },
+  { id: 'media', nombre: 'Media', emoji: '🎯', apuesta: 1500, color: '#4fc3f7' },
+  { id: 'grande', nombre: 'Grande', emoji: '💰', apuesta: 25000, color: '#81c784' },
+  { id: 'elite', nombre: 'Elite', emoji: '👑', apuesta: 100000, color: '#ff9800' },
+  { id: 'legendaria', nombre: 'Legendaria', emoji: '💎', apuesta: 500000, color: 'gold' }
+];
+
+async function renderDados() {
+  var panel = document.getElementById('casino-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-casino-dados">← Casino</button>' +
+      '<h3>🎲 Dados</h3>' +
+    '</div>' +
+    '<div class="salas-tabs" style="flex-wrap:wrap;gap:0.3rem;margin-bottom:0.75rem">' +
+      CATEGORIAS_DADOS.map(function(cat) {
+        return '<button class="sala-tab" data-cat="' + cat.id + '" style="color:' + cat.color + '">' + cat.emoji + ' ' + cat.nombre + '</button>';
+      }).join('') +
+      '<button class="sala-tab" data-cat="privada">🔒 Privada</button>' +
+    '</div>' +
+    '<div id="dados-salas-lista"></div>';
+
+  document.getElementById('back-casino-dados').addEventListener('click', function() {
+    if (dadosListener) { dadosListener(); dadosListener = null; }
+    if (dadosTimerInterval) { clearInterval(dadosTimerInterval); dadosTimerInterval = null; }
+    panel.innerHTML = '';
+    renderCasino();
+  });
+
+  var tabs = document.querySelectorAll('.sala-tab[data-cat]');
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      tabs.forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      if (tab.dataset.cat === 'privada') {
+        mostrarFormCrearSalaPrivadaDados();
+      } else {
+        cargarSalasDados(tab.dataset.cat);
+      }
+    });
+  });
+
+  await inicializarSalasDados();
+  tabs[0].classList.add('active');
+  cargarSalasDados('pequena');
+}
+
+async function inicializarSalasDados() {
+  for (var c = 0; c < CATEGORIAS_DADOS.length; c++) {
+    var cat = CATEGORIAS_DADOS[c];
+    for (var i = 1; i <= 4; i++) {
+      var id = 'dados_' + cat.id + '_' + i;
+      var snap = await getDoc(doc(db, 'dados_salas', id));
+      if (!snap.exists()) {
+        await setDoc(doc(db, 'dados_salas', id), {
+          id: id, tipo: 'publica', categoria: cat.id,
+          nombre: cat.nombre + ' — Sala ' + i,
+          apuesta: cat.apuesta, capacidad: 5,
+          estado: 'esperando', jugadores: [], espectadores: [],
+          dados: {}, createdAt: new Date().toISOString()
+        });
+      }
+    }
+  }
+}
+
+function cargarSalasDados(categoriaId) {
+  var lista = document.getElementById('dados-salas-lista');
+  if (!lista) return;
+  lista.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p>';
+
+  var cat = CATEGORIAS_DADOS.find(function(c) { return c.id === categoriaId; });
+
+  onSnapshot(
+    query(collection(db, 'dados_salas'), where('categoria', '==', categoriaId), where('tipo', '==', 'publica')),
+    function(snap) {
+      lista = document.getElementById('dados-salas-lista');
+      if (!lista) return;
+      var salas = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+      salas.sort(function(a, b) {
+        var numA = parseInt(a.id.replace(/\D/g, ''));
+        var numB = parseInt(b.id.replace(/\D/g, ''));
+        return numA - numB;
+      });
+
+      lista.innerHTML =
+        '<div style="background:var(--bg-card);border-radius:10px;padding:0.6rem;margin-bottom:0.75rem;text-align:center">' +
+          '<p style="font-size:0.85rem;color:' + cat.color + ';font-weight:700">' + cat.emoji + ' Apuesta fija: £' + cat.apuesta.toLocaleString('es-CO') + ' por jugador</p>' +
+        '</div>' +
+        salas.map(function(sala) {
+          var jugadores = sala.jugadores ? sala.jugadores.length : 0;
+          var estado = sala.estado || 'esperando';
+          var estadoColor = estado === 'tirando' ? 'var(--danger)' : jugadores > 0 ? 'var(--warning)' : 'var(--success)';
+          var estadoTexto = estado === 'tirando' ? '🔴 Tirando dados' : jugadores > 0 ? '🟡 Esperando (' + jugadores + '/5)' : '🟢 Vacía';
+          return '<div class="sala-card">' +
+            '<div class="sala-info">' +
+              '<p class="sala-nombre">' + sala.nombre + '</p>' +
+              '<p class="sala-estado" style="color:' + estadoColor + '">' + estadoTexto + '</p>' +
+            '</div>' +
+            '<button class="btn btn-primary sala-btn" data-id="' + sala.id + '">Entrar</button>' +
+          '</div>';
+        }).join('');
+
+      lista.querySelectorAll('.sala-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          mostrarModalEntradaDados(btn.dataset.id);
+        });
+      });
+    }
+  );
+}
+
+function mostrarFormCrearSalaPrivadaDados() {
+  var lista = document.getElementById('dados-salas-lista');
+  lista.innerHTML =
+    '<div class="card">' +
+      '<h3 style="margin-bottom:0.75rem">🔒 Sala privada de dados</h3>' +
+      '<label class="form-label">Apuesta por jugador (£)</label>' +
+      '<input type="number" id="privada-apuesta" placeholder="Mínimo £100" min="100" style="width:100%;padding:0.8rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block;box-sizing:border-box;margin-bottom:0.5rem"/>' +
+      '<label class="form-label">Máximo de jugadores</label>' +
+      '<div class="citas-opciones" id="privada-capacidad">' +
+        [2,3,4,5].map(function(n) {
+          return '<button class="citas-opcion" data-val="' + n + '">' + n + '</button>';
+        }).join('') +
+      '</div>' +
+      '<button class="btn btn-primary btn-full" id="btn-crear-privada-dados" style="margin-top:0.75rem">Crear sala</button>' +
+      '<div id="privada-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+    '</div>';
+
+  document.getElementById('privada-capacidad').querySelectorAll('.citas-opcion').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('#privada-capacidad .citas-opcion').forEach(function(b) { b.classList.remove('selected'); });
+      btn.classList.add('selected');
+    });
+  });
+
+  document.getElementById('btn-crear-privada-dados').addEventListener('click', async function() {
+    var apuesta = parseInt(document.getElementById('privada-apuesta').value);
+    var capBtn = document.querySelector('#privada-capacidad .citas-opcion.selected');
+    var msg = document.getElementById('privada-msg');
+    if (!apuesta || apuesta < 100) { msg.textContent = 'Apuesta mínima £100'; msg.style.color = 'var(--danger)'; return; }
+    if (!capBtn) { msg.textContent = 'Selecciona capacidad'; msg.style.color = 'var(--danger)'; return; }
+    var capacidad = parseInt(capBtn.dataset.val);
+    var codigo = Math.random().toString(36).substring(2, 8).toUpperCase();
+    var salaId = 'dados_privada_' + codigo;
+    await setDoc(doc(db, 'dados_salas', salaId), {
+      id: salaId, tipo: 'privada', categoria: 'privada',
+      nombre: 'Sala Privada', codigo: codigo,
+      apuesta: apuesta, capacidad: capacidad,
+      estado: 'esperando', jugadores: [], espectadores: [],
+      dados: {}, creadoPor: currentUser.uid,
+      createdAt: new Date().toISOString()
+    });
+    msg.textContent = '✓ Sala creada — Código: ' + codigo; msg.style.color = 'var(--success)';
+    setTimeout(function() { mostrarModalEntradaDados(salaId); }, 800);
+  });
+}
+
+async function mostrarModalEntradaDados(salaId) {
+  var snap = await getDoc(doc(db, 'dados_salas', salaId));
+  if (!snap.exists()) return;
+  var sala = snap.data();
+  var saldo = currentUser.saldo || 0;
+
+  var modalHtml =
+    '<div id="modal-dados-entrada" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:1000;display:flex;align-items:center;justify-content:center">' +
+      '<div style="background:var(--bg-secondary);border-radius:16px;padding:1.5rem;width:90%;max-width:340px;border:1px solid var(--bg-card)">' +
+        '<h3 style="margin-bottom:0.5rem">' + sala.nombre + '</h3>' +
+        '<p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.25rem">Apuesta: <strong style="color:var(--accent)">£' + sala.apuesta.toLocaleString('es-CO') + '</strong></p>' +
+        '<p style="color:var(--text-secondary);font-size:0.82rem;margin-bottom:1rem">Tu saldo: £' + saldo.toLocaleString('es-CO') + '</p>' +
+        (sala.codigo ? '<p style="color:var(--accent);font-size:0.85rem;margin-bottom:0.75rem">Código: <strong>' + sala.codigo + '</strong></p>' : '') +
+        '<button class="btn btn-primary btn-full" id="btn-dados-jugador" style="margin-bottom:0.5rem">🎲 Entrar como jugador</button>' +
+        '<button class="btn btn-secondary btn-full" id="btn-dados-espectador">👁️ Entrar como espectador</button>' +
+        '<button class="btn btn-secondary btn-full" id="btn-dados-cancelar" style="margin-top:0.5rem;border-color:var(--danger);color:var(--danger)">Cancelar</button>' +
+      '</div>' +
+    '</div>';
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  document.getElementById('btn-dados-cancelar').addEventListener('click', function() {
+    document.getElementById('modal-dados-entrada').remove();
+  });
+
+  document.getElementById('btn-dados-espectador').addEventListener('click', function() {
+    document.getElementById('modal-dados-entrada').remove();
+    entrarSalaDados(salaId, 'espectador');
+  });
+
+  document.getElementById('btn-dados-jugador').addEventListener('click', function() {
+    document.getElementById('modal-dados-entrada').remove();
+    if (saldo < sala.apuesta) {
+      alert('No tienes suficiente saldo (£' + sala.apuesta.toLocaleString('es-CO') + '). Entrarás como espectador.');
+      entrarSalaDados(salaId, 'espectador');
+      return;
+    }
+    entrarSalaDados(salaId, 'jugador');
+  });
+}
+
+async function entrarSalaDados(salaId, modo) {
+  var snap = await getDoc(doc(db, 'dados_salas', salaId));
+  if (!snap.exists()) return;
+  var sala = snap.data();
+
+  if (modo === 'jugador') {
+    var yaEsta = sala.jugadores && sala.jugadores.find(function(j) { return j.uid === currentUser.uid; });
+    if (!yaEsta && (!sala.jugadores || sala.jugadores.length < sala.capacidad)) {
+      var nuevosJugadores = (sala.jugadores || []).concat([{
+        uid: currentUser.uid,
+        username: currentUser.username,
+        foto: currentUser.fotoPerfil || '',
+        ganado: 0, perdido: 0, neto: 0
+      }]);
+      var update = { jugadores: nuevosJugadores };
+      if (sala.estado === 'esperando' && nuevosJugadores.length >= 2) {
+        update.estado = 'apostando';
+        update.timerInicio = new Date().toISOString();
+      }
+      await updateDoc(doc(db, 'dados_salas', salaId), update);
+    }
+  } else {
+    var yaEstaEsp = sala.espectadores && sala.espectadores.find(function(e) { return e.uid === currentUser.uid; });
+    if (!yaEstaEsp) {
+      await updateDoc(doc(db, 'dados_salas', salaId), {
+        espectadores: (sala.espectadores || []).concat([{ uid: currentUser.uid, username: currentUser.username }])
+      });
+    }
+  }
+
+  dadosSalaActualId = salaId;
+  renderSalaDados(salaId, modo);
+}
+
+function renderSalaDados(salaId, modoInicial) {
+  var panel = document.getElementById('casino-panel');
+  panel.innerHTML = '<div id="dados-sala-container"></div>';
+
+  if (dadosListener) { dadosListener(); dadosListener = null; }
+  if (dadosTimerInterval) { clearInterval(dadosTimerInterval); dadosTimerInterval = null; }
+
+  dadosListener = onSnapshot(doc(db, 'dados_salas', salaId), function(snap) {
+    if (!snap.exists()) return;
+    var sala = snap.data();
+    var container = document.getElementById('dados-sala-container');
+    if (!container) return;
+
+    var yoJugador = sala.jugadores && sala.jugadores.find(function(j) { return j.uid === currentUser.uid; });
+    var miModo = yoJugador ? 'jugador' : 'espectador';
+    var saldo = currentUser.saldo || 0;
+    var numJugadores = sala.jugadores ? sala.jugadores.length : 0;
+    var numDados = numJugadores <= 3 ? 1 : 2;
+    var yaTire = sala.dados && sala.dados[currentUser.uid] !== undefined;
+
+    // Auto espectador si no tiene saldo
+    if (yoJugador && saldo < sala.apuesta && sala.estado === 'apostando') {
+      convertirAEspectadorDados(salaId, sala);
+      return;
+    }
+
+    container.innerHTML =
+      // Header
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">' +
+        '<button class="btn-back" id="btn-salir-dados">← Salir</button>' +
+        '<h3 style="font-size:0.9rem">🎲 ' + sala.nombre + '</h3>' +
+        '<span style="font-size:0.78rem;color:var(--accent)">£' + sala.apuesta.toLocaleString('es-CO') + '</span>' +
+      '</div>' +
+
+      // Ranking
+      '<div style="background:var(--bg-card);border-radius:12px;padding:0.6rem;margin-bottom:0.5rem">' +
+        '<p style="font-size:0.72rem;color:var(--text-secondary);font-weight:700;margin-bottom:0.4rem">👥 JUGADORES EN SALA</p>' +
+        (sala.jugadores && sala.jugadores.length > 0
+          ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:0.3rem">' +
+            sala.jugadores.map(function(j) {
+              return '<div style="background:var(--bg-secondary);border-radius:8px;padding:0.4rem;font-size:0.7rem">' +
+                '<p style="font-weight:700;color:var(--text-primary)">' + j.username + '</p>' +
+                '<p style="color:var(--success)">+£' + (j.ganado || 0).toLocaleString('es-CO') + '</p>' +
+                '<p style="color:var(--danger)">-£' + (j.perdido || 0).toLocaleString('es-CO') + '</p>' +
+                '<p style="color:' + ((j.neto || 0) >= 0 ? 'var(--success)' : 'var(--danger)') + ';font-weight:700">£' + (j.neto || 0).toLocaleString('es-CO') + '</p>' +
+              '</div>';
+            }).join('') +
+            '</div>'
+          : '<p style="font-size:0.72rem;color:var(--text-secondary)">Sin jugadores</p>'
+        ) +
+      '</div>' +
+
+      // Área principal de dados
+      '<div style="background:var(--bg-card);border-radius:12px;padding:0.75rem;margin-bottom:0.5rem;text-align:center">' +
+        (sala.estado === 'esperando'
+          ? '<p style="color:var(--text-secondary);padding:1rem">⏳ Esperando jugadores...</p>'
+          : sala.estado === 'tirando'
+            ? renderAnimacionDados(sala, numDados)
+            : sala.estado === 'resultado'
+              ? renderResultadoDados(sala)
+              : renderAreaTiroDados(sala, yoJugador, yaTire, numDados, miModo)
+        ) +
+      '</div>' +
+
+      // Timer
+      (sala.estado === 'apostando'
+        ? '<div style="text-align:center;padding:0.5rem;background:var(--bg-card);border-radius:10px;margin-bottom:0.5rem">' +
+            '<p style="font-size:0.78rem;color:var(--text-secondary)">⏱️ Tiempo para tirar</p>' +
+            '<p id="dados-timer-display" style="font-size:2rem;font-weight:900;color:var(--accent)">10</p>' +
+          '</div>'
+        : ''
+      ) +
+
+      // Modo espectador
+      (miModo === 'espectador'
+        ? '<div style="text-align:center;padding:0.5rem;background:var(--bg-card);border-radius:10px">' +
+            '<p style="color:var(--text-secondary);font-size:0.82rem">👁️ Modo espectador</p>' +
+          '</div>'
+        : ''
+      );
+
+    document.getElementById('btn-salir-dados').addEventListener('click', function() {
+      salirSalaDados(salaId, miModo, sala);
+    });
+
+    // Botón tirar dado
+    setTimeout(function() {
+      var btnTirar = document.getElementById('btn-tirar-dado-dados');
+      if (btnTirar) {
+        btnTirar.addEventListener('click', async function() {
+          await tirarDadosDados(salaId, sala, numDados);
+        });
+      }
+      manejarTimerDados(salaId, sala, numDados);
+    }, 100);
+  });
+}
+
+function renderAreaTiroDados(sala, yoJugador, yaTire, numDados, miModo) {
+  if (miModo === 'espectador') return '';
+  var dados = sala.dados || {};
+  var jugadores = sala.jugadores || [];
+
+  var estadoJugadores = jugadores.map(function(j) {
+    var tiro = dados[j.uid];
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.3rem 0;font-size:0.82rem">' +
+      '<span>' + j.username + '</span>' +
+      '<span style="color:' + (tiro !== undefined ? 'var(--success)' : 'var(--text-secondary)') + '">' +
+        (tiro !== undefined ? '✓ Lanzado' : '⏳ Esperando') +
+      '</span>' +
+    '</div>';
+  }).join('');
+
+  return '<p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:0.5rem">Dados por jugador: <strong>' + numDados + 'D20</strong></p>' +
+    estadoJugadores +
+    (!yaTire
+      ? '<div class="dados-container" style="margin:0.75rem 0">' +
+          Array(numDados).fill('<span class="dado-animando">🎲</span>').join('') +
+        '</div>' +
+        '<button class="btn btn-primary btn-full" id="btn-tirar-dado-dados" style="font-size:1rem;padding:0.85rem">🎲 Tirar ' + (numDados > 1 ? 'dados' : 'dado') + '</button>'
+      : '<div class="dados-container" style="margin:0.75rem 0">' +
+          '<span class="dado-resultado">✅</span>' +
+        '</div>' +
+        '<p style="color:var(--success);font-weight:700">Ya tiraste, esperando a los demás...</p>'
+    );
+}
+
+function renderAnimacionDados(sala, numDados) {
+  return '<p style="color:var(--accent);font-weight:700;margin-bottom:0.75rem">🎲 Tirando dados...</p>' +
+    '<div class="dados-container">' +
+      Array(numDados * 2).fill('<span class="dado-animando">🎲</span>').join('') +
+    '</div>';
+}
+
+function renderResultadoDados(sala) {
+  var resultados = sala.resultados || {};
+  var jugadores = sala.jugadores || [];
+  var ranking = sala.rankingRonda || [];
+
+  var html = '<p style="font-weight:700;font-size:0.95rem;margin-bottom:0.75rem">🏆 Resultados de la ronda</p>';
+
+  html += jugadores.map(function(j) {
+    var res = resultados[j.uid] || [];
+    var suma = res.reduce(function(a, b) { return a + b; }, 0);
+    var pos = ranking.indexOf(j.uid) + 1;
+    var emoji = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : '💀';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0.5rem;border-radius:8px;background:var(--bg-primary);margin-bottom:0.3rem">' +
+      '<span style="font-size:0.85rem">' + emoji + ' ' + j.username + '</span>' +
+      '<span style="font-size:0.85rem;font-weight:700">' + res.join(' + ') + (res.length > 1 ? ' = ' + suma : '') + '</span>' +
+    '</div>';
+  }).join('');
+
+  html += '<p style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.5rem">Próxima ronda en breve...</p>';
+  return html;
+}
+
+async function tirarDadosDados(salaId, sala, numDados) {
+  var resultados = [];
+  for (var i = 0; i < numDados; i++) {
+    resultados.push(Math.floor(Math.random() * 20) + 1);
+  }
+
+  var nuevosDados = Object.assign({}, sala.dados || {});
+  nuevosDados[currentUser.uid] = resultados;
+
+  var update = { dados: nuevosDados };
+  var jugadores = sala.jugadores || [];
+  var todosLanzaron = jugadores.every(function(j) { return nuevosDados[j.uid] !== undefined; });
+
+  if (todosLanzaron) {
+    update.estado = 'tirando';
+  }
+
+  await updateDoc(doc(db, 'dados_salas', salaId), update);
+
+  if (todosLanzaron) {
+    if (dadosTimerInterval) { clearInterval(dadosTimerInterval); dadosTimerInterval = null; }
+    setTimeout(function() { resolverRondaDados(salaId); }, 2000);
+  }
+}
+
+async function resolverRondaDados(salaId) {
+  var snap = await getDoc(doc(db, 'dados_salas', salaId));
+  if (!snap.exists()) return;
+  var sala = snap.data();
+  var jugadores = sala.jugadores || [];
+  var dados = sala.dados || {};
+  var apuesta = sala.apuesta;
+
+  // Calcular sumas
+  var sumas = jugadores.map(function(j) {
+    var tiro = dados[j.uid] || [Math.floor(Math.random() * 20) + 1];
+    return { uid: j.uid, username: j.username, suma: tiro.reduce(function(a, b) { return a + b; }, 0), dados: tiro };
+  });
+
+  // Ordenar de mayor a menor, manejar empates relanzando
+  sumas.sort(function(a, b) { return b.suma - a.suma; });
+
+  // Detectar empates en primer lugar y relanzar si es necesario
+  var maxSuma = sumas[0].suma;
+  var empatadosPrimero = sumas.filter(function(s) { return s.suma === maxSuma; });
+  if (empatadosPrimero.length > 1) {
+    // Relanzar para todos los empatados
+    empatadosPrimero.forEach(function(s) {
+      var numDados = jugadores.length <= 3 ? 1 : 2;
+      var nuevoTiro = [];
+      for (var i = 0; i < numDados; i++) nuevoTiro.push(Math.floor(Math.random() * 20) + 1);
+      s.suma = nuevoTiro.reduce(function(a, b) { return a + b; }, 0);
+      s.dados = nuevoTiro;
+      dados[s.uid] = nuevoTiro;
+    });
+    sumas.sort(function(a, b) { return b.suma - a.suma; });
+  }
+
+  var rankingRonda = sumas.map(function(s) { return s.uid; });
+  var resultados = {};
+  sumas.forEach(function(s) { resultados[s.uid] = s.dados; });
+
+  // Calcular cambios de saldo según número de jugadores
+  var cambios = {};
+  jugadores.forEach(function(j) { cambios[j.uid] = 0; });
+
+  var n = jugadores.length;
+
+  if (n === 2) {
+    cambios[rankingRonda[0]] = apuesta;
+    cambios[rankingRonda[1]] = -apuesta;
+  } else if (n === 3) {
+    cambios[rankingRonda[0]] = apuesta;
+    cambios[rankingRonda[1]] = 0;
+    cambios[rankingRonda[2]] = -apuesta;
+  } else if (n === 4) {
+    var pozo4 = apuesta * 2;
+    cambios[rankingRonda[0]] = Math.floor(pozo4 * 0.75);
+    cambios[rankingRonda[1]] = Math.floor(pozo4 * 0.25);
+    cambios[rankingRonda[2]] = -apuesta;
+    cambios[rankingRonda[3]] = -apuesta;
+  } else if (n === 5) {
+    var pozo5 = apuesta * 3;
+    cambios[rankingRonda[0]] = Math.floor(pozo5 * 0.75);
+    cambios[rankingRonda[1]] = Math.floor(pozo5 * 0.25);
+    cambios[rankingRonda[2]] = -Math.floor(apuesta * 0.5);
+    cambios[rankingRonda[3]] = -apuesta;
+    cambios[rankingRonda[4]] = -apuesta;
+  }
+
+  // Actualizar saldos y ranking
+  var jugadoresActualizados = jugadores.map(function(j) {
+    var cambio = cambios[j.uid] || 0;
+    return Object.assign({}, j, {
+      ganado: (j.ganado || 0) + (cambio > 0 ? cambio : 0),
+      perdido: (j.perdido || 0) + (cambio < 0 ? Math.abs(cambio) : 0),
+      neto: (j.neto || 0) + cambio
+    });
+  });
+
+  // Aplicar cambios en Firebase
+  for (var i = 0; i < jugadoresActualizados.length; i++) {
+    var j = jugadoresActualizados[i];
+    var cambio = cambios[j.uid] || 0;
+    if (cambio === 0) continue;
+    try {
+      await updateDoc(doc(db, 'usuarios', j.uid), { saldo: increment(cambio) });
+      if (j.uid === currentUser.uid) currentUser.saldo = (currentUser.saldo || 0) + cambio;
+      await registrarTransaccion({
+        tipo: 'casino_dados',
+        de: cambio < 0 ? j.uid : 'sistema',
+        deUsername: cambio < 0 ? j.username : 'Casino Dados',
+        para: cambio >= 0 ? j.uid : 'sistema',
+        paraUsername: cambio >= 0 ? j.username : 'Casino Dados',
+        monto: Math.abs(cambio),
+        descripcion: 'Dados: ' + j.username + ' — ' + (cambio >= 0 ? 'Ganó' : 'Perdió') + ' £' + Math.abs(cambio).toLocaleString('es-CO')
+      });
+    } catch(err) { console.log('Error saldo dados:', err.message); }
+  }
+
+  // Mostrar resultado y preparar siguiente ronda
+  await updateDoc(doc(db, 'dados_salas', salaId), {
+    estado: 'resultado',
+    jugadores: jugadoresActualizados,
+    dados: dados,
+    resultados: resultados,
+    rankingRonda: rankingRonda
+  });
+
+  // Pasar a siguiente ronda automáticamente
+  setTimeout(async function() {
+    var snapActual = await getDoc(doc(db, 'dados_salas', salaId));
+    if (!snapActual.exists()) return;
+    var salaActual = snapActual.data();
+    if (salaActual.estado !== 'resultado') return;
+
+    // Verificar jugadores con saldo suficiente
+    var jugadoresValidos = [];
+    var nuevosEspectadores = salaActual.espectadores || [];
+
+    for (var k = 0; k < (salaActual.jugadores || []).length; k++) {
+      var jug = salaActual.jugadores[k];
+      var snapUser = await getDoc(doc(db, 'usuarios', jug.uid));
+      var saldoActual = snapUser.exists() ? (snapUser.data().saldo || 0) : 0;
+      if (saldoActual >= salaActual.apuesta) {
+        jugadoresValidos.push(jug);
+      } else {
+        nuevosEspectadores.push({ uid: jug.uid, username: jug.username });
+      }
+    }
+
+    var nuevoEstado = jugadoresValidos.length >= 2 ? 'apostando' : 'esperando';
+    await updateDoc(doc(db, 'dados_salas', salaId), {
+      estado: nuevoEstado,
+      jugadores: jugadoresValidos,
+      espectadores: nuevosEspectadores,
+      dados: {},
+      resultados: {},
+      rankingRonda: [],
+      timerInicio: new Date().toISOString()
+    });
+  }, 3000);
+}
+
+function manejarTimerDados(salaId, sala, numDados) {
+  if (dadosTimerInterval) { clearInterval(dadosTimerInterval); dadosTimerInterval = null; }
+  if (sala.estado !== 'apostando') return;
+
+  var tiempoInicio = sala.timerInicio ? new Date(sala.timerInicio).getTime() : Date.now();
+
+  dadosTimerInterval = setInterval(async function() {
+    var transcurrido = Math.floor((Date.now() - tiempoInicio) / 1000);
+    var restante = Math.max(0, 10 - transcurrido);
+    var timerEl = document.getElementById('dados-timer-display');
+    if (timerEl) timerEl.textContent = restante;
+
+    if (restante <= 0) {
+      clearInterval(dadosTimerInterval); dadosTimerInterval = null;
+      var snapActual = await getDoc(doc(db, 'dados_salas', salaId));
+      if (!snapActual.exists()) return;
+      var salaActual = snapActual.data();
+      if (salaActual.estado !== 'apostando') return;
+
+      // Tirar dados automáticamente para los que no tiraron
+      var nuevosDados = Object.assign({}, salaActual.dados || {});
+      var jugadores = salaActual.jugadores || [];
+      jugadores.forEach(function(j) {
+        if (nuevosDados[j.uid] === undefined) {
+          var tiros = [];
+          for (var i = 0; i < numDados; i++) tiros.push(Math.floor(Math.random() * 20) + 1);
+          nuevosDados[j.uid] = tiros;
+        }
+      });
+
+      await updateDoc(doc(db, 'dados_salas', salaId), { dados: nuevosDados, estado: 'tirando' });
+      setTimeout(function() { resolverRondaDados(salaId); }, 2000);
+    }
+  }, 1000);
+}
+
+async function salirSalaDados(salaId, modo, sala) {
+  if (dadosListener) { dadosListener(); dadosListener = null; }
+  if (dadosTimerInterval) { clearInterval(dadosTimerInterval); dadosTimerInterval = null; }
+
+  if (modo === 'jugador') {
+    var nuevosJugadores = (sala.jugadores || []).filter(function(j) { return j.uid !== currentUser.uid; });
+    var update = { jugadores: nuevosJugadores };
+    if (nuevosJugadores.length < 2) {
+      update.estado = 'esperando';
+      update.dados = {};
+      update.timerInicio = null;
+    }
+    await updateDoc(doc(db, 'dados_salas', salaId), update);
+  } else {
+    var nuevosEsp = (sala.espectadores || []).filter(function(e) { return e.uid !== currentUser.uid; });
+    await updateDoc(doc(db, 'dados_salas', salaId), { espectadores: nuevosEsp });
+  }
+
+  dadosSalaActualId = null;
+  renderDados();
+}
+
+async function convertirAEspectadorDados(salaId, sala) {
+  var nuevosJugadores = (sala.jugadores || []).filter(function(j) { return j.uid !== currentUser.uid; });
+  var nuevosEsp = (sala.espectadores || []).concat([{ uid: currentUser.uid, username: currentUser.username }]);
+  var update = { jugadores: nuevosJugadores, espectadores: nuevosEsp };
+  if (nuevosJugadores.length < 2) { update.estado = 'esperando'; update.dados = {}; }
+  await updateDoc(doc(db, 'dados_salas', salaId), update);
 }
 
 function showError(msg) { loginError.textContent = msg; loginError.classList.remove('hidden'); }
