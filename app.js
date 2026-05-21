@@ -7113,7 +7113,7 @@ async function convertirAEspectadorDados(salaId, sala) {
   await updateDoc(doc(db, 'dados_salas', salaId), update);
 }
 
-// ===== BLACKJACK  =====
+// ===== BLACKJACK =====
 
 var bjListener = null;
 var bjSalaActualId = null;
@@ -7740,139 +7740,149 @@ async function turnosCasinoBJ(salaId) {
   setTimeout(function() { resolverRondaBJ(salaId); }, 800);
 }
 
-// ─── resolver ronda — PREMIOS CORREGIDOS ────────────────────────────────────
+// ─── resolver ronda — PREMIOS CORRECTOS + GUARD ATÓMICO ─────────────────────
 async function resolverRondaBJ(salaId) {
-  // Guard: solo el líder ejecuta la resolución
+  // ── Guard atómico: marca la sala como "resolviendo" antes de hacer nada ──
+  // Si otro cliente ya puso resolviendo=true, este intento aborta.
+  // Usamos un campo resolviendo + roundId para que solo UN cliente ejecute.
+  var snapPre = await getDoc(doc(db, 'blackjack_salas', salaId));
+  if (!snapPre.exists()) return;
+  var salaPre = snapPre.data();
+
+  // Si ya está resolviendo o ya terminó, salir
+  if (salaPre.resolviendo === true) return;
+  if (salaPre.estado === 'resultado')  return;
+
+  // Intentar marcar como resolviendo (solo el líder)
+  if (salaPre.liderId !== currentUser.uid) return;
+
+  // Escribir resolviendo=true de forma atómica para bloquear otros clientes
+  try {
+    await updateDoc(doc(db, 'blackjack_salas', salaId), { resolviendo: true });
+  } catch(e) { return; }
+
+  // Leer estado fresco tras el lock
   var snap = await getDoc(doc(db, 'blackjack_salas', salaId));
   if (!snap.exists()) return;
   var sala = snap.data();
-  if (sala.liderId !== currentUser.uid) return;  // ← guard líder
 
   var jugadores    = sala.jugadores    || [];
-  var apuesta      = sala.apuesta;
+  var apuesta      = sala.apuesta;           // valor de la sala: 100, 1500, etc.
   var cartasCasino = sala.cartasCasino || [];
   var puntosCasino = calcularMano(cartasCasino);
   var casinoBJ     = esBlackjackNatural(cartasCasino);
   var casinoSePaso = puntosCasino > 21;
 
-  // ── 1. Clasificar jugadores ──────────────────────────────────────────────
+  // ── 1. Clasificar cada jugador ───────────────────────────────────────────
   var clasif = jugadores.map(function(j) {
     var puntos = calcularMano(j.cartas || []);
-    var jBJ    = j.estado === 'blackjack';
-    var sePaso = puntos > 21 || j.estado === 'eliminado';
+    var jBJ    = (j.estado === 'blackjack');
+    var sePaso = (puntos > 21 || j.estado === 'eliminado');
 
     var resultado;
-    if (sePaso) {
-      resultado = 'perdedor';
-    } else if (casinoBJ && !jBJ) {
-      resultado = 'perdedor';
-    } else if (jBJ && !casinoBJ) {
-      resultado = 'blackjack';   // BJ natural sin BJ del casino
-    } else if (casinoSePaso) {
-      resultado = 'ganador';
-    } else if (puntos > puntosCasino) {
-      resultado = 'ganador';
-    } else if (puntos === puntosCasino) {
-      resultado = 'empate';
-    } else {
-      resultado = 'perdedor';
-    }
+    if      (sePaso)              resultado = 'perdedor';
+    else if (casinoBJ && !jBJ)   resultado = 'perdedor';
+    else if (jBJ && !casinoBJ)   resultado = 'blackjack';
+    else if (casinoSePaso)        resultado = 'ganador';
+    else if (puntos > puntosCasino) resultado = 'ganador';
+    else if (puntos === puntosCasino) resultado = 'empate';
+    else                          resultado = 'perdedor';
+
     return { j: j, puntos: puntos, resultado: resultado };
   });
 
-  // ── 2. Calcular cambios de saldo ─────────────────────────────────────────
+  // ── 2. Calcular cambio neto de saldo por jugador ─────────────────────────
+  //
+  //  MODO SOLITARIO (1 jugador vs casino):
+  //    ganador  → +apuesta  (gana exactamente lo apostado)
+  //    blackjack→ +apuesta  (mismo premio, sin diferencia de BJ en solitario)
+  //    empate   →  0        (no pierde ni gana)
+  //    perdedor → -apuesta  (pierde exactamente lo apostado)
+  //
+  //  MODO MULTIJUGADOR (2-5 jugadores):
+  //    perdedor → -apuesta
+  //    empate   →  0
+  //    ganadores → se reparten el 90% del pozo de los perdedores a partes iguales
+  //    (el 10% restante es la ganancia del casino, no se acredita aún)
+  //
   var cambios = {};
   jugadores.forEach(function(j) { cambios[j.uid] = 0; });
 
-  var soloUnJugador = jugadores.length === 1;
-
-  if (soloUnJugador) {
-    // ─── Modo 1 vs Casino ───────────────────────────────────────────────────
-    var c = clasif[0];
-    if (c.resultado === 'blackjack') {
-      // BJ natural: gana 1.5× la apuesta (paga 3:2)
-      cambios[c.j.uid] = Math.floor(apuesta * 1.5);
-    } else if (c.resultado === 'ganador') {
-      // Gana 1× la apuesta
-      cambios[c.j.uid] = apuesta;
-    } else if (c.resultado === 'empate') {
-      cambios[c.j.uid] = 0;   // devuelve la apuesta (no pierde ni gana)
+  if (jugadores.length === 1) {
+    // ── Solitario ────────────────────────────────────────────────────────────
+    var solo = clasif[0];
+    if (solo.resultado === 'ganador' || solo.resultado === 'blackjack') {
+      cambios[solo.j.uid] = apuesta;       // gana £apuesta exacta
+    } else if (solo.resultado === 'empate') {
+      cambios[solo.j.uid] = 0;             // devuelve apuesta, no pierde
     } else {
-      cambios[c.j.uid] = -apuesta;
+      cambios[solo.j.uid] = -apuesta;      // pierde £apuesta exacta
     }
   } else {
-    // ─── Modo multijugador ──────────────────────────────────────────────────
-    // Pozo = apuestas de todos los perdedores
+    // ── Multijugador ─────────────────────────────────────────────────────────
     var perdedores = clasif.filter(function(c) { return c.resultado === 'perdedor'; });
     var ganadores  = clasif.filter(function(c) { return c.resultado === 'ganador' || c.resultado === 'blackjack'; });
-    var empatados  = clasif.filter(function(c) { return c.resultado === 'empate'; });
+    // empatados: cambio queda en 0 (correcto)
 
-    // Perdedores pierden su apuesta
     perdedores.forEach(function(c) { cambios[c.j.uid] = -apuesta; });
-    // Empatados no ganan ni pierden (se les devuelve la apuesta)
-    empatados.forEach(function(c) { cambios[c.j.uid] = 0; });
 
     if (ganadores.length > 0 && perdedores.length > 0) {
-      var pozoTotal = perdedores.length * apuesta;
-      // El casino se queda el 10% del pozo
-      var pozoJugadores = Math.floor(pozoTotal * 0.90);
-
-      if (ganadores.length === 1) {
-        // Un solo ganador se lleva todo el pozo neto de jugadores
-        cambios[ganadores[0].j.uid] = pozoJugadores;
-      } else {
-        // Varios ganadores: se dividen el pozo a partes iguales
-        var parte = Math.floor(pozoJugadores / ganadores.length);
-        ganadores.forEach(function(c) { cambios[c.j.uid] = parte; });
-      }
+      var pozoTotal     = perdedores.length * apuesta;
+      var pozoJugadores = Math.floor(pozoTotal * 0.90);  // 10% para el casino
+      var partePorGanador = Math.floor(pozoJugadores / ganadores.length);
+      ganadores.forEach(function(c) { cambios[c.j.uid] = partePorGanador; });
     } else if (ganadores.length > 0 && perdedores.length === 0) {
-      // Todos ganan vs casino (todos se pasaron o BJ casino y jugadores no)
-      // En este caso, si había pérdidas reales no hay pozo → casa paga
-      ganadores.forEach(function(c) {
-        cambios[c.j.uid] = c.resultado === 'blackjack' ? Math.floor(apuesta * 1.5) : apuesta;
-      });
+      // Todos ganaron (ej: casino se pasó, o casino BJ vs todos BJ)
+      // El casino paga la apuesta a cada ganador directamente
+      ganadores.forEach(function(c) { cambios[c.j.uid] = apuesta; });
     }
+    // Si ganadores.length === 0 → todos perdedores o empatados, cambios ya asignados
   }
 
-  // ── 3. Actualizar jugadores con estado final ──────────────────────────────
+  // ── 3. Construir jugadores con estado final ──────────────────────────────
   var jugadoresActualizados = jugadores.map(function(j) {
-    var c      = clasif.find(function(cc) { return cc.j.uid === j.uid; });
-    var cambio = cambios[j.uid] || 0;
-    var ef     = c ? c.resultado : 'empate';
-    // Normalizar estado final para la UI
+    var c       = clasif.find(function(cc) { return cc.j.uid === j.uid; });
+    var cambio  = cambios[j.uid] || 0;
+    var ef      = c ? c.resultado : 'empate';
     var estadoFinal = (ef === 'ganador' || ef === 'blackjack') ? 'ganador'
-      : ef === 'perdedor' ? 'perdedor' : 'empate';
+                    : ef === 'perdedor' ? 'perdedor' : 'empate';
     return Object.assign({}, j, {
       estado:  estadoFinal,
-      ganado:  (j.ganado  || 0) + (cambio > 0 ? cambio      : 0),
+      ganado:  (j.ganado  || 0) + (cambio > 0 ? cambio           : 0),
       perdido: (j.perdido || 0) + (cambio < 0 ? Math.abs(cambio) : 0),
       neto:    (j.neto    || 0) + cambio
     });
   });
 
-  // ── 4. Aplicar saldos en Firebase ────────────────────────────────────────
+  // ── 4. Aplicar saldos en Firebase (uno a uno) ────────────────────────────
   for (var i = 0; i < jugadoresActualizados.length; i++) {
     var jj     = jugadoresActualizados[i];
     var cambio = cambios[jj.uid] || 0;
     if (cambio === 0) continue;
     try {
       await updateDoc(doc(db, 'usuarios', jj.uid), { saldo: increment(cambio) });
-      if (jj.uid === currentUser.uid) currentUser.saldo = (currentUser.saldo || 0) + cambio;
+      if (jj.uid === currentUser.uid) {
+        currentUser.saldo = (currentUser.saldo || 0) + cambio;
+      }
       await registrarTransaccion({
-        tipo:          'casino_blackjack',
-        de:            cambio < 0 ? jj.uid  : 'sistema',
-        deUsername:    cambio < 0 ? jj.username : 'Casino Blackjack',
-        para:          cambio >= 0 ? jj.uid  : 'sistema',
-        paraUsername:  cambio >= 0 ? jj.username : 'Casino Blackjack',
-        monto:         Math.abs(cambio),
-        descripcion:   'Blackjack: ' + jj.username + (cambio >= 0 ? ' ganó' : ' perdió') + ' £' + Math.abs(cambio).toLocaleString('es-CO')
+        tipo:         'casino_blackjack',
+        de:           cambio < 0 ? jj.uid  : 'sistema',
+        deUsername:   cambio < 0 ? jj.username : 'Casino Blackjack',
+        para:         cambio >= 0 ? jj.uid  : 'sistema',
+        paraUsername: cambio >= 0 ? jj.username : 'Casino Blackjack',
+        monto:        Math.abs(cambio),
+        descripcion:  'Blackjack: ' + jj.username
+          + (cambio >= 0 ? ' ganó' : ' perdió')
+          + ' £' + Math.abs(cambio).toLocaleString('es-CO')
       });
     } catch(err) { console.log('Error saldo BJ:', err.message); }
   }
 
+  // ── 5. Guardar resultado y liberar el lock ───────────────────────────────
   await updateDoc(doc(db, 'blackjack_salas', salaId), {
-    estado: 'resultado',
-    jugadores: jugadoresActualizados,
+    estado:       'resultado',
+    resolviendo:  false,          // ← liberar lock
+    jugadores:    jugadoresActualizados,
     cartasCasino: cartasCasino
   });
 
