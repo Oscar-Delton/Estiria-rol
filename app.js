@@ -4808,7 +4808,10 @@ function renderCasino() {
     renderBlackjack();
   });
 
-  document.getElementById('casino-rasca').addEventListener('click', function() { renderRascaYGana(); });
+  document.getElementById('casino-rasca').addEventListener('click', function() {
+  renderRascaYGana();
+});
+
 }
 
 // ===== RULETA RUSA =====
@@ -8157,7 +8160,7 @@ function calcularPremio(simbolos, apuesta) {
 
 // ─── Render principal ────────────────────────────────────────────────────────
 function renderRascaYGana() {
-  var panel = document.getElementById('casino-panel');
+  var panel = mainContent;
   panel.innerHTML =
     '<div class="tienda-seccion-header" style="margin-top:1rem">' +
       '<button class="btn-back" id="back-casino-ryg">← Casino</button>' +
@@ -8207,9 +8210,8 @@ function renderRascaYGana() {
     '<div id="ryg-juego-area"></div>';
 
   document.getElementById('back-casino-ryg').addEventListener('click', function() {
-    panel.innerHTML = '';
-    renderCasino();
-  });
+  renderCasino();
+});
 
   var boletoSeleccionado = null;
 
