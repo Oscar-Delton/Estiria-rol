@@ -4781,6 +4781,7 @@ function renderCasino() {
     '<div class="categorias-grid">' +
       '<button class="categoria-btn" id="casino-ruleta-rusa"><span>🔫</span><span>Ruleta Rusa</span></button>' +
       '<button class="categoria-btn" id="casino-tragaperras"><span>🎰</span><span>Tragaperras</span></button>' +
+      '<button class="categoria-btn" id="casino-ruleta"><span>🎡</span><span>Ruleta</span></button>' +
       '<button class="categoria-btn proximamente-btn"><span>🎲</span><span>Dados</span><span class="prox-tag">Próx.</span></button>' +
       '<button class="categoria-btn proximamente-btn"><span>🃏</span><span>Blackjack</span><span class="prox-tag">Próx.</span></button>' +
     '</div>' +
@@ -4792,6 +4793,10 @@ function renderCasino() {
 
   document.getElementById('casino-tragaperras').addEventListener('click', function() {
     renderTragaperras();
+  });
+
+  document.getElementById('casino-ruleta').addEventListener('click', function() {
+    renderRuleta();
   });
 }
 
@@ -5639,8 +5644,8 @@ function renderTragaperras() {
 
     // Pesos de probabilidad (mayor = más común)
     // Total de pesos = 100
-    // 🍋=35, 🍇=28, 🔔=18, ⭐=10, 7️⃣=7, 💎=2
-    var pesos = [35, 28, 18, 10, 7, 2];
+    // 🍋=37, 🍇=28, 🔔=20, ⭐=8, 7️⃣=5, 💎=2
+    var pesos = [36, 27, 16, 10, 7, 4];
     var totalPeso = pesos.reduce(function(a, b) { return a + b; }, 0);
 
     function elegirSimbolo() {
@@ -5655,7 +5660,7 @@ function renderTragaperras() {
 
     // El casino tiene ventaja: 65% de probabilidad de que NO haya premio
     // Para lograr esto, re-evaluamos si "forzar" pérdida
-    var forzarPerdida = Math.random() < 0.65;
+    var forzarPerdida = Math.random() < 0.25;
     var resultado;
 
     if (forzarPerdida) {
@@ -5796,6 +5801,678 @@ async function mostrarResultadoTragaperras(resultado, multiplicador, ganancia, a
     btn.textContent = '🎰 GIRAR';
     console.log('Botón rehabilitado');
   }
+}
+
+// ===== RULETA =====
+
+var ruletaListener = null;
+var ruletaSalaActualId = null;
+var ruletaTimerInterval = null;
+
+var NUMEROS_RULETA = [
+  0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,
+  24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26
+];
+
+var COLORES_RULETA = {
+  0:'verde',1:'rojo',2:'negro',3:'rojo',4:'negro',5:'rojo',6:'negro',
+  7:'rojo',8:'negro',9:'rojo',10:'negro',11:'negro',12:'rojo',13:'negro',
+  14:'rojo',15:'negro',16:'rojo',17:'negro',18:'rojo',19:'rojo',20:'negro',
+  21:'rojo',22:'negro',23:'rojo',24:'negro',25:'rojo',26:'negro',27:'rojo',
+  28:'negro',29:'negro',30:'rojo',31:'negro',32:'rojo',33:'negro',34:'rojo',
+  35:'negro',36:'rojo'
+};
+
+async function renderRuleta() {
+  var panel = document.getElementById('casino-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-casino-ruleta">← Casino</button>' +
+      '<h3>🎡 Ruleta de Estiria</h3>' +
+    '</div>' +
+    '<div class="salas-tabs" style="margin-bottom:0.75rem">' +
+      '<button class="sala-tab active" data-tipo="normal">🎡 Normales</button>' +
+      '<button class="sala-tab" data-tipo="vip">👑 VIP</button>' +
+    '</div>' +
+    '<div id="ruleta-salas-lista"></div>';
+
+  document.getElementById('back-casino-ruleta').addEventListener('click', function() {
+    if (ruletaListener) { ruletaListener(); ruletaListener = null; }
+    if (ruletaTimerInterval) { clearInterval(ruletaTimerInterval); ruletaTimerInterval = null; }
+    panel.innerHTML = '';
+    renderCasino();
+  });
+
+  document.querySelectorAll('.sala-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.sala-tab').forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      cargarSalasRuleta(tab.dataset.tipo);
+    });
+  });
+
+  await inicializarSalasRuleta();
+  cargarSalasRuleta('normal');
+}
+
+async function inicializarSalasRuleta() {
+  for (var i = 1; i <= 10; i++) {
+    var id = 'ruleta_normal_' + i;
+    var snap = await getDoc(doc(db, 'ruleta_salas', id));
+    if (!snap.exists()) {
+      await setDoc(doc(db, 'ruleta_salas', id), {
+        id: id, tipo: 'normal', nombre: 'Sala ' + i,
+        capacidad: 7, apuestaMin: 100, apuestaMax: null,
+        estado: 'esperando', jugadores: [], espectadores: [],
+        apuestas: {}, ultimoNumero: null, createdAt: new Date().toISOString()
+      });
+    }
+  }
+  for (var j = 1; j <= 2; j++) {
+    var idVip = 'ruleta_vip_' + j;
+    var snapVip = await getDoc(doc(db, 'ruleta_salas', idVip));
+    if (!snapVip.exists()) {
+      await setDoc(doc(db, 'ruleta_salas', idVip), {
+        id: idVip, tipo: 'vip', nombre: 'Sala VIP ' + j,
+        capacidad: 5, apuestaMin: 1000, apuestaMax: null,
+        requiereSaldo: 100000, saldoMinimo: 50000,
+        estado: 'esperando', jugadores: [], espectadores: [],
+        apuestas: {}, ultimoNumero: null, createdAt: new Date().toISOString()
+      });
+    }
+  }
+}
+
+function cargarSalasRuleta(tipo) {
+  var lista = document.getElementById('ruleta-salas-lista');
+  if (!lista) return;
+  lista.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p>';
+
+  onSnapshot(
+    query(collection(db, 'ruleta_salas'), where('tipo', '==', tipo)),
+    function(snap) {
+      lista = document.getElementById('ruleta-salas-lista');
+      if (!lista) return;
+      var salas = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+      salas.sort(function(a, b) { return a.id.localeCompare(b.id); });
+
+      lista.innerHTML = salas.map(function(sala) {
+        var jugadores = sala.jugadores ? sala.jugadores.length : 0;
+        var espectadores = sala.espectadores ? sala.espectadores.length : 0;
+        var estado = sala.estado || 'esperando';
+        var estadoColor = estado === 'girando' ? 'var(--danger)' : jugadores > 0 ? 'var(--warning)' : 'var(--success)';
+        var estadoTexto = estado === 'girando' ? '🔴 Girando' : jugadores > 0 ? '🟡 Jugando (' + jugadores + '/' + sala.capacidad + ')' : '🟢 Vacía';
+        var esVip = sala.tipo === 'vip';
+
+        return '<div class="sala-card" style="' + (esVip ? 'border-color:gold' : '') + '">' +
+          '<div class="sala-info">' +
+            '<p class="sala-nombre">' + (esVip ? '👑 ' : '') + sala.nombre + '</p>' +
+            '<p class="sala-estado" style="color:' + estadoColor + '">' + estadoTexto + '</p>' +
+            (esVip ? '<p style="font-size:0.72rem;color:gold">Requiere £100.000 · Mín. £1.000</p>' : '<p style="font-size:0.72rem;color:var(--text-secondary)">Mín. £100 · Máx. £5.000</p>') +
+            (espectadores > 0 ? '<p style="font-size:0.72rem;color:var(--text-secondary)">👁️ ' + espectadores + ' espectadores</p>' : '') +
+          '</div>' +
+          '<button class="btn btn-primary sala-btn" data-id="' + sala.id + '">Entrar</button>' +
+        '</div>';
+      }).join('');
+
+      lista.querySelectorAll('.sala-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          mostrarModalEntradaRuleta(btn.dataset.id);
+        });
+      });
+    }
+  );
+}
+
+async function mostrarModalEntradaRuleta(salaId) {
+  var snap = await getDoc(doc(db, 'ruleta_salas', salaId));
+  if (!snap.exists()) return;
+  var sala = snap.data();
+  var saldo = currentUser.saldo || 0;
+  var esVip = sala.tipo === 'vip';
+
+  if (esVip && saldo < 100000) {
+    alert('Necesitas al menos £100.000 para entrar a una sala VIP');
+    return;
+  }
+
+  var panel = document.getElementById('casino-panel');
+  var modalHtml =
+    '<div id="modal-ruleta-entrada" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:1000;display:flex;align-items:center;justify-content:center">' +
+      '<div style="background:var(--bg-secondary);border-radius:16px;padding:1.5rem;width:90%;max-width:340px;border:1px solid var(--bg-card)">' +
+        '<h3 style="margin-bottom:0.5rem">' + (esVip ? '👑 ' : '') + sala.nombre + '</h3>' +
+        '<p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:1.25rem">¿Cómo quieres entrar?</p>' +
+        '<button class="btn btn-primary btn-full" id="btn-entrar-jugador" style="margin-bottom:0.5rem">🎮 Entrar como jugador</button>' +
+        '<button class="btn btn-secondary btn-full" id="btn-entrar-espectador">👁️ Entrar como espectador</button>' +
+        '<button class="btn btn-secondary btn-full" id="btn-cancelar-entrada" style="margin-top:0.5rem;border-color:var(--danger);color:var(--danger)">Cancelar</button>' +
+      '</div>' +
+    '</div>';
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  document.getElementById('btn-cancelar-entrada').addEventListener('click', function() {
+    document.getElementById('modal-ruleta-entrada').remove();
+  });
+
+  document.getElementById('btn-entrar-espectador').addEventListener('click', function() {
+    document.getElementById('modal-ruleta-entrada').remove();
+    entrarSalaRuleta(salaId, 'espectador');
+  });
+
+  document.getElementById('btn-entrar-jugador').addEventListener('click', function() {
+    document.getElementById('modal-ruleta-entrada').remove();
+    if (saldo < 100) {
+      alert('No tienes suficiente saldo para jugar. Entrarás como espectador.');
+      entrarSalaRuleta(salaId, 'espectador');
+      return;
+    }
+    entrarSalaRuleta(salaId, 'jugador');
+  });
+}
+
+async function entrarSalaRuleta(salaId, modo) {
+  var snap = await getDoc(doc(db, 'ruleta_salas', salaId));
+  if (!snap.exists()) return;
+  var sala = snap.data();
+
+  if (modo === 'jugador') {
+    var yaEsta = sala.jugadores && sala.jugadores.find(function(j) { return j.uid === currentUser.uid; });
+    if (!yaEsta && (!sala.jugadores || sala.jugadores.length < sala.capacidad)) {
+      var nuevosJugadores = (sala.jugadores || []).concat([{
+        uid: currentUser.uid,
+        username: currentUser.username,
+        foto: currentUser.fotoPerfil || '',
+        ganado: 0, perdido: 0, neto: 0
+      }]);
+      await updateDoc(doc(db, 'ruleta_salas', salaId), { jugadores: nuevosJugadores });
+    }
+  } else {
+    var yaEstaEsp = sala.espectadores && sala.espectadores.find(function(e) { return e.uid === currentUser.uid; });
+    if (!yaEstaEsp) {
+      var nuevosEsp = (sala.espectadores || []).concat([{ uid: currentUser.uid, username: currentUser.username }]);
+      await updateDoc(doc(db, 'ruleta_salas', salaId), { espectadores: nuevosEsp });
+    }
+  }
+
+  ruletaSalaActualId = salaId;
+  renderSalaRuleta(salaId, modo);
+}
+
+function renderSalaRuleta(salaId, modoInicial) {
+  var panel = document.getElementById('casino-panel');
+  panel.innerHTML = '<div id="ruleta-sala-container"></div>';
+
+  if (ruletaListener) { ruletaListener(); ruletaListener = null; }
+
+  ruletaListener = onSnapshot(doc(db, 'ruleta_salas', salaId), function(snap) {
+    if (!snap.exists()) return;
+    var sala = snap.data();
+    var container = document.getElementById('ruleta-sala-container');
+    if (!container) return;
+
+    var yoJugador = sala.jugadores && sala.jugadores.find(function(j) { return j.uid === currentUser.uid; });
+    var yoEspectador = sala.espectadores && sala.espectadores.find(function(e) { return e.uid === currentUser.uid; });
+    var miModo = yoJugador ? 'jugador' : 'espectador';
+
+    var saldo = currentUser.saldo || 0;
+    var esVip = sala.tipo === 'vip';
+
+    // Verificar expulsión VIP
+    if (esVip && yoJugador && saldo <= 50000) {
+      salirSalaRuleta(salaId, miModo, sala);
+      alert('Tu saldo bajó a £' + saldo.toLocaleString('es-CO') + '. Necesitas £100.000 para estar en sala VIP.');
+      return;
+    }
+
+    // Verificar si quedó sin saldo mínimo
+    if (yoJugador && saldo < 100) {
+      convertirAEspectador(salaId, sala);
+      return;
+    }
+
+    container.innerHTML =
+      // Header
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">' +
+        '<button class="btn-back" id="btn-salir-ruleta">← Salir</button>' +
+        '<h3 style="font-size:0.95rem">' + (esVip ? '👑 ' : '🎡 ') + sala.nombre + '</h3>' +
+        '<span style="font-size:0.8rem;color:var(--text-secondary)">£' + saldo.toLocaleString('es-CO') + '</span>' +
+      '</div>' +
+
+      // Layout principal
+      '<div style="display:grid;grid-template-columns:1fr;gap:0.75rem">' +
+
+        // Ranking + Apuestas actuales
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">' +
+          // Ranking
+          '<div style="background:var(--bg-card);border-radius:12px;padding:0.6rem">' +
+            '<p style="font-size:0.72rem;color:var(--text-secondary);margin-bottom:0.4rem;font-weight:700">👥 JUGADORES</p>' +
+            (sala.jugadores && sala.jugadores.length > 0
+              ? sala.jugadores.map(function(j) {
+                  return '<div style="font-size:0.7rem;padding:0.2rem 0;border-bottom:1px solid var(--bg-secondary)">' +
+                    '<p style="color:var(--text-primary);font-weight:600">' + j.username + '</p>' +
+                    '<p style="color:var(--success)">+£' + (j.ganado || 0).toLocaleString('es-CO') + '</p>' +
+                    '<p style="color:var(--danger)">-£' + (j.perdido || 0).toLocaleString('es-CO') + '</p>' +
+                    '<p style="color:' + ((j.neto || 0) >= 0 ? 'var(--success)' : 'var(--danger)') + ';font-weight:700">Neto: £' + (j.neto || 0).toLocaleString('es-CO') + '</p>' +
+                  '</div>';
+                }).join('')
+              : '<p style="font-size:0.72rem;color:var(--text-secondary)">Sin jugadores</p>'
+            ) +
+          '</div>' +
+
+          // Apuestas actuales
+          '<div style="background:var(--bg-card);border-radius:12px;padding:0.6rem;max-height:160px;overflow-y:auto">' +
+            '<p style="font-size:0.72rem;color:var(--text-secondary);margin-bottom:0.4rem;font-weight:700">🎯 APUESTAS</p>' +
+            (sala.apuestas && Object.keys(sala.apuestas).length > 0
+              ? Object.values(sala.apuestas).map(function(ap) {
+                  return '<div style="font-size:0.68rem;padding:0.2rem 0;border-bottom:1px solid var(--bg-secondary)">' +
+                    '<p style="color:var(--text-primary);font-weight:600">' + ap.username + '</p>' +
+                    '<p style="color:var(--accent)">£' + ap.monto.toLocaleString('es-CO') + ' — ' + ap.descripcion + '</p>' +
+                  '</div>';
+                }).join('')
+              : '<p style="font-size:0.72rem;color:var(--text-secondary)">Sin apuestas aún</p>'
+            ) +
+          '</div>' +
+        '</div>' +
+
+        // Ruleta visual
+        '<div style="display:flex;flex-direction:column;align-items:center">' +
+          renderRuletaVisual(sala.ultimoNumero, sala.estado === 'girando') +
+          (sala.ultimoNumero !== null
+            ? '<div style="margin-top:0.5rem;text-align:center">' +
+                '<span style="font-size:1.5rem;font-weight:900;color:' + (COLORES_RULETA[sala.ultimoNumero] === 'rojo' ? '#e74c3c' : COLORES_RULETA[sala.ultimoNumero] === 'negro' ? 'var(--text-primary)' : '#2ecc71') + '">' + sala.ultimoNumero + '</span>' +
+                '<span style="font-size:0.8rem;color:var(--text-secondary);margin-left:0.5rem">' + (COLORES_RULETA[sala.ultimoNumero] === 'rojo' ? '🔴 Rojo' : COLORES_RULETA[sala.ultimoNumero] === 'negro' ? '⚫ Negro' : '🟢 Cero') + ' · ' + (sala.ultimoNumero === 0 ? '—' : sala.ultimoNumero % 2 === 0 ? 'Par' : 'Impar') + ' · ' + (sala.ultimoNumero === 0 ? '—' : sala.ultimoNumero <= 18 ? '1-18' : '19-36') + '</span>' +
+              '</div>'
+            : ''
+          ) +
+        '</div>' +
+
+        // Timer
+        (sala.estado === 'esperando' || sala.estado === 'apostando'
+          ? '<div style="text-align:center;padding:0.5rem;background:var(--bg-card);border-radius:10px">' +
+              '<p style="font-size:0.82rem;color:var(--text-secondary)">⏱️ Tiempo para apostar</p>' +
+              '<p id="ruleta-timer-display" style="font-size:2rem;font-weight:900;color:var(--accent)">' + (sala.tiempoRestante || 15) + '</p>' +
+            '</div>'
+          : sala.estado === 'girando'
+            ? '<div style="text-align:center;padding:0.5rem;background:var(--bg-card);border-radius:10px">' +
+                '<p style="font-size:0.9rem;color:var(--accent);font-weight:700">🎡 Girando la ruleta...</p>' +
+              '</div>'
+            : ''
+        ) +
+
+        // Panel de apuesta (solo jugadores)
+        (miModo === 'jugador' && sala.estado !== 'girando'
+          ? renderPanelApuestaRuleta(salaId, sala, yoJugador, esVip)
+          : miModo === 'espectador'
+            ? '<div style="text-align:center;padding:0.75rem;background:var(--bg-card);border-radius:10px"><p style="color:var(--text-secondary);font-size:0.85rem">👁️ Modo espectador</p></div>'
+            : '<div style="text-align:center;padding:0.75rem;background:var(--bg-card);border-radius:10px"><p style="color:var(--text-secondary);font-size:0.85rem">⏳ Esperando resultado...</p></div>'
+        ) +
+
+      '</div>';
+
+    document.getElementById('btn-salir-ruleta').addEventListener('click', function() {
+      salirSalaRuleta(salaId, miModo, sala);
+    });
+
+    // Iniciar timer si corresponde
+    manejarTimerRuleta(salaId, sala);
+  });
+}
+
+function renderRuletaVisual(ultimoNumero, girando) {
+  var size = 200;
+  var cx = size / 2, cy = size / 2, r = 90, rInterno = 55;
+  var numeros = NUMEROS_RULETA;
+  var total = numeros.length;
+  var anguloPorNum = (2 * Math.PI) / total;
+
+  var sectores = numeros.map(function(num, i) {
+    var angIni = i * anguloPorNum - Math.PI / 2;
+    var angFin = angIni + anguloPorNum;
+    var x1 = cx + r * Math.cos(angIni);
+    var y1 = cy + r * Math.sin(angIni);
+    var x2 = cx + r * Math.cos(angFin);
+    var y2 = cy + r * Math.sin(angFin);
+    var xi1 = cx + rInterno * Math.cos(angIni);
+    var yi1 = cy + rInterno * Math.sin(angIni);
+    var xi2 = cx + rInterno * Math.cos(angFin);
+    var yi2 = cy + rInterno * Math.sin(angFin);
+    var color = COLORES_RULETA[num] === 'rojo' ? '#c0392b' : COLORES_RULETA[num] === 'negro' ? '#1a1a2e' : '#27ae60';
+    var path = 'M ' + xi1 + ' ' + yi1 + ' L ' + x1 + ' ' + y1 + ' A ' + r + ' ' + r + ' 0 0 1 ' + x2 + ' ' + y2 + ' L ' + xi2 + ' ' + yi2 + ' A ' + rInterno + ' ' + rInterno + ' 0 0 0 ' + xi1 + ' ' + yi1 + ' Z';
+    var angMedio = angIni + anguloPorNum / 2;
+    var rTexto = (r + rInterno) / 2;
+    var tx = cx + rTexto * Math.cos(angMedio);
+    var ty = cy + rTexto * Math.sin(angMedio);
+    return { path: path, color: color, num: num, tx: tx, ty: ty, angMedio: angMedio };
+  });
+
+  // Calcular rotación si hay número ganador
+  var rotacion = 0;
+  if (ultimoNumero !== null && !girando) {
+    var idxGanador = NUMEROS_RULETA.indexOf(ultimoNumero);
+    rotacion = -(idxGanador * (360 / total));
+  }
+
+  var animStyle = girando
+    ? 'animation: ruletaGirar 3s cubic-bezier(0.17,0.67,0.21,0.99) forwards;'
+    : 'transform: rotate(' + rotacion + 'deg); transition: transform 3s cubic-bezier(0.17,0.67,0.21,0.99);';
+
+  var svgSectores = sectores.map(function(s) {
+    return '<path d="' + s.path + '" fill="' + s.color + '" stroke="#2d2d4e" stroke-width="0.5"/>' +
+      '<text x="' + s.tx + '" y="' + s.ty + '" text-anchor="middle" dominant-baseline="middle" font-size="5" fill="white" font-weight="bold" transform="rotate(' + (s.angMedio * 180 / Math.PI + 90) + ' ' + s.tx + ' ' + s.ty + ')">' + s.num + '</text>';
+  }).join('');
+
+  return '<div style="position:relative;width:' + size + 'px;height:' + size + 'px;margin:0 auto">' +
+    '<svg width="' + size + '" height="' + size + '" style="' + animStyle + 'transform-origin:center center">' +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="#2d2d4e"/>' +
+      svgSectores +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + rInterno + '" fill="#1a1a2e"/>' +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="12" fill="#d4af37" stroke="#f0c040" stroke-width="2"/>' +
+      '<text x="' + cx + '" y="' + cy + '" text-anchor="middle" dominant-baseline="middle" font-size="8" fill="#1a1a2e" font-weight="bold">★</text>' +
+    '</svg>' +
+    // Indicador (triángulo arriba)
+    '<div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:16px solid #f0c040"></div>' +
+  '</div>' +
+  '<style>@keyframes ruletaGirar { 0%{transform:rotate(0deg)} 100%{transform:rotate(' + (720 + Math.random() * 360) + 'deg)} }</style>';
+}
+
+function renderPanelApuestaRuleta(salaId, sala, yoJugador, esVip) {
+  var yaAposto = sala.apuestas && sala.apuestas[currentUser.uid];
+  if (yaAposto) {
+    return '<div style="text-align:center;padding:0.75rem;background:rgba(76,175,80,0.12);border-radius:10px;border:1px solid var(--success)">' +
+      '<p style="color:var(--success);font-weight:700">✓ Apuesta confirmada</p>' +
+      '<p style="font-size:0.82rem;color:var(--text-secondary)">£' + yaAposto.monto.toLocaleString('es-CO') + ' — ' + yaAposto.descripcion + '</p>' +
+      '<button class="btn btn-secondary btn-full" id="btn-saltar-ronda" style="margin-top:0.5rem;font-size:0.82rem">Saltar ronda</button>' +
+    '</div>';
+  }
+
+  var saldo = currentUser.saldo || 0;
+  var maxApuesta = esVip ? saldo : 5000;
+
+  return '<div style="background:var(--bg-card);border-radius:12px;padding:0.75rem">' +
+    '<p style="font-size:0.82rem;font-weight:700;margin-bottom:0.5rem">🎯 Tu apuesta</p>' +
+
+    // Monto
+    '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">' +
+      '<button class="btn-cantidad" id="ruleta-minus">−</button>' +
+      '<input type="number" id="ruleta-monto" value="' + (esVip ? 1000 : 100) + '" min="' + (esVip ? 1000 : 100) + '" max="' + maxApuesta + '" style="flex:1;padding:0.5rem;border-radius:8px;border:1px solid var(--bg-secondary);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;text-align:center;outline:none"/>' +
+      '<button class="btn-cantidad" id="ruleta-plus">+</button>' +
+    '</div>' +
+
+    // Tipo de apuesta
+    '<p style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.3rem">Tipo de apuesta</p>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.3rem;margin-bottom:0.5rem">' +
+      '<button class="ruleta-tipo-btn selected" data-tipo="color" data-valor="rojo" data-desc="Rojo 🔴" style="padding:0.4rem;border-radius:8px;font-size:0.78rem;border:2px solid var(--accent);background:rgba(233,69,96,0.15);cursor:pointer;color:var(--text-primary)">🔴 Rojo ×2</button>' +
+      '<button class="ruleta-tipo-btn" data-tipo="color" data-valor="negro" data-desc="Negro ⚫" style="padding:0.4rem;border-radius:8px;font-size:0.78rem;border:1px solid var(--bg-secondary);background:var(--bg-primary);cursor:pointer;color:var(--text-primary)">⚫ Negro ×2</button>' +
+      '<button class="ruleta-tipo-btn" data-tipo="paridad" data-valor="par" data-desc="Par" style="padding:0.4rem;border-radius:8px;font-size:0.78rem;border:1px solid var(--bg-secondary);background:var(--bg-primary);cursor:pointer;color:var(--text-primary)">Par ×2</button>' +
+      '<button class="ruleta-tipo-btn" data-tipo="paridad" data-valor="impar" data-desc="Impar" style="padding:0.4rem;border-radius:8px;font-size:0.78rem;border:1px solid var(--bg-secondary);background:var(--bg-primary);cursor:pointer;color:var(--text-primary)">Impar ×2</button>' +
+      '<button class="ruleta-tipo-btn" data-tipo="mitad" data-valor="bajo" data-desc="1-18" style="padding:0.4rem;border-radius:8px;font-size:0.78rem;border:1px solid var(--bg-secondary);background:var(--bg-primary);cursor:pointer;color:var(--text-primary)">1-18 ×2</button>' +
+      '<button class="ruleta-tipo-btn" data-tipo="mitad" data-valor="alto" data-desc="19-36" style="padding:0.4rem;border-radius:8px;font-size:0.78rem;border:1px solid var(--bg-secondary);background:var(--bg-primary);cursor:pointer;color:var(--text-primary)">19-36 ×2</button>' +
+      '<button class="ruleta-tipo-btn" data-tipo="docena" data-valor="1" data-desc="Docena 1-12" style="padding:0.4rem;border-radius:8px;font-size:0.78rem;border:1px solid var(--bg-secondary);background:var(--bg-primary);cursor:pointer;color:var(--text-primary)">1-12 ×3</button>' +
+      '<button class="ruleta-tipo-btn" data-tipo="docena" data-valor="2" data-desc="Docena 13-24" style="padding:0.4rem;border-radius:8px;font-size:0.78rem;border:1px solid var(--bg-secondary);background:var(--bg-primary);cursor:pointer;color:var(--text-primary)">13-24 ×3</button>' +
+      '<button class="ruleta-tipo-btn" data-tipo="docena" data-valor="3" data-desc="Docena 25-36" style="padding:0.4rem;border-radius:8px;font-size:0.78rem;border:1px solid var(--bg-secondary);background:var(--bg-primary);cursor:pointer;color:var(--text-primary)" >25-36 ×3</button>' +
+      '<button class="ruleta-tipo-btn" data-tipo="exacto" data-valor="" data-desc="Número exacto" style="padding:0.4rem;border-radius:8px;font-size:0.78rem;border:1px solid var(--bg-secondary);background:var(--bg-primary);cursor:pointer;color:var(--text-primary)">Nº exacto ×36</button>' +
+    '</div>' +
+
+    // Input número exacto (oculto por defecto)
+    '<div id="ruleta-numero-exacto-wrap" style="display:none;margin-bottom:0.5rem">' +
+      '<input type="number" id="ruleta-numero-exacto" placeholder="0-36" min="0" max="36" style="width:100%;padding:0.5rem;border-radius:8px;border:1px solid var(--bg-secondary);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;box-sizing:border-box"/>' +
+    '</div>' +
+
+    '<button class="btn btn-primary btn-full" id="btn-confirmar-apuesta-ruleta">✅ Confirmar apuesta</button>' +
+    '<button class="btn btn-secondary btn-full" id="btn-saltar-ronda" style="margin-top:0.4rem;font-size:0.8rem">Saltar ronda</button>' +
+    '<div id="ruleta-apuesta-msg" style="margin-top:0.4rem;font-size:0.82rem"></div>' +
+  '</div>';
+}
+
+function manejarTimerRuleta(salaId, sala) {
+  if (ruletaTimerInterval) { clearInterval(ruletaTimerInterval); ruletaTimerInterval = null; }
+
+  // Attach listeners dinámicos
+  setTimeout(function() {
+    // Botón saltar
+    var btnSaltar = document.getElementById('btn-saltar-ronda');
+    if (btnSaltar) {
+      btnSaltar.addEventListener('click', async function() {
+        var apuestas = sala.apuestas || {};
+        apuestas[currentUser.uid] = { uid: currentUser.uid, username: currentUser.username, monto: 0, tipo: 'saltar', descripcion: 'Salta ronda', saltó: true };
+        await updateDoc(doc(db, 'ruleta_salas', salaId), { apuestas: apuestas });
+      });
+    }
+
+    // Botones tipo apuesta
+    var tipoBtns = document.querySelectorAll('.ruleta-tipo-btn');
+    tipoBtns.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        tipoBtns.forEach(function(b) {
+          b.style.border = '1px solid var(--bg-secondary)';
+          b.style.background = 'var(--bg-primary)';
+        });
+        btn.style.border = '2px solid var(--accent)';
+        btn.style.background = 'rgba(233,69,96,0.15)';
+        var wrap = document.getElementById('ruleta-numero-exacto-wrap');
+        if (wrap) wrap.style.display = btn.dataset.tipo === 'exacto' ? 'block' : 'none';
+      });
+    });
+
+    // Botones +/-
+    var btnMinus = document.getElementById('ruleta-minus');
+    var btnPlus = document.getElementById('ruleta-plus');
+    var esVip = sala.tipo === 'vip';
+    var paso = esVip ? 1000 : 100;
+    var minVal = esVip ? 1000 : 100;
+    var maxVal = esVip ? (currentUser.saldo || 0) : 5000;
+
+    if (btnMinus) {
+      btnMinus.addEventListener('click', function() {
+        var input = document.getElementById('ruleta-monto');
+        if (input) { var v = parseInt(input.value) - paso; input.value = Math.max(minVal, v); }
+      });
+    }
+    if (btnPlus) {
+      btnPlus.addEventListener('click', function() {
+        var input = document.getElementById('ruleta-monto');
+        if (input) { var v = parseInt(input.value) + paso; input.value = Math.min(maxVal, v); }
+      });
+    }
+
+    // Confirmar apuesta
+    var btnConfirmar = document.getElementById('btn-confirmar-apuesta-ruleta');
+    if (btnConfirmar) {
+      btnConfirmar.addEventListener('click', async function() {
+        var msg = document.getElementById('ruleta-apuesta-msg');
+        var montoInput = document.getElementById('ruleta-monto');
+        var monto = parseInt(montoInput ? montoInput.value : 0);
+        var saldo = currentUser.saldo || 0;
+        var tipoBtn = document.querySelector('.ruleta-tipo-btn[style*="var(--accent)"]');
+
+        if (!tipoBtn) { if (msg) { msg.textContent = 'Selecciona un tipo de apuesta'; msg.style.color = 'var(--danger)'; } return; }
+        if (!monto || monto < minVal) { if (msg) { msg.textContent = 'Mínimo £' + minVal.toLocaleString('es-CO'); msg.style.color = 'var(--danger)'; } return; }
+        if (monto > saldo) { if (msg) { msg.textContent = 'Saldo insuficiente'; msg.style.color = 'var(--danger)'; } return; }
+
+        var tipo = tipoBtn.dataset.tipo;
+        var valor = tipoBtn.dataset.valor;
+        var desc = tipoBtn.dataset.desc;
+
+        if (tipo === 'exacto') {
+          var numExacto = parseInt(document.getElementById('ruleta-numero-exacto').value);
+          if (isNaN(numExacto) || numExacto < 0 || numExacto > 36) { if (msg) { msg.textContent = 'Ingresa un número entre 0 y 36'; msg.style.color = 'var(--danger)'; } return; }
+          valor = numExacto.toString();
+          desc = 'Número ' + numExacto;
+        }
+
+        var apuestas = sala.apuestas || {};
+        apuestas[currentUser.uid] = { uid: currentUser.uid, username: currentUser.username, monto: monto, tipo: tipo, valor: valor, descripcion: desc };
+
+        var update = { apuestas: apuestas };
+
+        // Si solo hay un jugador, girar inmediatamente
+        var jugadoresActivos = sala.jugadores ? sala.jugadores.length : 0;
+        if (jugadoresActivos === 1) {
+          update.estado = 'girando';
+        } else {
+          // Verificar si todos apostaron
+          var todosApostaron = sala.jugadores && sala.jugadores.every(function(j) {
+            return apuestas[j.uid] !== undefined;
+          });
+          if (todosApostaron) update.estado = 'girando';
+        }
+
+        await updateDoc(doc(db, 'ruleta_salas', salaId), update);
+
+        if (update.estado === 'girando') {
+          if (ruletaTimerInterval) { clearInterval(ruletaTimerInterval); ruletaTimerInterval = null; }
+          setTimeout(function() { ejecutarGiroRuleta(salaId, sala); }, 500);
+        }
+      });
+    }
+
+    // Timer countdown
+    if ((sala.estado === 'apostando' || sala.estado === 'esperando') && sala.jugadores && sala.jugadores.length > 0) {
+      var tiempoInicio = sala.timerInicio ? new Date(sala.timerInicio).getTime() : Date.now();
+      ruletaTimerInterval = setInterval(async function() {
+        var transcurrido = Math.floor((Date.now() - tiempoInicio) / 1000);
+        var restante = Math.max(0, 15 - transcurrido);
+        var timerEl = document.getElementById('ruleta-timer-display');
+        if (timerEl) timerEl.textContent = restante;
+
+        if (restante <= 0) {
+          clearInterval(ruletaTimerInterval); ruletaTimerInterval = null;
+          // Solo el primer jugador en la lista ejecuta el giro para evitar duplicados
+          var snapActual = await getDoc(doc(db, 'ruleta_salas', salaId));
+          var salaActual = snapActual.data();
+          if (salaActual.estado !== 'girando') {
+            await updateDoc(doc(db, 'ruleta_salas', salaId), { estado: 'girando' });
+            setTimeout(function() { ejecutarGiroRuleta(salaId, salaActual); }, 500);
+          }
+        }
+      }, 1000);
+    }
+  }, 100);
+}
+
+async function ejecutarGiroRuleta(salaId, sala) {
+  var snapActual = await getDoc(doc(db, 'ruleta_salas', salaId));
+  if (!snapActual.exists()) return;
+  var salaActual = snapActual.data();
+  if (salaActual.estado !== 'girando') return;
+
+  // Generar número ganador
+  var numeroGanador = Math.floor(Math.random() * 37);
+  var colorGanador = COLORES_RULETA[numeroGanador];
+
+  // Esperar animación
+  await new Promise(function(resolve) { setTimeout(resolve, 3500); });
+
+  // Calcular resultados
+  var apuestas = salaActual.apuestas || {};
+  var jugadoresActualizados = (salaActual.jugadores || []).map(function(j) {
+    var apuesta = apuestas[j.uid];
+    if (!apuesta || apuesta.saltó || apuesta.monto === 0) return j;
+
+    var monto = apuesta.monto;
+    var ganancia = 0;
+    var esApuestaSimple = apuesta.tipo === 'color' || apuesta.tipo === 'paridad' || apuesta.tipo === 'mitad';
+
+    if (numeroGanador === 0) {
+      if (esApuestaSimple) {
+        // Pierde
+        ganancia = -monto;
+      } else {
+        // Docena o exacto: devuelve la apuesta
+        ganancia = 0;
+      }
+    } else {
+      var gano = false;
+      if (apuesta.tipo === 'color') gano = colorGanador === apuesta.valor;
+      else if (apuesta.tipo === 'paridad') gano = apuesta.valor === 'par' ? numeroGanador % 2 === 0 : numeroGanador % 2 !== 0;
+      else if (apuesta.tipo === 'mitad') gano = apuesta.valor === 'bajo' ? numeroGanador <= 18 : numeroGanador >= 19;
+      else if (apuesta.tipo === 'docena') {
+        var doc = parseInt(apuesta.valor);
+        if (doc === 1) gano = numeroGanador >= 1 && numeroGanador <= 12;
+        else if (doc === 2) gano = numeroGanador >= 13 && numeroGanador <= 24;
+        else if (doc === 3) gano = numeroGanador >= 25 && numeroGanador <= 36;
+      }
+      else if (apuesta.tipo === 'exacto') gano = numeroGanador === parseInt(apuesta.valor);
+
+      if (gano) {
+        var mult = apuesta.tipo === 'color' || apuesta.tipo === 'paridad' || apuesta.tipo === 'mitad' ? 2 : apuesta.tipo === 'docena' ? 3 : 36;
+        ganancia = monto * mult - monto;
+      } else {
+        ganancia = -monto;
+      }
+    }
+
+    return Object.assign({}, j, {
+      ganado: (j.ganado || 0) + (ganancia > 0 ? ganancia : 0),
+      perdido: (j.perdido || 0) + (ganancia < 0 ? Math.abs(ganancia) : 0),
+      neto: (j.neto || 0) + ganancia
+    });
+  });
+
+  // Aplicar cambios de saldo en Firebase
+  for (var i = 0; i < jugadoresActualizados.length; i++) {
+    var jActual = jugadoresActualizados[i];
+    var jOriginal = (salaActual.jugadores || []).find(function(j) { return j.uid === jActual.uid; });
+    if (!jOriginal) continue;
+    var apuesta = apuestas[jActual.uid];
+    if (!apuesta || apuesta.saltó || apuesta.monto === 0) continue;
+
+    var diferenciaGanado = (jActual.ganado || 0) - (jOriginal.ganado || 0);
+    var diferenciaPerdido = (jActual.perdido || 0) - (jOriginal.perdido || 0);
+    var cambioSaldo = diferenciaGanado - diferenciaPerdido;
+
+    try {
+      await updateDoc(doc(db, 'usuarios', jActual.uid), { saldo: increment(cambioSaldo) });
+      if (jActual.uid === currentUser.uid) currentUser.saldo = (currentUser.saldo || 0) + cambioSaldo;
+      await registrarTransaccion({
+        tipo: 'casino_ruleta',
+        de: cambioSaldo < 0 ? jActual.uid : 'sistema',
+        deUsername: cambioSaldo < 0 ? jActual.username : 'Casino Ruleta',
+        para: cambioSaldo >= 0 ? jActual.uid : 'sistema',
+        paraUsername: cambioSaldo >= 0 ? jActual.username : 'Casino Ruleta',
+        monto: Math.abs(cambioSaldo),
+        descripcion: 'Ruleta: salió ' + numeroGanador + ' — ' + apuesta.descripcion + (cambioSaldo >= 0 ? ' — Ganó' : ' — Perdió')
+      });
+    } catch(err) { console.log('Error saldo ruleta:', err.message); }
+  }
+
+  // Reiniciar sala para próxima ronda
+  await updateDoc(doc(db, 'ruleta_salas', salaId), {
+    estado: sala.jugadores && sala.jugadores.length > 0 ? 'apostando' : 'esperando',
+    ultimoNumero: numeroGanador,
+    apuestas: {},
+    jugadores: jugadoresActualizados,
+    timerInicio: new Date().toISOString(),
+    tiempoRestante: 15
+  });
+}
+
+async function salirSalaRuleta(salaId, modo, sala) {
+  if (ruletaListener) { ruletaListener(); ruletaListener = null; }
+  if (ruletaTimerInterval) { clearInterval(ruletaTimerInterval); ruletaTimerInterval = null; }
+
+  if (modo === 'jugador') {
+    var nuevosJugadores = (sala.jugadores || []).filter(function(j) { return j.uid !== currentUser.uid; });
+    var update = { jugadores: nuevosJugadores };
+    if (nuevosJugadores.length === 0) {
+      update.estado = 'esperando';
+      update.apuestas = {};
+      update.timerInicio = null;
+    }
+    await updateDoc(doc(db, 'ruleta_salas', salaId), update);
+  } else {
+    var nuevosEsp = (sala.espectadores || []).filter(function(e) { return e.uid !== currentUser.uid; });
+    await updateDoc(doc(db, 'ruleta_salas', salaId), { espectadores: nuevosEsp });
+  }
+
+  ruletaSalaActualId = null;
+  renderRuleta();
+}
+
+async function convertirAEspectador(salaId, sala) {
+  var nuevosJugadores = (sala.jugadores || []).filter(function(j) { return j.uid !== currentUser.uid; });
+  var nuevosEsp = (sala.espectadores || []).concat([{ uid: currentUser.uid, username: currentUser.username }]);
+  await updateDoc(doc(db, 'ruleta_salas', salaId), { jugadores: nuevosJugadores, espectadores: nuevosEsp });
 }
 
 function showError(msg) { loginError.textContent = msg; loginError.classList.remove('hidden'); }
