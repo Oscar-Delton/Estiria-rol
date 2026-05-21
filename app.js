@@ -5894,7 +5894,11 @@ function cargarSalasRuleta(tipo) {
       lista = document.getElementById('ruleta-salas-lista');
       if (!lista) return;
       var salas = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
-      salas.sort(function(a, b) { return a.id.localeCompare(b.id); });
+      salas.sort(function(a, b) {
+  var numA = parseInt(a.id.replace(/\D/g, ''));
+  var numB = parseInt(b.id.replace(/\D/g, ''));
+  return numA - numB;
+});
 
       lista.innerHTML = salas.map(function(sala) {
         var jugadores = sala.jugadores ? sala.jugadores.length : 0;
