@@ -1814,3 +1814,9 @@
 .bj-btn-plantar { flex: 1; padding: 0.7rem; border-radius: 10px; background: var(--bg-card); color: var(--text-primary); border: 2px solid var(--bg-secondary); font-size: 0.9rem; font-weight: 700; cursor: pointer; }
 .bj-timer { font-size: 1.8rem; font-weight: 900; color: var(--accent); text-align: center; }
 .bj-puntos { font-size: 0.8rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: var(--bg-card); display: inline-block; margin-left: 0.4rem; }
+
+@keyframes ryg-pop {
+  0%   { transform: scale(0) rotate(-15deg); opacity: 0; }
+  60%  { transform: scale(1.25) rotate(5deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}

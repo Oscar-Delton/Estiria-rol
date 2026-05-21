@@ -4784,6 +4784,7 @@ function renderCasino() {
       '<button class="categoria-btn" id="casino-ruleta"><span>🎡</span><span>Ruleta</span></button>' +
       '<button class="categoria-btn" id="casino-dados"><span>🎲</span><span>Dados</span></button>' +
       '<button class="categoria-btn" id="casino-blackjack"><span>🃏</span><span>Blackjack</span></button>' +
+      '<button class="categoria-btn" id="casino-rasca"><span>🎟️</span><span>Rasca y Gana</span></button>'
     '</div>' +
     '<div id="casino-panel"></div>';
 
@@ -4806,6 +4807,8 @@ function renderCasino() {
   document.getElementById('casino-blackjack').addEventListener('click', function() {
     renderBlackjack();
   });
+
+  document.getElementById('casino-rasca').addEventListener('click', function() { renderRascaYGana(); });
 }
 
 // ===== RULETA RUSA =====
@@ -8033,6 +8036,387 @@ async function convertirEspectadorAJugadorBJ(salaId, sala) {
   if (!sala.liderId) update.liderId = currentUser.uid;
   if (sala.estado === 'esperando') { update.estado = 'lobby'; update.lobbyInicio = new Date().toISOString(); }
   await updateDoc(doc(db, 'blackjack_salas', salaId), update);
+}
+
+// ===== RASCA Y GANA =====
+
+// ─── Configuración de boletos ────────────────────────────────────────────────
+var BOLETOS_RYG = [
+  { id: 'ryg100',    precio: 100,    label: '£100',    emoji: '🎟️',  color: '#4a4a6a' },
+  { id: 'ryg500',    precio: 500,    label: '£500',    emoji: '🎫',  color: '#5a3a6a' },
+  { id: 'ryg1500',   precio: 1500,   label: '£1.500',  emoji: '🎖️',  color: '#3a5a6a' },
+  { id: 'ryg2500',   precio: 2500,   label: '£2.500',  emoji: '🏅',  color: '#6a4a3a' },
+  { id: 'ryg5000',   precio: 5000,   label: '£5.000',  emoji: '🥇',  color: '#3a6a4a' },
+  { id: 'ryg10000',  precio: 10000,  label: '£10.000', emoji: '💎',  color: '#6a3a4a' }
+];
+
+// ─── Símbolos del boleto ─────────────────────────────────────────────────────
+// 6 símbolos con peso igual cada uno en sorteo PURO,
+// pero el sistema aplica forzado de derrota (ver abajo).
+var SIMBOLOS_RYG = ['⚔️','🏰','🐉','👑','💎','🌙'];
+
+// ─── Tabla de multiplicadores ────────────────────────────────────────────────
+// Iguales   Multiplicador
+//    2          ×2
+//    3          ×5
+//    4          ×20
+//    5          ×100
+//    6          ×500
+var MULT_RYG = { 2: 2, 3: 5, 4: 20, 5: 100, 6: 500 };
+
+
+var PROB_RYG = [
+  { resultado: 0, peso: 7200 },  // derrota
+  { resultado: 2, peso: 2000 },  // 2 iguales
+  { resultado: 3, peso:  550 },  // 3 iguales
+  { resultado: 4, peso:  200 },  // 4 iguales
+  { resultado: 5, peso:   45 },  // 5 iguales
+  { resultado: 6, peso:    5 }   // 6 iguales
+];
+var PROB_RYG_TOTAL = PROB_RYG.reduce(function(s, p) { return s + p.peso; }, 0); // 10000
+
+// ─── Motor de generación de boleto ──────────────────────────────────────────
+function generarBoleto() {
+  // 1. Decidir cuántos iguales habrá
+  var rand = Math.floor(Math.random() * PROB_RYG_TOTAL);
+  var acum = 0, igualesObjetivo = 0;
+  for (var i = 0; i < PROB_RYG.length; i++) {
+    acum += PROB_RYG[i].peso;
+    if (rand < acum) { igualesObjetivo = PROB_RYG[i].resultado; break; }
+  }
+
+  var simbolos = [];
+
+  if (igualesObjetivo === 0) {
+    // Derrota garantizada: generar 6 símbolos asegurando que ningún par se repita ≥2 veces
+    // Técnica: asignar exactamente 1 de cada símbolo para los primeros 6, luego mezclar
+    simbolos = SIMBOLOS_RYG.slice(); // ya son 6 únicos → nunca hay par
+    shuffle(simbolos);
+  } else {
+    // Premio: construir el boleto con exactamente `igualesObjetivo` del mismo símbolo
+    var simboloGanador = SIMBOLOS_RYG[Math.floor(Math.random() * SIMBOLOS_RYG.length)];
+
+    // Llenar con el símbolo ganador
+    for (var j = 0; j < igualesObjetivo; j++) simbolos.push(simboloGanador);
+
+    // Rellenar los restantes con otros símbolos (sin repetir el ganador más de lo deseado)
+    var restantes = SIMBOLOS_RYG.filter(function(s) { return s !== simboloGanador; });
+    var restantesMezclados = restantes.slice();
+    shuffle(restantesMezclados);
+
+    var faltantes = 6 - igualesObjetivo;
+    // Si hay más faltantes que símbolos distintos, repetir pero sin crear otro grupo ≥2
+    // (para no inflar el premio accidentalmente)
+    var pool = [];
+    while (pool.length < faltantes) {
+      var base = restantesMezclados.slice();
+      shuffle(base);
+      pool = pool.concat(base);
+    }
+
+    // Asegurarse de que ningún símbolo de relleno aparezca ≥2 veces
+    // si eso elevaría el grupo a un premio mayor
+    var relleno = [];
+    var conteo = {};
+    for (var k = 0; k < pool.length && relleno.length < faltantes; k++) {
+      var s = pool[k];
+      conteo[s] = (conteo[s] || 0);
+      if (conteo[s] < 1) { // máximo 1 ocurrencia de cada símbolo de relleno
+        relleno.push(s);
+        conteo[s]++;
+      }
+    }
+    // Si no hay suficientes distintos, completar con lo que haya (raro con 5 símbolos de relleno)
+    if (relleno.length < faltantes) {
+      for (var m = 0; m < pool.length && relleno.length < faltantes; m++) {
+        relleno.push(pool[m]);
+      }
+    }
+
+    simbolos = simbolos.concat(relleno);
+    shuffle(simbolos);
+  }
+
+  return { simbolos: simbolos, iguales: igualesObjetivo };
+}
+
+function shuffle(arr) {
+  for (var i = arr.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+}
+
+function calcularPremio(simbolos, apuesta) {
+  var conteo = {};
+  simbolos.forEach(function(s) { conteo[s] = (conteo[s] || 0) + 1; });
+  var maxIguales = Math.max.apply(null, Object.values(conteo));
+  var mult = MULT_RYG[maxIguales] || 0;
+  return { iguales: maxIguales, mult: mult, ganancia: mult > 0 ? apuesta * mult : 0 };
+}
+
+// ─── Render principal ────────────────────────────────────────────────────────
+function renderRascaYGana() {
+  var panel = document.getElementById('casino-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-casino-ryg">← Casino</button>' +
+      '<h3>🎟️ Rasca y Gana</h3>' +
+    '</div>' +
+
+    // Selector de boleto
+    '<div class="card" style="text-align:center">' +
+      '<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.75rem">Saldo: £<span id="ryg-saldo">' + (currentUser.saldo || 0).toLocaleString('es-CO') + '</span></p>' +
+      '<p style="font-size:0.85rem;font-weight:700;margin-bottom:0.75rem;color:var(--text-primary)">Elige tu boleto</p>' +
+      '<div id="ryg-boletos-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:1rem">' +
+        BOLETOS_RYG.map(function(b) {
+          return '<button class="ryg-boleto-btn" data-id="' + b.id + '" data-precio="' + b.precio + '" style="' +
+            'padding:0.75rem 0.3rem;border-radius:12px;border:2px solid var(--bg-card);' +
+            'background:linear-gradient(135deg,' + b.color + ',var(--bg-secondary));' +
+            'color:var(--text-primary);cursor:pointer;transition:all 0.2s;display:flex;flex-direction:column;align-items:center;gap:0.3rem' +
+            '">' +
+            '<span style="font-size:1.4rem">' + b.emoji + '</span>' +
+            '<span style="font-size:0.78rem;font-weight:700">' + b.label + '</span>' +
+          '</button>';
+        }).join('') +
+      '</div>' +
+      '<div id="ryg-boleto-seleccionado" style="min-height:1.5rem"></div>' +
+    '</div>' +
+
+    // Tabla de premios
+    '<div class="card" style="margin-top:0.5rem">' +
+      '<p class="edit-section-title" style="margin-bottom:0.6rem">🏆 Premios</p>' +
+      '<div style="display:flex;flex-direction:column;gap:0.25rem">' +
+        [
+          ['🟰🟰', '2 iguales', '×2',   '#a0a0b0'],
+          ['🟰🟰🟰', '3 iguales', '×5',  '#4fc3f7'],
+          ['🟰×4',  '4 iguales', '×20', '#81c784'],
+          ['🟰×5',  '5 iguales', '×100','#ff9800'],
+          ['🟰×6',  '6 iguales', '×500','gold'   ]
+        ].map(function(r) {
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.3rem 0.5rem;border-radius:8px;background:var(--bg-primary)">' +
+            '<span style="font-size:0.85rem">' + r[0] + '</span>' +
+            '<span style="font-size:0.78rem;color:var(--text-secondary)">' + r[1] + '</span>' +
+            '<span style="font-size:0.88rem;font-weight:700;color:' + r[3] + '">' + r[2] + '</span>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+    '</div>' +
+
+    // Área del boleto activo
+    '<div id="ryg-juego-area"></div>';
+
+  document.getElementById('back-casino-ryg').addEventListener('click', function() {
+    panel.innerHTML = '';
+    renderCasino();
+  });
+
+  var boletoSeleccionado = null;
+
+  document.querySelectorAll('.ryg-boleto-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.ryg-boleto-btn').forEach(function(b) {
+        b.style.borderColor = 'var(--bg-card)';
+        b.style.transform = 'scale(1)';
+      });
+      btn.style.borderColor = 'var(--accent)';
+      btn.style.transform = 'scale(1.04)';
+      boletoSeleccionado = { id: btn.dataset.id, precio: parseInt(btn.dataset.precio) };
+      document.getElementById('ryg-boleto-seleccionado').innerHTML =
+        '<button class="btn btn-primary btn-full" id="btn-comprar-boleto" style="font-size:0.95rem;padding:0.85rem">' +
+          '🎟️ Comprar boleto de £' + parseInt(btn.dataset.precio).toLocaleString('es-CO') +
+        '</button>';
+      document.getElementById('btn-comprar-boleto').addEventListener('click', function() {
+        comprarBoleto(boletoSeleccionado.precio);
+      });
+    });
+  });
+}
+
+// ─── Comprar y mostrar boleto ────────────────────────────────────────────────
+async function comprarBoleto(precio) {
+  var area   = document.getElementById('ryg-juego-area');
+  var saldo  = currentUser.saldo || 0;
+
+  if (precio > saldo) {
+    area.innerHTML = '<p style="color:var(--danger);text-align:center;padding:0.5rem">Saldo insuficiente.</p>';
+    return;
+  }
+
+  // Descontar saldo
+  await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(-precio) });
+  currentUser.saldo = saldo - precio;
+  var saldoEl = document.getElementById('ryg-saldo');
+  if (saldoEl) saldoEl.textContent = currentUser.saldo.toLocaleString('es-CO');
+
+  // Generar boleto
+  var boleto = generarBoleto();
+  var simbolos = boleto.simbolos; // array de 6
+
+  // Render del boleto (todos ocultos)
+  area.innerHTML =
+    '<div class="card" style="margin-top:0.75rem;border-color:var(--accent)">' +
+      '<p style="font-size:0.85rem;text-align:center;color:var(--text-secondary);margin-bottom:0.75rem">Rasca cada espacio para revelar el símbolo</p>' +
+      '<div id="ryg-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:0.75rem">' +
+        simbolos.map(function(simbolo, idx) {
+          return '<div class="ryg-celda" id="ryg-c-' + idx + '" data-idx="' + idx + '" data-simbolo="' + simbolo + '" style="' +
+            'height:80px;border-radius:12px;border:2px solid var(--bg-card);' +
+            'background:linear-gradient(135deg,var(--bg-card),#0f2040);' +
+            'display:flex;align-items:center;justify-content:center;' +
+            'cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden;' +
+            'font-size:0.78rem;font-weight:700;color:var(--text-secondary)' +
+            '" onclick="rascar(' + idx + ', \'' + simbolo.replace(/'/g, "\\'") + '\')">' +
+            '<span class="ryg-cobertura" style="font-size:1.8rem;user-select:none">🪙</span>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+      '<button class="btn btn-secondary btn-full" id="btn-ryg-reveal-all" style="font-size:0.85rem;padding:0.6rem;margin-bottom:0.5rem">' +
+        '✨ Revelar todo' +
+      '</button>' +
+      '<div id="ryg-resultado-texto" style="min-height:1.5rem"></div>' +
+    '</div>';
+
+  // Estado de rascado
+  window._rygState = {
+    simbolos:   simbolos,
+    precio:     precio,
+    rascados:   new Array(6).fill(false),
+    terminado:  false
+  };
+
+  document.getElementById('btn-ryg-reveal-all').addEventListener('click', function() {
+    for (var i = 0; i < 6; i++) {
+      if (!window._rygState.rascados[i]) rascar(i, simbolos[i]);
+    }
+  });
+}
+
+// ─── Rascar celda ────────────────────────────────────────────────────────────
+function rascar(idx, simbolo) {
+  if (!window._rygState || window._rygState.terminado) return;
+  if (window._rygState.rascados[idx]) return;
+
+  window._rygState.rascados[idx] = true;
+
+  var celda = document.getElementById('ryg-c-' + idx);
+  if (!celda) return;
+
+  // Animación de rascado
+  celda.style.transform = 'scale(0.92)';
+  setTimeout(function() {
+    celda.style.transform = 'scale(1)';
+    celda.innerHTML = '<span style="font-size:2rem;animation:ryg-pop 0.3s ease">' + simbolo + '</span>';
+    celda.style.background = 'var(--bg-secondary)';
+    celda.style.borderColor = 'var(--accent)';
+    celda.style.color = 'var(--text-primary)';
+    celda.style.cursor = 'default';
+    celda.style.pointerEvents = 'none';
+
+    // Resaltar si hay iguales
+    destacarIguales();
+
+    // Verificar si ya rascó todo
+    var todosRascados = window._rygState.rascados.every(function(r) { return r; });
+    if (todosRascados && !window._rygState.terminado) {
+      window._rygState.terminado = true;
+      setTimeout(function() { resolverRyg(); }, 400);
+    }
+  }, 120);
+}
+
+// ─── Resaltar símbolos repetidos mientras rascas ─────────────────────────────
+function destacarIguales() {
+  if (!window._rygState) return;
+  var simbolos  = window._rygState.simbolos;
+  var rascados  = window._rygState.rascados;
+  var conteo    = {};
+  rascados.forEach(function(r, i) {
+    if (r) conteo[simbolos[i]] = (conteo[simbolos[i]] || 0) + 1;
+  });
+  rascados.forEach(function(r, i) {
+    if (!r) return;
+    var celda = document.getElementById('ryg-c-' + i);
+    if (!celda) return;
+    var c = conteo[simbolos[i]] || 0;
+    if      (c >= 6) celda.style.borderColor = 'gold';
+    else if (c >= 5) celda.style.borderColor = '#ff9800';
+    else if (c >= 4) celda.style.borderColor = '#81c784';
+    else if (c >= 3) celda.style.borderColor = '#4fc3f7';
+    else if (c >= 2) celda.style.borderColor = 'var(--success)';
+    else             celda.style.borderColor = 'var(--bg-card)';
+  });
+}
+
+// ─── Resolver premio ─────────────────────────────────────────────────────────
+async function resolverRyg() {
+  var estado = window._rygState;
+  if (!estado) return;
+
+  var res    = calcularPremio(estado.simbolos, estado.precio);
+  var saldo  = currentUser.saldo || 0;
+  var textoEl = document.getElementById('ryg-resultado-texto');
+
+  if (res.ganancia > 0) {
+    // Acreditar
+    try {
+      await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(res.ganancia) });
+      currentUser.saldo = saldo + res.ganancia;
+      var saldoEl = document.getElementById('ryg-saldo');
+      if (saldoEl) saldoEl.textContent = currentUser.saldo.toLocaleString('es-CO');
+
+      await registrarTransaccion({
+        tipo:         'casino_rasca',
+        de:           'sistema',
+        deUsername:   'Casino Rasca y Gana',
+        para:         currentUser.uid,
+        paraUsername: currentUser.username,
+        monto:        res.ganancia - estado.precio,
+        descripcion:  'Rasca y Gana: ' + res.iguales + ' iguales ×' + res.mult + ' — Ganó £' + res.ganancia.toLocaleString('es-CO') + ' (boleto £' + estado.precio.toLocaleString('es-CO') + ')'
+      });
+    } catch(err) { console.log('Error RyG:', err.message); }
+
+    var esJackpot = res.mult === 500;
+    var esGrande  = res.mult >= 20;
+
+    if (textoEl) {
+      textoEl.innerHTML =
+        '<div style="text-align:center;padding:0.75rem;border-radius:12px;background:' +
+          (esJackpot ? 'rgba(255,215,0,0.12)' : 'rgba(76,175,80,0.1)') +
+          ';border:2px solid ' + (esJackpot ? 'gold' : 'var(--success)') + ';margin-top:0.3rem">' +
+          (esJackpot ? '<p style="font-size:1.3rem;margin-bottom:0.3rem">🎊 JACKPOT 🎊</p>' :
+           esGrande  ? '<p style="font-size:1.1rem;margin-bottom:0.3rem">🎉 ¡Gran premio!</p>' : '') +
+          '<p style="color:var(--success);font-size:1.1rem;font-weight:700">+£' + res.ganancia.toLocaleString('es-CO') + '</p>' +
+          '<p style="color:var(--text-secondary);font-size:0.75rem">' + res.iguales + ' símbolos iguales × ' + res.mult + '</p>' +
+        '</div>';
+    }
+  } else {
+    // Pérdida
+    try {
+      await registrarTransaccion({
+        tipo:         'casino_rasca',
+        de:           currentUser.uid,
+        deUsername:   currentUser.username,
+        para:         'sistema',
+        paraUsername: 'Casino Rasca y Gana',
+        monto:        estado.precio,
+        descripcion:  'Rasca y Gana: sin premio — boleto £' + estado.precio.toLocaleString('es-CO')
+      });
+    } catch(err) { console.log('Error RyG pérdida:', err.message); }
+
+    if (textoEl) {
+      textoEl.innerHTML =
+        '<p style="color:var(--text-secondary);text-align:center;font-size:0.88rem;margin-top:0.4rem">😔 Sin premio esta vez</p>';
+    }
+  }
+
+  // Botón de nuevo boleto
+  if (textoEl) {
+    textoEl.innerHTML += '<button class="btn btn-primary btn-full" id="btn-ryg-nuevo" style="margin-top:0.75rem">🎟️ Nuevo boleto</button>';
+    document.getElementById('btn-ryg-nuevo').addEventListener('click', function() {
+      window._rygState = null;
+      renderRascaYGana();
+    });
+  }
 }
 
 function showError(msg) { loginError.textContent = msg; loginError.classList.remove('hidden'); }
