@@ -4783,7 +4783,7 @@ function renderCasino() {
       '<button class="categoria-btn" id="casino-tragaperras"><span>🎰</span><span>Tragaperras</span></button>' +
       '<button class="categoria-btn" id="casino-ruleta"><span>🎡</span><span>Ruleta</span></button>' +
       '<button class="categoria-btn" id="casino-dados"><span>🎲</span><span>Dados</span></button>' +
-      '<button class="categoria-btn proximamente-btn"><span>🃏</span><span>Blackjack</span><span class="prox-tag">Próx.</span></button>' +
+      '<button class="categoria-btn" id="casino-blackjack"><span>🃏</span><span>Blackjack</span></button>' +
     '</div>' +
     '<div id="casino-panel"></div>';
 
@@ -4801,6 +4801,10 @@ function renderCasino() {
 
   document.getElementById('casino-dados').addEventListener('click', function() {
     renderDados();
+  });
+
+  document.getElementById('casino-blackjack').addEventListener('click', function() {
+    renderBlackjack();
   });
 }
 
@@ -5648,7 +5652,7 @@ function renderTragaperras() {
 
     // Pesos de probabilidad (mayor = más común)
     // Total de pesos = 100
-    // 🍋=37, 🍇=28, 🔔=20, ⭐=8, 7️⃣=5, 💎=2
+    // 🍋=36, 🍇=27, 🔔=16, ⭐=10, 7️⃣=7, 💎=4
     var pesos = [36, 27, 16, 10, 7, 4];
     var totalPeso = pesos.reduce(function(a, b) { return a + b; }, 0);
 
@@ -7107,6 +7111,825 @@ async function convertirAEspectadorDados(salaId, sala) {
   var update = { jugadores: nuevosJugadores, espectadores: nuevosEsp };
   if (nuevosJugadores.length < 2) { update.estado = 'esperando'; update.dados = {}; }
   await updateDoc(doc(db, 'dados_salas', salaId), update);
+}
+
+// ===== BLACKJACK =====
+
+var bjListener = null;
+var bjSalaActualId = null;
+var bjTimerInterval = null;
+
+var CATEGORIAS_BJ = [
+  { id: 'bj100', nombre: 'Principiante', emoji: '🃏', apuesta: 100, color: 'var(--text-secondary)' },
+  { id: 'bj1500', nombre: 'Aficionado', emoji: '🎯', apuesta: 1500, color: '#4fc3f7' },
+  { id: 'bj25000', nombre: 'Experto', emoji: '💰', apuesta: 25000, color: '#81c784' },
+  { id: 'bj100000', nombre: 'Elite', emoji: '👑', apuesta: 100000, color: '#ff9800' },
+  { id: 'bj250000', nombre: 'Legendario', emoji: '💎', apuesta: 250000, color: 'gold' }
+];
+
+var PALOS = ['♠', '♥', '♦', '♣'];
+var VALORES = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+
+function crearMazo() {
+  var mazo = [];
+  PALOS.forEach(function(palo) {
+    VALORES.forEach(function(valor) {
+      mazo.push({ valor: valor, palo: palo });
+    });
+  });
+  // Mezclar
+  for (var i = mazo.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var temp = mazo[i]; mazo[i] = mazo[j]; mazo[j] = temp;
+  }
+  return mazo;
+}
+
+function valorCarta(carta) {
+  if (carta.valor === 'A') return 11;
+  if (['J','Q','K'].includes(carta.valor)) return 10;
+  return parseInt(carta.valor);
+}
+
+function calcularMano(cartas) {
+  var total = 0;
+  var ases = 0;
+  cartas.forEach(function(c) {
+    if (c.oculta) return;
+    total += valorCarta(c);
+    if (c.valor === 'A') ases++;
+  });
+  while (total > 21 && ases > 0) {
+    total -= 10;
+    ases--;
+  }
+  return total;
+}
+
+function esBlackjackNatural(cartas) {
+  if (cartas.length !== 2) return false;
+  var valores = cartas.map(function(c) { return c.valor; });
+  var tieneAs = valores.includes('A');
+  var tieneDiez = cartas.some(function(c) { return ['10','J','Q','K'].includes(c.valor); });
+  return tieneAs && tieneDiez;
+}
+
+function renderCartaSVG(carta, esNueva, esRevelando) {
+  if (carta.oculta) {
+    return '<div class="bj-carta oculta' + (esNueva ? ' nueva' : '') + '">' +
+      '<div style="width:100%;height:100%;border-radius:6px;background:repeating-linear-gradient(45deg,#1a1a6e,#1a1a6e 5px,#2d2d9e 5px,#2d2d9e 10px);display:flex;align-items:center;justify-content:center;font-size:1.5rem">🂠</div>' +
+    '</div>';
+  }
+  var esRoja = carta.palo === '♥' || carta.palo === '♦';
+  var clase = 'bj-carta ' + (esRoja ? 'roja' : 'negra') + (esNueva ? ' nueva' : '') + (esRevelando ? ' revelando' : '');
+  return '<div class="' + clase + '">' +
+    '<div>' +
+      '<div class="bj-carta-valor-top">' + carta.valor + '</div>' +
+      '<div class="bj-carta-palo-top">' + carta.palo + '</div>' +
+    '</div>' +
+    '<div class="bj-carta-centro">' + carta.palo + '</div>' +
+    '<div>' +
+      '<div class="bj-carta-palo-bot">' + carta.palo + '</div>' +
+      '<div class="bj-carta-valor-bot">' + carta.valor + '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+async function renderBlackjack() {
+  var panel = document.getElementById('casino-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-casino-bj">← Casino</button>' +
+      '<h3>🃏 Blackjack</h3>' +
+    '</div>' +
+    '<div class="salas-tabs" style="flex-wrap:wrap;gap:0.3rem;margin-bottom:0.75rem">' +
+      CATEGORIAS_BJ.map(function(cat) {
+        return '<button class="sala-tab" data-cat="' + cat.id + '" style="color:' + cat.color + '">' + cat.emoji + ' ' + cat.nombre + '</button>';
+      }).join('') +
+    '</div>' +
+    '<div id="bj-salas-lista"></div>';
+
+  document.getElementById('back-casino-bj').addEventListener('click', function() {
+    if (bjListener) { bjListener(); bjListener = null; }
+    if (bjTimerInterval) { clearInterval(bjTimerInterval); bjTimerInterval = null; }
+    panel.innerHTML = '';
+    renderCasino();
+  });
+
+  var tabs = document.querySelectorAll('.sala-tab[data-cat]');
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      tabs.forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      cargarSalasBJ(tab.dataset.cat);
+    });
+  });
+
+  await inicializarSalasBJ();
+  tabs[0].classList.add('active');
+  cargarSalasBJ('bj100');
+}
+
+async function inicializarSalasBJ() {
+  for (var c = 0; c < CATEGORIAS_BJ.length; c++) {
+    var cat = CATEGORIAS_BJ[c];
+    for (var i = 1; i <= 5; i++) {
+      var id = 'bj_' + cat.id + '_' + i;
+      var snap = await getDoc(doc(db, 'blackjack_salas', id));
+      if (!snap.exists()) {
+        await setDoc(doc(db, 'blackjack_salas', id), {
+          id: id, categoria: cat.id, nombre: cat.nombre + ' — Sala ' + i,
+          apuesta: cat.apuesta, capacidad: 5,
+          estado: 'esperando', jugadores: [], espectadores: [],
+          mazo: [], cartasCasino: [], turnoActual: -1,
+          plantados: [], eliminados: [], createdAt: new Date().toISOString()
+        });
+      }
+    }
+  }
+}
+
+function cargarSalasBJ(categoriaId) {
+  var lista = document.getElementById('bj-salas-lista');
+  if (!lista) return;
+  lista.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p>';
+  var cat = CATEGORIAS_BJ.find(function(c) { return c.id === categoriaId; });
+
+  onSnapshot(
+    query(collection(db, 'blackjack_salas'), where('categoria', '==', categoriaId)),
+    function(snap) {
+      lista = document.getElementById('bj-salas-lista');
+      if (!lista) return;
+      var salas = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+      salas.sort(function(a, b) {
+        var na = parseInt(a.id.replace(/\D/g, ''));
+        var nb = parseInt(b.id.replace(/\D/g, ''));
+        return na - nb;
+      });
+
+      lista.innerHTML =
+        '<div style="background:var(--bg-card);border-radius:10px;padding:0.6rem;margin-bottom:0.75rem;text-align:center">' +
+          '<p style="font-size:0.85rem;color:' + cat.color + ';font-weight:700">' + cat.emoji + ' ' + cat.nombre + ' — Apuesta: £' + cat.apuesta.toLocaleString('es-CO') + '</p>' +
+        '</div>' +
+        salas.map(function(sala) {
+          var jugadores = sala.jugadores ? sala.jugadores.length : 0;
+          var estado = sala.estado || 'esperando';
+          var estadoColor = ['repartiendo','turnos','casino','resultado'].includes(estado) ? 'var(--danger)' : jugadores > 0 ? 'var(--warning)' : 'var(--success)';
+          var estadoTexto = estado === 'esperando' ? '🟢 Vacía' : estado === 'repartiendo' ? '🔴 Repartiendo' : estado === 'turnos' ? '🔴 En juego' : estado === 'casino' ? '🔴 Turno casino' : estado === 'resultado' ? '🔴 Resultado' : '🟡 Esperando (' + jugadores + '/5)';
+          return '<div class="sala-card">' +
+            '<div class="sala-info">' +
+              '<p class="sala-nombre">' + sala.nombre + '</p>' +
+              '<p class="sala-estado" style="color:' + estadoColor + '">' + estadoTexto + '</p>' +
+            '</div>' +
+            '<button class="btn btn-primary sala-btn" data-id="' + sala.id + '">Entrar</button>' +
+          '</div>';
+        }).join('');
+
+      lista.querySelectorAll('.sala-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() { mostrarModalEntradaBJ(btn.dataset.id); });
+      });
+    }
+  );
+}
+
+async function mostrarModalEntradaBJ(salaId) {
+  var snap = await getDoc(doc(db, 'blackjack_salas', salaId));
+  if (!snap.exists()) return;
+  var sala = snap.data();
+  var saldo = currentUser.saldo || 0;
+  var enRonda = ['repartiendo','turnos','casino','resultado'].includes(sala.estado);
+
+  var modalHtml =
+    '<div id="modal-bj-entrada" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:1000;display:flex;align-items:center;justify-content:center">' +
+      '<div style="background:var(--bg-secondary);border-radius:16px;padding:1.5rem;width:90%;max-width:340px;border:1px solid var(--bg-card)">' +
+        '<h3 style="margin-bottom:0.5rem">🃏 ' + sala.nombre + '</h3>' +
+        '<p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.25rem">Apuesta: <strong style="color:var(--accent)">£' + sala.apuesta.toLocaleString('es-CO') + '</strong></p>' +
+        '<p style="color:var(--text-secondary);font-size:0.82rem;margin-bottom:0.75rem">Tu saldo: £' + saldo.toLocaleString('es-CO') + '</p>' +
+        (enRonda ? '<p style="color:var(--warning);font-size:0.82rem;margin-bottom:0.75rem">⚠️ Hay una ronda en curso. Entrarás como espectador hasta que termine.</p>' : '') +
+        '<button class="btn btn-primary btn-full" id="btn-bj-jugador" style="margin-bottom:0.5rem">🃏 Entrar como jugador</button>' +
+        '<button class="btn btn-secondary btn-full" id="btn-bj-espectador">👁️ Entrar como espectador</button>' +
+        '<button class="btn btn-secondary btn-full" id="btn-bj-cancelar" style="margin-top:0.5rem;border-color:var(--danger);color:var(--danger)">Cancelar</button>' +
+      '</div>' +
+    '</div>';
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  document.getElementById('btn-bj-cancelar').addEventListener('click', function() {
+    document.getElementById('modal-bj-entrada').remove();
+  });
+
+  document.getElementById('btn-bj-espectador').addEventListener('click', function() {
+    document.getElementById('modal-bj-entrada').remove();
+    entrarSalaBJ(salaId, 'espectador');
+  });
+
+  document.getElementById('btn-bj-jugador').addEventListener('click', function() {
+    document.getElementById('modal-bj-entrada').remove();
+    if (saldo < sala.apuesta) {
+      alert('Saldo insuficiente. Necesitas £' + sala.apuesta.toLocaleString('es-CO'));
+      entrarSalaBJ(salaId, 'espectador');
+      return;
+    }
+    entrarSalaBJ(salaId, enRonda ? 'espectador_a_jugador' : 'jugador');
+  });
+}
+
+async function entrarSalaBJ(salaId, modo) {
+  var snap = await getDoc(doc(db, 'blackjack_salas', salaId));
+  if (!snap.exists()) return;
+  var sala = snap.data();
+
+  if (modo === 'jugador') {
+    var yaEsta = sala.jugadores && sala.jugadores.find(function(j) { return j.uid === currentUser.uid; });
+    if (!yaEsta && (!sala.jugadores || sala.jugadores.length < sala.capacidad)) {
+      var nuevosJugadores = (sala.jugadores || []).concat([{
+        uid: currentUser.uid, username: currentUser.username,
+        foto: currentUser.fotoPerfil || '',
+        cartas: [], ganado: 0, perdido: 0, neto: 0,
+        estado: 'esperando'
+      }]);
+      var update = { jugadores: nuevosJugadores };
+      if (sala.estado === 'esperando' && nuevosJugadores.length >= 1) {
+        update.estado = 'lobby';
+        update.lobbyInicio = new Date().toISOString();
+      }
+      await updateDoc(doc(db, 'blackjack_salas', salaId), update);
+    }
+  } else {
+    var modoReal = modo === 'espectador_a_jugador' ? 'espectador_a_jugador' : 'espectador';
+    var yaEstaEsp = sala.espectadores && sala.espectadores.find(function(e) { return e.uid === currentUser.uid; });
+    if (!yaEstaEsp) {
+      await updateDoc(doc(db, 'blackjack_salas', salaId), {
+        espectadores: (sala.espectadores || []).concat([{
+          uid: currentUser.uid, username: currentUser.username,
+          modoFuturo: modoReal
+        }])
+      });
+    }
+  }
+
+  bjSalaActualId = salaId;
+  renderSalaBJ(salaId);
+}
+
+function renderSalaBJ(salaId) {
+  var panel = document.getElementById('casino-panel');
+  panel.innerHTML = '<div id="bj-sala-container"></div>';
+
+  if (bjListener) { bjListener(); bjListener = null; }
+  if (bjTimerInterval) { clearInterval(bjTimerInterval); bjTimerInterval = null; }
+
+  bjListener = onSnapshot(doc(db, 'blackjack_salas', salaId), function(snap) {
+    if (!snap.exists()) return;
+    var sala = snap.data();
+    var container = document.getElementById('bj-sala-container');
+    if (!container) return;
+
+    var yoJugador = sala.jugadores && sala.jugadores.find(function(j) { return j.uid === currentUser.uid; });
+    var yoEspectador = sala.espectadores && sala.espectadores.find(function(e) { return e.uid === currentUser.uid; });
+    var miModo = yoJugador ? 'jugador' : 'espectador';
+    var saldo = currentUser.saldo || 0;
+
+    // Si la ronda terminó y era espectador_a_jugador, convertir
+    if (sala.estado === 'esperando' || sala.estado === 'lobby') {
+      if (yoEspectador && yoEspectador.modoFuturo === 'espectador_a_jugador') {
+        convertirEspectadorAJugadorBJ(salaId, sala);
+        return;
+      }
+    }
+
+    var ordenTurnos = sala.ordenTurnos || [];
+    var turnoIdx = sala.turnoActual !== undefined ? sala.turnoActual : -1;
+    var uidEnTurno = turnoIdx >= 0 && turnoIdx < ordenTurnos.length ? ordenTurnos[turnoIdx] : null;
+    var esMiTurno = uidEnTurno === currentUser.uid && miModo === 'jugador';
+
+    container.innerHTML =
+      // Header
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">' +
+        '<button class="btn-back" id="btn-salir-bj">← Salir</button>' +
+        '<h3 style="font-size:0.88rem">🃏 ' + sala.nombre + '</h3>' +
+        '<span style="font-size:0.78rem;color:var(--accent)">£' + (currentUser.saldo || 0).toLocaleString('es-CO') + '</span>' +
+      '</div>' +
+
+      // Casino
+      '<div style="background:linear-gradient(135deg,#0d4f2f,#1a7a4a);border-radius:12px;padding:0.75rem;margin-bottom:0.5rem">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem">' +
+          '<p style="color:#90ee90;font-size:0.78rem;font-weight:700">🏦 CASINO</p>' +
+          (sala.cartasCasino && sala.cartasCasino.length > 0
+            ? '<span class="bj-puntos" style="background:rgba(0,0,0,0.3);color:white">' + calcularMano(sala.cartasCasino) + ' pts</span>'
+            : ''
+          ) +
+        '</div>' +
+        '<div class="bj-mano">' +
+          (sala.cartasCasino && sala.cartasCasino.length > 0
+            ? sala.cartasCasino.map(function(c) { return renderCartaSVG(c, false, false); }).join('')
+            : '<p style="color:rgba(255,255,255,0.5);font-size:0.82rem">Sin cartas aún</p>'
+          ) +
+        '</div>' +
+      '</div>' +
+
+      // Jugadores
+      '<div id="bj-jugadores-area">' +
+        (sala.jugadores && sala.jugadores.length > 0
+          ? sala.jugadores.map(function(j) {
+              var esTurno = j.uid === uidEnTurno;
+              var puntos = calcularMano(j.cartas || []);
+              var estadoJ = j.estado || 'esperando';
+              var clasePanel = 'bj-jugador-panel' + (esTurno ? ' turno-activo' : '') + (estadoJ === 'eliminado' ? ' eliminado' : estadoJ === 'ganador' ? ' ganador' : estadoJ === 'perdedor' ? ' perdedor' : '');
+              var esMio = j.uid === currentUser.uid;
+
+              return '<div class="' + clasePanel + '">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem">' +
+                  '<p style="font-size:0.8rem;font-weight:700;color:' + (esTurno ? 'var(--accent)' : 'var(--text-primary)') + '">' +
+                    (esTurno ? '▶️ ' : '') + j.username +
+                    (estadoJ === 'plantado' ? ' 🛑' : estadoJ === 'eliminado' ? ' 💀' : '') +
+                  '</p>' +
+                  (j.cartas && j.cartas.length > 0 && (esMio || sala.estado === 'resultado' || sala.estado === 'casino')
+                    ? '<span class="bj-puntos">' + puntos + ' pts</span>'
+                    : ''
+                  ) +
+                '</div>' +
+                '<div class="bj-mano">' +
+                  (j.cartas && j.cartas.length > 0
+                    ? j.cartas.map(function(c) {
+                        // Solo mostrar cartas propias, resto ocultas hasta resultado
+                        if (!esMio && sala.estado !== 'resultado' && sala.estado !== 'casino') {
+                          return renderCartaSVG({ oculta: true }, false, false);
+                        }
+                        return renderCartaSVG(c, false, false);
+                      }).join('')
+                    : '<p style="color:var(--text-secondary);font-size:0.75rem">Sin cartas</p>'
+                  ) +
+                '</div>' +
+                // Mis acciones si es mi turno
+                (esMiTurno && esMio && estadoJ === 'jugando'
+                  ? '<div class="bj-acciones">' +
+                      '<button class="bj-btn-pedir" id="btn-bj-pedir">🃏 Pedir carta</button>' +
+                      '<button class="bj-btn-plantar" id="btn-bj-plantar">🛑 Plantarme</button>' +
+                    '</div>'
+                  : ''
+                ) +
+              '</div>';
+            }).join('')
+          : '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Sin jugadores</p>'
+        ) +
+      '</div>' +
+
+      // Estado / Timer
+      '<div style="margin-top:0.5rem">' +
+        renderEstadoBJ(sala, miModo, esMiTurno) +
+      '</div>' +
+
+      // Ranking
+      '<div style="background:var(--bg-card);border-radius:10px;padding:0.6rem;margin-top:0.5rem">' +
+        '<p style="font-size:0.72rem;color:var(--text-secondary);font-weight:700;margin-bottom:0.4rem">📊 RANKING SESIÓN</p>' +
+        (sala.jugadores && sala.jugadores.length > 0
+          ? sala.jugadores.slice().sort(function(a,b) { return (b.neto||0)-(a.neto||0); }).map(function(j,idx) {
+              return '<div style="display:flex;justify-content:space-between;font-size:0.72rem;padding:0.2rem 0">' +
+                '<span>' + (idx===0?'🥇':idx===1?'🥈':idx===2?'🥉':'  ') + ' ' + j.username + '</span>' +
+                '<span style="color:' + ((j.neto||0)>=0?'var(--success)':'var(--danger)') + ';font-weight:700">£' + (j.neto||0).toLocaleString('es-CO') + '</span>' +
+              '</div>';
+            }).join('')
+          : '<p style="font-size:0.72rem;color:var(--text-secondary)">Sin datos</p>'
+        ) +
+      '</div>' +
+
+      // Espectador
+      (miModo === 'espectador'
+        ? '<div style="text-align:center;padding:0.5rem;background:var(--bg-card);border-radius:10px;margin-top:0.5rem">' +
+            '<p style="color:var(--text-secondary);font-size:0.82rem">👁️ Modo espectador' + (yoEspectador && yoEspectador.modoFuturo === 'espectador_a_jugador' ? ' — Entrarás en la próxima ronda' : '') + '</p>' +
+          '</div>'
+        : ''
+      );
+
+    document.getElementById('btn-salir-bj').addEventListener('click', function() {
+      salirSalaBJ(salaId, miModo, sala);
+    });
+
+    // Acciones del turno
+    setTimeout(function() {
+      var btnPedir = document.getElementById('btn-bj-pedir');
+      var btnPlantar = document.getElementById('btn-bj-plantar');
+      if (btnPedir) btnPedir.addEventListener('click', function() { accionBJ(salaId, sala, 'pedir'); });
+      if (btnPlantar) btnPlantar.addEventListener('click', function() { accionBJ(salaId, sala, 'plantar'); });
+      manejarTimerBJ(salaId, sala);
+      manejarEstadoBJ(salaId, sala);
+    }, 100);
+  });
+}
+
+function renderEstadoBJ(sala, miModo, esMiTurno) {
+  switch(sala.estado) {
+    case 'esperando':
+      return '<div style="text-align:center;padding:0.75rem;background:var(--bg-card);border-radius:10px"><p style="color:var(--text-secondary)">⏳ Esperando jugadores...</p></div>';
+    case 'lobby':
+      return '<div style="text-align:center;padding:0.75rem;background:var(--bg-card);border-radius:10px">' +
+        '<p style="color:var(--accent);font-weight:700">🃏 Iniciando partida...</p>' +
+        '<p style="font-size:0.78rem;color:var(--text-secondary)">Repartiendo cartas</p>' +
+      '</div>';
+    case 'turnos':
+      return esMiTurno
+        ? '<div style="text-align:center;padding:0.5rem;background:rgba(233,69,96,0.1);border-radius:10px;border:1px solid var(--accent)">' +
+            '<p style="color:var(--accent);font-weight:700;font-size:0.85rem">¡Es tu turno!</p>' +
+            '<p id="bj-timer-display" class="bj-timer">15</p>' +
+          '</div>'
+        : '<div style="text-align:center;padding:0.5rem;background:var(--bg-card);border-radius:10px">' +
+            '<p style="color:var(--text-secondary);font-size:0.82rem">Esperando turno...</p>' +
+          '</div>';
+    case 'casino':
+      return '<div style="text-align:center;padding:0.75rem;background:rgba(0,100,50,0.2);border-radius:10px;border:1px solid #2ecc71">' +
+        '<p style="color:#2ecc71;font-weight:700">🏦 Turno del casino...</p>' +
+      '</div>';
+    case 'resultado':
+      return '<div style="text-align:center;padding:0.75rem;background:var(--bg-card);border-radius:10px">' +
+        '<p style="color:var(--accent);font-weight:700">🏆 ¡Ronda terminada!</p>' +
+        '<p style="font-size:0.75rem;color:var(--text-secondary)">Nueva ronda en breve...</p>' +
+      '</div>';
+    default:
+      return '';
+  }
+}
+
+function manejarEstadoBJ(salaId, sala) {
+  // Solo el primer jugador de la lista maneja los estados automáticos
+  var jugadores = sala.jugadores || [];
+  if (!jugadores.length) return;
+  var primerJugador = jugadores[0];
+  var soyPrimero = primerJugador.uid === currentUser.uid;
+
+  if (sala.estado === 'lobby' && soyPrimero) {
+    setTimeout(function() { iniciarRondaBJ(salaId, sala); }, 1500);
+  }
+
+  if (sala.estado === 'casino' && soyPrimero) {
+    setTimeout(function() { turnosCasinoBJ(salaId); }, 1000);
+  }
+}
+
+async function iniciarRondaBJ(salaId, sala) {
+  var snapActual = await getDoc(doc(db, 'blackjack_salas', salaId));
+  if (!snapActual.exists()) return;
+  var salaActual = snapActual.data();
+  if (salaActual.estado !== 'lobby') return;
+
+  var mazo = crearMazo();
+  var jugadores = salaActual.jugadores || [];
+
+  // Repartir 2 cartas a cada jugador y al casino
+  var jugadoresConCartas = jugadores.map(function(j) {
+    return Object.assign({}, j, {
+      cartas: [mazo.pop(), mazo.pop()],
+      estado: 'jugando'
+    });
+  });
+
+  var cartasCasino = [mazo.pop(), Object.assign(mazo.pop(), { oculta: true })];
+
+  // Orden de turnos aleatorio
+  var orden = jugadores.map(function(j) { return j.uid; });
+  for (var i = orden.length - 1; i > 0; i--) {
+    var j2 = Math.floor(Math.random() * (i + 1));
+    var tmp = orden[i]; orden[i] = orden[j2]; orden[j2] = tmp;
+  }
+
+  // Verificar blackjack naturales
+  var naturales = jugadoresConCartas.filter(function(j) { return esBlackjackNatural(j.cartas); });
+  naturales.forEach(function(j) { j.estado = 'blackjack'; });
+
+  await updateDoc(doc(db, 'blackjack_salas', salaId), {
+    estado: 'turnos',
+    mazo: mazo,
+    jugadores: jugadoresConCartas,
+    cartasCasino: cartasCasino,
+    ordenTurnos: orden,
+    turnoActual: 0,
+    plantados: [],
+    eliminados: [],
+    timerInicio: new Date().toISOString()
+  });
+
+  // Si todos tienen blackjack natural, ir directo a resultado
+  if (naturales.length === jugadores.length) {
+    setTimeout(function() { resolverRondaBJ(salaId); }, 1000);
+  }
+}
+
+async function accionBJ(salaId, sala, accion) {
+  if (bjTimerInterval) { clearInterval(bjTimerInterval); bjTimerInterval = null; }
+
+  var snapActual = await getDoc(doc(db, 'blackjack_salas', salaId));
+  if (!snapActual.exists()) return;
+  var salaActual = snapActual.data();
+  if (salaActual.estado !== 'turnos') return;
+
+  var ordenTurnos = salaActual.ordenTurnos || [];
+  var turnoIdx = salaActual.turnoActual || 0;
+  var uidEnTurno = ordenTurnos[turnoIdx];
+  if (uidEnTurno !== currentUser.uid) return;
+
+  var mazo = salaActual.mazo || [];
+  var jugadores = salaActual.jugadores.map(function(j) { return Object.assign({}, j); });
+  var yoIdx = jugadores.findIndex(function(j) { return j.uid === currentUser.uid; });
+  var yo = jugadores[yoIdx];
+
+  if (accion === 'pedir') {
+    if (mazo.length === 0) mazo = crearMazo();
+    var nuevaCarta = mazo.pop();
+    yo.cartas = yo.cartas.concat([nuevaCarta]);
+    var puntos = calcularMano(yo.cartas);
+
+    if (puntos > 21) {
+      yo.estado = 'eliminado';
+      jugadores[yoIdx] = yo;
+      var update = { jugadores: jugadores, mazo: mazo };
+      update = Object.assign(update, avanzarTurnoBJ(salaActual, turnoIdx, ordenTurnos, jugadores));
+      await updateDoc(doc(db, 'blackjack_salas', salaId), update);
+    } else if (puntos === 21) {
+      yo.estado = 'plantado';
+      jugadores[yoIdx] = yo;
+      var update2 = { jugadores: jugadores, mazo: mazo };
+      update2 = Object.assign(update2, avanzarTurnoBJ(salaActual, turnoIdx, ordenTurnos, jugadores));
+      await updateDoc(doc(db, 'blackjack_salas', salaId), update2);
+    } else {
+      jugadores[yoIdx] = yo;
+      await updateDoc(doc(db, 'blackjack_salas', salaId), {
+        jugadores: jugadores, mazo: mazo,
+        timerInicio: new Date().toISOString()
+      });
+    }
+  } else {
+    yo.estado = 'plantado';
+    jugadores[yoIdx] = yo;
+    var update3 = { jugadores: jugadores };
+    update3 = Object.assign(update3, avanzarTurnoBJ(salaActual, turnoIdx, ordenTurnos, jugadores));
+    await updateDoc(doc(db, 'blackjack_salas', salaId), update3);
+  }
+}
+
+function avanzarTurnoBJ(sala, turnoIdx, ordenTurnos, jugadores) {
+  // Buscar siguiente jugador que no esté eliminado/plantado/blackjack
+  var siguiente = turnoIdx + 1;
+  while (siguiente < ordenTurnos.length) {
+    var uid = ordenTurnos[siguiente];
+    var jug = jugadores.find(function(j) { return j.uid === uid; });
+    if (jug && jug.estado === 'jugando') break;
+    siguiente++;
+  }
+
+  if (siguiente >= ordenTurnos.length) {
+    // Todos terminaron, turno del casino
+    return { estado: 'casino', turnoActual: siguiente };
+  }
+
+  return { turnoActual: siguiente, timerInicio: new Date().toISOString() };
+}
+
+async function turnosCasinoBJ(salaId) {
+  var snapActual = await getDoc(doc(db, 'blackjack_salas', salaId));
+  if (!snapActual.exists()) return;
+  var salaActual = snapActual.data();
+  if (salaActual.estado !== 'casino') return;
+
+  var mazo = salaActual.mazo || [];
+  if (mazo.length === 0) mazo = crearMazo();
+
+  // Revelar carta oculta
+  var cartasCasino = salaActual.cartasCasino.map(function(c) {
+    return Object.assign({}, c, { oculta: false });
+  });
+
+  await updateDoc(doc(db, 'blackjack_salas', salaId), { cartasCasino: cartasCasino });
+  await new Promise(function(r) { setTimeout(r, 1000); });
+
+  // Casino pide cartas según reglas
+  var puntosCasino = calcularMano(cartasCasino);
+  while (puntosCasino <= 16) {
+    if (mazo.length === 0) mazo = crearMazo();
+    cartasCasino = cartasCasino.concat([mazo.pop()]);
+    puntosCasino = calcularMano(cartasCasino);
+    await updateDoc(doc(db, 'blackjack_salas', salaId), { cartasCasino: cartasCasino, mazo: mazo });
+    await new Promise(function(r) { setTimeout(r, 800); });
+  }
+
+  await updateDoc(doc(db, 'blackjack_salas', salaId), { cartasCasino: cartasCasino, mazo: mazo });
+  setTimeout(function() { resolverRondaBJ(salaId); }, 800);
+}
+
+async function resolverRondaBJ(salaId) {
+  var snap = await getDoc(doc(db, 'blackjack_salas', salaId));
+  if (!snap.exists()) return;
+  var sala = snap.data();
+  var jugadores = sala.jugadores || [];
+  var apuesta = sala.apuesta;
+  var cartasCasino = sala.cartasCasino || [];
+  var puntosCasino = calcularMano(cartasCasino);
+  var casinoBJ = esBlackjackNatural(cartasCasino);
+  var casinoSePaso = puntosCasino > 21;
+
+  // Clasificar jugadores
+  var perdedores = [];
+  var ganadores = [];
+  var empatados = [];
+  var naturales = [];
+
+  jugadores.forEach(function(j) {
+    var puntos = calcularMano(j.cartas || []);
+    var jBJ = esBlackjackNatural(j.cartas || []);
+
+    if (j.estado === 'eliminado' || puntos > 21) {
+      perdedores.push(j);
+    } else if (jBJ && !casinoBJ) {
+      naturales.push(j);
+    } else if (casinoBJ && !jBJ) {
+      perdedores.push(j);
+    } else if (casinoSePaso) {
+      ganadores.push(j);
+    } else if (puntos > puntosCasino) {
+      ganadores.push(j);
+    } else if (puntos === puntosCasino) {
+      empatados.push(j);
+    } else {
+      perdedores.push(j);
+    }
+  });
+
+  // Calcular pozo
+  var pozoTotal = perdedores.length * apuesta;
+  var cambios = {};
+  jugadores.forEach(function(j) { cambios[j.uid] = 0; });
+
+  // Perdedores pierden su apuesta
+  perdedores.forEach(function(j) { cambios[j.uid] = -apuesta; });
+
+  // Empatados no ganan ni pierden
+  empatados.forEach(function(j) { cambios[j.uid] = 0; });
+
+  // Ganadores se reparten el pozo
+  if (ganadores.length > 0 && pozoTotal > 0) {
+    var parteGanador = Math.floor(pozoTotal / ganadores.length);
+    ganadores.forEach(function(j) { cambios[j.uid] = parteGanador; });
+  }
+
+  // Naturales: mitad del pozo + 50% extra del casino
+  if (naturales.length > 0) {
+    var parteNatural = pozoTotal > 0 ? Math.floor(pozoTotal / naturales.length) : 0;
+    naturales.forEach(function(j) {
+      var extra = Math.floor(apuesta * 0.5);
+      cambios[j.uid] = parteNatural + extra;
+    });
+  }
+
+  // Actualizar jugadores con estados finales
+  var jugadoresActualizados = jugadores.map(function(j) {
+    var cambio = cambios[j.uid] || 0;
+    var estadoFinal = perdedores.find(function(p) { return p.uid === j.uid; }) ? 'perdedor'
+      : ganadores.find(function(g) { return g.uid === j.uid; }) ? 'ganador'
+      : naturales.find(function(n) { return n.uid === j.uid; }) ? 'ganador'
+      : 'empate';
+    return Object.assign({}, j, {
+      estado: estadoFinal,
+      ganado: (j.ganado || 0) + (cambio > 0 ? cambio : 0),
+      perdido: (j.perdido || 0) + (cambio < 0 ? Math.abs(cambio) : 0),
+      neto: (j.neto || 0) + cambio
+    });
+  });
+
+  // Aplicar cambios de saldo
+  for (var i = 0; i < jugadoresActualizados.length; i++) {
+    var j = jugadoresActualizados[i];
+    var cambio = cambios[j.uid] || 0;
+    if (cambio === 0) continue;
+    try {
+      await updateDoc(doc(db, 'usuarios', j.uid), { saldo: increment(cambio) });
+      if (j.uid === currentUser.uid) currentUser.saldo = (currentUser.saldo || 0) + cambio;
+      await registrarTransaccion({
+        tipo: 'casino_blackjack',
+        de: cambio < 0 ? j.uid : 'sistema',
+        deUsername: cambio < 0 ? j.username : 'Casino Blackjack',
+        para: cambio >= 0 ? j.uid : 'sistema',
+        paraUsername: cambio >= 0 ? j.username : 'Casino Blackjack',
+        monto: Math.abs(cambio),
+        descripcion: 'Blackjack: ' + j.username + (cambio >= 0 ? ' ganó' : ' perdió') + ' £' + Math.abs(cambio).toLocaleString('es-CO')
+      });
+    } catch(err) { console.log('Error saldo BJ:', err.message); }
+  }
+
+  await updateDoc(doc(db, 'blackjack_salas', salaId), {
+    estado: 'resultado',
+    jugadores: jugadoresActualizados,
+    cartasCasino: cartasCasino
+  });
+
+  // Nueva ronda automáticamente
+  setTimeout(async function() {
+    var snapNuevo = await getDoc(doc(db, 'blackjack_salas', salaId));
+    if (!snapNuevo.exists()) return;
+    var salaNueva = snapNuevo.data();
+    if (salaNueva.estado !== 'resultado') return;
+
+    // Convertir espectadores_a_jugador
+    var espectadoresRestantes = [];
+    var jugadoresNuevos = (salaNueva.jugadores || []).map(function(j) {
+      return Object.assign({}, j, { cartas: [], estado: 'esperando' });
+    });
+
+    for (var k = 0; k < (salaNueva.espectadores || []).length; k++) {
+      var esp = salaNueva.espectadores[k];
+      if (esp.modoFuturo === 'espectador_a_jugador' && jugadoresNuevos.length < salaNueva.capacidad) {
+        var snapUser = await getDoc(doc(db, 'usuarios', esp.uid));
+        var saldoEsp = snapUser.exists() ? (snapUser.data().saldo || 0) : 0;
+        if (saldoEsp >= salaNueva.apuesta) {
+          jugadoresNuevos.push({
+            uid: esp.uid, username: esp.username,
+            foto: esp.foto || '', cartas: [],
+            ganado: 0, perdido: 0, neto: 0, estado: 'esperando'
+          });
+        } else {
+          espectadoresRestantes.push(Object.assign({}, esp, { modoFuturo: 'espectador' }));
+        }
+      } else {
+        espectadoresRestantes.push(esp);
+      }
+    }
+
+    var nuevoEstado = jugadoresNuevos.length >= 1 ? 'lobby' : 'esperando';
+    await updateDoc(doc(db, 'blackjack_salas', salaId), {
+      estado: nuevoEstado,
+      jugadores: jugadoresNuevos,
+      espectadores: espectadoresRestantes,
+      cartasCasino: [],
+      mazo: [],
+      ordenTurnos: [],
+      turnoActual: 0,
+      lobbyInicio: new Date().toISOString()
+    });
+  }, 4000);
+}
+
+function manejarTimerBJ(salaId, sala) {
+  if (bjTimerInterval) { clearInterval(bjTimerInterval); bjTimerInterval = null; }
+  if (sala.estado !== 'turnos') return;
+
+  var ordenTurnos = sala.ordenTurnos || [];
+  var turnoIdx = sala.turnoActual || 0;
+  var uidEnTurno = ordenTurnos[turnoIdx];
+  if (uidEnTurno !== currentUser.uid) return;
+
+  var tiempoInicio = sala.timerInicio ? new Date(sala.timerInicio).getTime() : Date.now();
+
+  bjTimerInterval = setInterval(async function() {
+    var transcurrido = Math.floor((Date.now() - tiempoInicio) / 1000);
+    var restante = Math.max(0, 15 - transcurrido);
+    var timerEl = document.getElementById('bj-timer-display');
+    if (timerEl) timerEl.textContent = restante;
+
+    if (restante <= 0) {
+      clearInterval(bjTimerInterval); bjTimerInterval = null;
+      // Acción aleatoria automática
+      var accion = Math.random() < 0.5 ? 'pedir' : 'plantar';
+      await accionBJ(salaId, sala, accion);
+    }
+  }, 1000);
+}
+
+async function salirSalaBJ(salaId, modo, sala) {
+  if (bjListener) { bjListener(); bjListener = null; }
+  if (bjTimerInterval) { clearInterval(bjTimerInterval); bjTimerInterval = null; }
+
+  if (modo === 'jugador') {
+    var nuevosJugadores = (sala.jugadores || []).filter(function(j) { return j.uid !== currentUser.uid; });
+    var update = { jugadores: nuevosJugadores };
+    if (nuevosJugadores.length === 0) {
+      update.estado = 'esperando';
+      update.cartasCasino = [];
+      update.mazo = [];
+      update.ordenTurnos = [];
+    }
+    await updateDoc(doc(db, 'blackjack_salas', salaId), update);
+  } else {
+    var nuevosEsp = (sala.espectadores || []).filter(function(e) { return e.uid !== currentUser.uid; });
+    await updateDoc(doc(db, 'blackjack_salas', salaId), { espectadores: nuevosEsp });
+  }
+
+  bjSalaActualId = null;
+  renderBlackjack();
+}
+
+async function convertirEspectadorAJugadorBJ(salaId, sala) {
+  var nuevosEsp = (sala.espectadores || []).filter(function(e) { return e.uid !== currentUser.uid; });
+  var saldo = currentUser.saldo || 0;
+  if (saldo < sala.apuesta) {
+    await updateDoc(doc(db, 'blackjack_salas', salaId), { espectadores: nuevosEsp });
+    return;
+  }
+  var nuevosJugadores = (sala.jugadores || []).concat([{
+    uid: currentUser.uid, username: currentUser.username,
+    foto: currentUser.fotoPerfil || '',
+    cartas: [], ganado: 0, perdido: 0, neto: 0, estado: 'esperando'
+  }]);
+  var update = { jugadores: nuevosJugadores, espectadores: nuevosEsp };
+  if (sala.estado === 'esperando') { update.estado = 'lobby'; update.lobbyInicio = new Date().toISOString(); }
+  await updateDoc(doc(db, 'blackjack_salas', salaId), update);
 }
 
 function showError(msg) { loginError.textContent = msg; loginError.classList.remove('hidden'); }

@@ -1766,3 +1766,51 @@
   gap: 1rem;
   padding: 1rem 0;
 }
+
+/* ===== BLACKJACK ===== */
+.bj-carta {
+  width: 65px;
+  height: 95px;
+  border-radius: 8px;
+  border: 2px solid #2d2d4e;
+  background: white;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 4px;
+  font-family: 'Georgia', serif;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  position: relative;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  cursor: default;
+  flex-shrink: 0;
+}
+.bj-carta.roja { color: #c0392b; }
+.bj-carta.negra { color: #1a1a2e; }
+.bj-carta.oculta { background: linear-gradient(135deg, #1a1a6e 25%, #2d2d9e 50%, #1a1a6e 75%); border-color: #4a4aae; }
+.bj-carta.nueva { animation: cartaEntrar 0.4s ease forwards; }
+.bj-carta-valor-top { font-size: 0.85rem; font-weight: 900; line-height: 1; }
+.bj-carta-palo-top { font-size: 0.7rem; line-height: 1; }
+.bj-carta-centro { font-size: 1.6rem; text-align: center; line-height: 1; }
+.bj-carta-valor-bot { font-size: 0.85rem; font-weight: 900; line-height: 1; transform: rotate(180deg); align-self: flex-end; }
+.bj-carta-palo-bot { font-size: 0.7rem; line-height: 1; transform: rotate(180deg); align-self: flex-end; }
+.bj-mano { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; padding: 0.5rem 0; min-height: 110px; align-items: center; }
+.bj-jugador-panel { background: var(--bg-primary); border-radius: 12px; padding: 0.6rem; margin-bottom: 0.5rem; border: 2px solid transparent; transition: border-color 0.3s; }
+.bj-jugador-panel.turno-activo { border-color: var(--accent); }
+.bj-jugador-panel.eliminado { opacity: 0.5; }
+.bj-jugador-panel.ganador { border-color: var(--success); }
+.bj-jugador-panel.perdedor { border-color: var(--danger); }
+@keyframes cartaEntrar {
+  from { transform: translateY(-30px) rotate(-5deg); opacity: 0; }
+  to   { transform: translateY(0) rotate(0deg); opacity: 1; }
+}
+@keyframes cartaRevelar {
+  0%   { transform: rotateY(90deg); opacity: 0; }
+  100% { transform: rotateY(0deg); opacity: 1; }
+}
+.bj-carta.revelando { animation: cartaRevelar 0.5s ease forwards; }
+.bj-acciones { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+.bj-btn-pedir { flex: 1; padding: 0.7rem; border-radius: 10px; background: var(--accent); color: white; border: none; font-size: 0.9rem; font-weight: 700; cursor: pointer; }
+.bj-btn-plantar { flex: 1; padding: 0.7rem; border-radius: 10px; background: var(--bg-card); color: var(--text-primary); border: 2px solid var(--bg-secondary); font-size: 0.9rem; font-weight: 700; cursor: pointer; }
+.bj-timer { font-size: 1.8rem; font-weight: 900; color: var(--accent); text-align: center; }
+.bj-puntos { font-size: 0.8rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: var(--bg-card); display: inline-block; margin-left: 0.4rem; }
