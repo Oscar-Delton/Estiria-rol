@@ -9288,7 +9288,6 @@ async function resolverRondaPoker(salaId) {
   });
 
   var ganadores = [evaluados[0]];
-  }
 
   var premioXGanador = Math.floor(pozo / ganadores.length);
 
