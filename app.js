@@ -8915,7 +8915,7 @@ function renderJugadoresPoker(sala, uidEnTurno, yoJug, miModo) {
     var esMio     = j.uid === currentUser.uid;
     var clasePan  = 'pk-jugador-panel' + (esTurno?' turno-activo':'') + (j.estado==='retirado'?' eliminado':'') + (j.estado==='ganador'?' ganador-pk':'') + (j.estado==='perdedor'?' perdedor-pk':'');
     var apuestaJ  = j.apuesta || 0;
-    var mostrarCartas = esMio || sala.fase === 'showdown';
+    var mostrarCartas = esMio || sala.fase === 'resultado';
 
     return '<div class="' + clasePan + '">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">' +
@@ -9081,28 +9081,40 @@ function calcularSiguienteTurnoPoker(sala, turnoIdx, ordenTurnos, jugadores) {
     return { fase: 'showdown' };
   }
 
-  // Verificar si todos los activos han igualado la apuesta o hecho all-in
-  var apuestaMax = Math.max.apply(null, jugadores.map(function(j) { return j.apuesta||0; }));
-  var todosIgualados = jugadores.filter(function(j){ return j.estado==='activo';}).every(function(j) {
-    return (j.apuesta||0) >= apuestaMax || j.fichas === 0;
+  var apuestaMax = Math.max.apply(null, jugadores.map(function(j) { return j.apuesta || 0; }));
+  var todosIgualados = activos.every(function(j) {
+    return (j.apuesta || 0) >= apuestaMax || j.fichas === 0;
   });
 
-  // Buscar siguiente jugador activo en orden circular
-  var siguiente = turnoIdx + 1;
-  var vuelta = 0;
-  while (vuelta < ordenTurnos.length) {
-    var idx2 = siguiente % ordenTurnos.length;
-    var uid = ordenTurnos[idx2];
-    var j   = jugadores.find(function(jj) { return jj.uid === uid; });
-    if (j && j.estado === 'activo') {
-      // Si todos igualaron y volvemos al primero que apostó, cambiar fase
-      if (todosIgualados && idx2 <= turnoIdx) {
+  
+  var total = ordenTurnos.length;
+  for (var i = 1; i <= total; i++) {
+    var idx2 = (turnoIdx + i) % total;
+    var uid  = ordenTurnos[idx2];
+    var j    = jugadores.find(function(jj) { return jj.uid === uid; });
+    if (!j || j.estado !== 'activo') continue;
+
+    
+    if (todosIgualados && i === total) {
+      return avanzarFasePoker(sala);
+    }
+    if (todosIgualados) {
+      
+      var esPrimeroActivo = false;
+      for (var k = 0; k < total; k++) {
+        var uidK = ordenTurnos[k];
+        var jK   = jugadores.find(function(jj) { return jj.uid === uidK; });
+        if (jK && jK.estado === 'activo') {
+          esPrimeroActivo = (k === idx2);
+          break;
+        }
+      }
+      if (esPrimeroActivo && idx2 !== (turnoIdx + 1) % total) {
+        
         return avanzarFasePoker(sala);
       }
-      return { turnoActual: idx2, timerInicio: new Date().toISOString() };
     }
-    siguiente++;
-    vuelta++;
+    return { turnoActual: idx2, timerInicio: new Date().toISOString() };
   }
   return avanzarFasePoker(sala);
 }
@@ -9145,7 +9157,16 @@ function manejarTimerPoker(salaId, sala, yoJug, esMiTurno) {
     if (timerEl) timerEl.textContent = restante;
     if (restante <= 0) {
       clearInterval(pokerTimerInterval); pokerTimerInterval = null;
-      await accionPoker(salaId, sala, 'fold', 0);
+      try {
+        var snapFresh = await getDoc(doc(db, 'poker_salas', salaId));
+        if (!snapFresh.exists()) return;
+        var salaFresh = snapFresh.data();
+        var ordenF    = salaFresh.ordenTurnos || [];
+        var turnoF    = salaFresh.turnoActual || 0;
+        if (ordenF[turnoF] === currentUser.uid) {
+          await accionPoker(salaId, salaFresh, 'fold', 0);
+        }
+      } catch(e) { console.warn('Auto-fold error:', e); }
     }
   }, 1000);
 }
@@ -9242,27 +9263,31 @@ async function resolverRondaPoker(salaId) {
   var pozo       = sala.pozo || 0;
 
   // Evaluar manos de jugadores activos
-  var activos = jugadores.filter(function(j) { return j.estado === 'activo' && j.cartas && j.cartas.length === 2; });
+  var activos = jugadores.filter(function(j) {
+    return j && j.uid && j.estado === 'activo' && j.cartas && j.cartas.length === 2;
+  });
+
+  // Guardia: si no hay activos válidos, devolver fichas y resetear
+  if (activos.length === 0) {
+    await updateDoc(doc(db, 'poker_salas', salaId), {
+      fase: 'lobby', resolviendo: false,
+      cartasMesa: [], mazo: [], pozo: 0, apuestaActual: 0
+    });
+    return;
+  }
 
   var evaluados = activos.map(function(j) {
-    var todas = j.cartas.concat(cartasMesa);
+    var todas = j.cartas.concat(cartasMesa || []);
     var ev    = todas.length >= 5 ? evaluarMano(todas) : evaluarMano(j.cartas);
     return { j: j, ev: ev };
   });
 
-  // Ordenar de mejor a peor
   evaluados.sort(function(a, b) {
     if (b.ev.puntos !== a.ev.puntos) return b.ev.puntos - a.ev.puntos;
     return b.ev.rango - a.ev.rango;
   });
 
-  // Ganador lleva el pozo
   var ganadores = [evaluados[0]];
-  // Empate
-  for (var i = 1; i < evaluados.length; i++) {
-    if (evaluados[i].ev.puntos === evaluados[0].ev.puntos && evaluados[i].ev.rango === evaluados[0].ev.rango) {
-      ganadores.push(evaluados[i]);
-    }
   }
 
   var premioXGanador = Math.floor(pozo / ganadores.length);
