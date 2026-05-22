@@ -4784,39 +4784,32 @@ function renderCasino() {
       '<button class="categoria-btn" id="casino-ruleta"><span>🎡</span><span>Ruleta</span></button>' +
       '<button class="categoria-btn" id="casino-dados"><span>🎲</span><span>Dados</span></button>' +
       '<button class="categoria-btn" id="casino-blackjack"><span>🃏</span><span>Blackjack</span></button>' +
-      '<button class="categoria-btn" id="casino-rasca"><span>🎟️</span><span>Rasca y Gana</span></button>'
+      '<button class="categoria-btn" id="casino-rasca"><span>🎟️</span><span>Rasca y Gana</span></button>' +
+      '<button class="categoria-btn" id="casino-poker"><span>♠️</span><span>Poker</span></button>' +
     '</div>' +
-    '<button class="categoria-btn" id="casino-poker"><span>🃏</span><span>Poker</span></button>' +
     '<div id="casino-panel"></div>';
 
   document.getElementById('casino-ruleta-rusa').addEventListener('click', function() {
     renderRuletaRusa();
   });
-
   document.getElementById('casino-tragaperras').addEventListener('click', function() {
     renderTragaperras();
   });
-
   document.getElementById('casino-ruleta').addEventListener('click', function() {
     renderRuleta();
   });
-
   document.getElementById('casino-dados').addEventListener('click', function() {
     renderDados();
   });
-
   document.getElementById('casino-blackjack').addEventListener('click', function() {
     renderBlackjack();
   });
-
   document.getElementById('casino-rasca').addEventListener('click', function() {
-  renderRascaYGana();
-   });
-
+    renderRascaYGana();
+  });
   document.getElementById('casino-poker').addEventListener('click', function() {
     renderPoker();
   });
-
 }
 
 // ===== RULETA RUSA =====
