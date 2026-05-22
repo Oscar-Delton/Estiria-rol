@@ -4786,6 +4786,7 @@ function renderCasino() {
       '<button class="categoria-btn" id="casino-blackjack"><span>🃏</span><span>Blackjack</span></button>' +
       '<button class="categoria-btn" id="casino-rasca"><span>🎟️</span><span>Rasca y Gana</span></button>'
     '</div>' +
+    '<button class="categoria-btn" id="casino-poker"><span>🃏</span><span>Poker</span></button>' +
     '<div id="casino-panel"></div>';
 
   document.getElementById('casino-ruleta-rusa').addEventListener('click', function() {
@@ -4810,7 +4811,11 @@ function renderCasino() {
 
   document.getElementById('casino-rasca').addEventListener('click', function() {
   renderRascaYGana();
-});
+   });
+
+  document.getElementById('casino-poker').addEventListener('click', function() {
+    renderPoker();
+  });
 
 }
 
@@ -8418,6 +8423,980 @@ async function resolverRyg() {
       window._rygState = null;
       renderRascaYGana();
     });
+  }
+}
+
+// ===== POKER =====
+
+var pokerListener = null;
+var pokerSalaActualId = null;
+var pokerTimerInterval = null;
+
+var CATEGORIAS_POKER = [
+  { id: 'pk100',    nombre: 'Principiante', emoji: '🃏', apuestaMin: 100,    entradaMin: 1000,    color: 'var(--text-secondary)' },
+  { id: 'pk1500',   nombre: 'Aficionado',   emoji: '🎯', apuestaMin: 1500,   entradaMin: 15000,   color: '#4fc3f7' },
+  { id: 'pk10000',  nombre: 'Experto',      emoji: '💰', apuestaMin: 10000,  entradaMin: 100000,  color: '#81c784' },
+  { id: 'pk25000',  nombre: 'Elite',        emoji: '👑', apuestaMin: 25000,  entradaMin: 250000,  color: '#ff9800' },
+  { id: 'pk100000', nombre: 'Legendario',   emoji: '💎', apuestaMin: 100000, entradaMin: 1000000, color: 'gold'    }
+];
+
+var PALOS_PK   = ['♠','♥','♦','♣'];
+var VALORES_PK = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+var RANG_PK    = { '2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,'J':11,'Q':12,'K':13,'A':14 };
+
+function crearMazoPK() {
+  var mazo = [];
+  PALOS_PK.forEach(function(p) { VALORES_PK.forEach(function(v) { mazo.push({ v: v, p: p }); }); });
+  for (var i = mazo.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = mazo[i]; mazo[i] = mazo[j]; mazo[j] = t;
+  }
+  return mazo;
+}
+
+function valorCarta_PK(carta) { return RANG_PK[carta.v] || 0; }
+
+// Evalúa la mejor mano de 5 cartas de un set de 5-7 cartas
+function evaluarMano(cartas) {
+  var mejorPuntos = -1, mejorDesc = 'Carta alta', mejorRango = 0;
+  var combos = combinaciones(cartas, 5);
+  combos.forEach(function(combo) {
+    var res = puntuarCinco(combo);
+    if (res.puntos > mejorPuntos) { mejorPuntos = res.puntos; mejorDesc = res.desc; mejorRango = res.rango; }
+  });
+  return { puntos: mejorPuntos, desc: mejorDesc, rango: mejorRango };
+}
+
+function combinaciones(arr, k) {
+  var result = [];
+  function helper(start, combo) {
+    if (combo.length === k) { result.push(combo.slice()); return; }
+    for (var i = start; i < arr.length; i++) {
+      combo.push(arr[i]);
+      helper(i + 1, combo);
+      combo.pop();
+    }
+  }
+  helper(0, []);
+  return result;
+}
+
+function puntuarCinco(cartas) {
+  var vals = cartas.map(function(c) { return RANG_PK[c.v]; }).sort(function(a,b){return b-a;});
+  var palos = cartas.map(function(c) { return c.p; });
+  var esColor = palos.every(function(p){ return p === palos[0]; });
+  var esEscalera = false, esRueda = false;
+  if (new Set(vals).size === 5) {
+    if (vals[0] - vals[4] === 4) esEscalera = true;
+    if (vals[0] === 14 && vals[1] === 5 && vals[2] === 4 && vals[3] === 3 && vals[4] === 2) { esEscalera = true; esRueda = true; }
+  }
+  var conteo = {};
+  vals.forEach(function(v){ conteo[v] = (conteo[v]||0)+1; });
+  var grupos = Object.values(conteo).sort(function(a,b){return b-a;});
+  var desc, puntos, rango;
+  if (esColor && esEscalera && !esRueda && vals[0]===14) { desc='Escalera real'; puntos=9; rango=vals[0]; }
+  else if (esColor && esEscalera)    { desc='Escalera de color'; puntos=8; rango=esRueda?5:vals[0]; }
+  else if (grupos[0]===4)            { desc='Póker'; puntos=7; rango=vals[0]; }
+  else if (grupos[0]===3&&grupos[1]===2){ desc='Full house'; puntos=6; rango=vals[0]; }
+  else if (esColor)                  { desc='Color'; puntos=5; rango=vals[0]; }
+  else if (esEscalera)               { desc='Escalera'; puntos=4; rango=esRueda?5:vals[0]; }
+  else if (grupos[0]===3)            { desc='Trío'; puntos=3; rango=vals[0]; }
+  else if (grupos[0]===2&&grupos[1]===2){ desc='Doble par'; puntos=2; rango=vals[0]; }
+  else if (grupos[0]===2)            { desc='Par'; puntos=1; rango=vals[0]; }
+  else                               { desc='Carta alta'; puntos=0; rango=vals[0]; }
+  return { desc: desc, puntos: puntos, rango: rango };
+}
+
+var MANOS_PK = ['Carta alta','Par','Doble par','Trío','Escalera','Color','Full house','Póker','Escalera de color','Escalera real'];
+
+async function renderPoker() {
+  var panel = document.getElementById('casino-panel');
+  // Inyectar CSS de poker si no existe
+  if (!document.getElementById('poker-styles')) {
+    var st = document.createElement('style');
+    st.id = 'poker-styles';
+    st.textContent = [
+      '.pk-carta{width:52px;height:76px;border-radius:8px;border:1.5px solid #2d2d4e;background:white;display:inline-flex;flex-direction:column;justify-content:space-between;padding:4px;font-family:Georgia,serif;box-shadow:0 3px 10px rgba(0,0,0,0.5);position:relative;flex-shrink:0;transition:transform 0.25s ease,opacity 0.25s ease}',
+      '.pk-carta.roja{color:#c0392b}.pk-carta.negra{color:#1a1a2e}',
+      '.pk-carta.oculta{background:repeating-linear-gradient(135deg,#1a1a6e 0,#1a1a6e 4px,#2d2d9e 4px,#2d2d9e 8px);border-color:#4a4aae}',
+      '.pk-carta.nueva{animation:pkPop .35s ease forwards}',
+      '.pk-carta.ganadora{transform:translateY(-8px);box-shadow:0 8px 20px rgba(255,215,0,0.5);border-color:gold;border-width:2px}',
+      '.pk-vt{font-size:.78rem;font-weight:900;line-height:1}',
+      '.pk-pt{font-size:.65rem;line-height:1}',
+      '.pk-centro{font-size:1.3rem;text-align:center;line-height:1}',
+      '.pk-vb{font-size:.78rem;font-weight:900;line-height:1;transform:rotate(180deg);align-self:flex-end}',
+      '.pk-pb{font-size:.65rem;line-height:1;transform:rotate(180deg);align-self:flex-end}',
+      '.pk-mano{display:flex;flex-wrap:nowrap;gap:4px;justify-content:center;min-height:85px;align-items:center;overflow-x:auto;padding:4px}',
+      '.pk-jugador-panel{background:var(--bg-primary);border-radius:10px;padding:.5rem;margin-bottom:.4rem;border:2px solid transparent;transition:border-color .3s}',
+      '.pk-jugador-panel.turno-activo{border-color:var(--accent)}',
+      '.pk-jugador-panel.eliminado{opacity:.4}',
+      '.pk-jugador-panel.ganador-pk{border-color:gold}',
+      '.pk-jugador-panel.perdedor-pk{border-color:var(--danger)}',
+      '.pk-acciones{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem}',
+      '.pk-btn{flex:1;padding:.55rem .4rem;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer;border:none;min-width:60px;transition:opacity .2s}',
+      '.pk-btn:active{opacity:.8}',
+      '.pk-btn.pasar{background:var(--bg-card);color:var(--text-secondary)}',
+      '.pk-btn.apostar{background:var(--accent);color:white}',
+      '.pk-btn.igualar{background:#4fc3f7;color:#000}',
+      '.pk-btn.subir{background:#ff9800;color:#000}',
+      '.pk-btn.retirarse{background:var(--danger);color:white}',
+      '.pk-bet-input{width:100%;padding:.45rem .6rem;border-radius:8px;border:1px solid var(--bg-card);background:var(--bg-secondary);color:var(--text-primary);font-size:.82rem;outline:none;margin-top:.4rem;box-sizing:border-box}',
+      '.pk-pozo{text-align:center;padding:.5rem;background:linear-gradient(135deg,var(--bg-card),#1a3a5c);border-radius:10px;margin-bottom:.5rem}',
+      '.pk-mesa{display:flex;gap:5px;justify-content:center;flex-wrap:nowrap;overflow-x:auto;padding:4px}',
+      '.pk-timer{font-size:1.4rem;font-weight:900;color:var(--accent);min-width:24px;text-align:center}',
+      '.pk-mano-guia{background:var(--bg-card);border-radius:10px;padding:.5rem;font-size:.7rem}',
+      '.pk-mano-row{display:flex;justify-content:space-between;align-items:center;padding:.2rem .3rem;border-radius:5px;transition:background .3s}',
+      '.pk-mano-row.activa{background:var(--accent);color:white;font-weight:700}',
+      '.pk-bet-slider{width:100%;margin:.3rem 0}',
+      '.pk-info-fase{text-align:center;font-size:.75rem;color:var(--text-secondary);padding:.3rem;background:var(--bg-secondary);border-radius:8px;margin-bottom:.4rem}',
+      '@keyframes pkPop{from{transform:scale(.7) rotate(-8deg);opacity:0}to{transform:scale(1) rotate(0);opacity:1}}',
+      '.pk-ficha{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:2px;vertical-align:middle}',
+      '.pk-showdown-card{background:var(--bg-secondary);border:1px solid var(--bg-card);border-radius:10px;padding:.6rem;margin-bottom:.4rem}',
+    ].join('');
+    document.head.appendChild(st);
+  }
+
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-casino-poker">← Casino</button>' +
+      '<h3>🃏 Poker</h3>' +
+    '</div>' +
+    '<div class="salas-tabs" style="flex-wrap:wrap;gap:.3rem;margin-bottom:.75rem">' +
+      CATEGORIAS_POKER.map(function(cat) {
+        return '<button class="sala-tab" data-cat="' + cat.id + '" style="color:' + cat.color + '">' + cat.emoji + ' ' + cat.nombre + '</button>';
+      }).join('') +
+    '</div>' +
+    '<div id="poker-salas-lista"></div>';
+
+  document.getElementById('back-casino-poker').addEventListener('click', function() {
+    if (pokerListener)      { pokerListener();      pokerListener      = null; }
+    if (pokerTimerInterval) { clearInterval(pokerTimerInterval); pokerTimerInterval = null; }
+    panel.innerHTML = '';
+    renderCasino();
+  });
+
+  var tabs = document.querySelectorAll('.sala-tab[data-cat]');
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      tabs.forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      cargarSalasPoker(tab.dataset.cat);
+    });
+  });
+
+  await inicializarSalasPoker();
+  tabs[0].classList.add('active');
+  cargarSalasPoker('pk100');
+}
+
+async function inicializarSalasPoker() {
+  for (var c = 0; c < CATEGORIAS_POKER.length; c++) {
+    var cat = CATEGORIAS_POKER[c];
+    for (var i = 1; i <= 4; i++) {
+      var id   = 'poker_' + cat.id + '_' + i;
+      var snap = await getDoc(doc(db, 'poker_salas', id));
+      if (!snap.exists()) {
+        await setDoc(doc(db, 'poker_salas', id), {
+          id: id, categoria: cat.id, nombre: cat.nombre + ' — Sala ' + i,
+          apuestaMin: cat.apuestaMin, entradaMin: cat.entradaMin, capacidad: 5,
+          estado: 'esperando', jugadores: [], espectadores: [],
+          mazo: [], cartasMesa: [], fase: '', pozo: 0,
+          apuestaActual: 0, turnoActual: 0, ordenTurnos: [],
+          liderId: null, createdAt: new Date().toISOString()
+        });
+      }
+    }
+  }
+}
+
+function cargarSalasPoker(categoriaId) {
+  var lista = document.getElementById('poker-salas-lista');
+  if (!lista) return;
+  lista.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p>';
+  var cat = CATEGORIAS_POKER.find(function(c) { return c.id === categoriaId; });
+
+  onSnapshot(
+    query(collection(db, 'poker_salas'), where('categoria', '==', categoriaId)),
+    function(snap) {
+      lista = document.getElementById('poker-salas-lista');
+      if (!lista) return;
+      var salas = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+      salas.sort(function(a, b) { return parseInt(a.id.replace(/\D/g,'')) - parseInt(b.id.replace(/\D/g,'')); });
+
+      lista.innerHTML =
+        '<div style="background:var(--bg-card);border-radius:10px;padding:.6rem;margin-bottom:.75rem;text-align:center">' +
+          '<p style="font-size:.82rem;color:' + cat.color + ';font-weight:700">' + cat.emoji + ' ' + cat.nombre +
+          ' — Min. apuesta £' + cat.apuestaMin.toLocaleString('es-CO') +
+          ' · Entrada mín. £' + cat.entradaMin.toLocaleString('es-CO') + '</p>' +
+        '</div>' +
+        salas.map(function(sala) {
+          var jug    = sala.jugadores ? sala.jugadores.length : 0;
+          var enJuego = ['preflop','flop','turn','river','showdown'].includes(sala.fase);
+          var colorE = enJuego ? 'var(--danger)' : jug > 0 ? 'var(--warning)' : 'var(--success)';
+          var textoE = enJuego ? '🔴 En partida ('+jug+'/5)' : jug>0 ? '🟡 Lobby ('+jug+'/5)' : '🟢 Vacía';
+          return '<div class="sala-card">' +
+            '<div class="sala-info"><p class="sala-nombre">' + sala.nombre + '</p><p class="sala-estado" style="color:'+colorE+'">'+textoE+'</p></div>' +
+            '<button class="btn btn-primary sala-btn" data-id="'+sala.id+'">Entrar</button>' +
+          '</div>';
+        }).join('');
+
+      lista.querySelectorAll('.sala-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() { mostrarModalEntradaPoker(btn.dataset.id); });
+      });
+    }
+  );
+}
+
+async function mostrarModalEntradaPoker(salaId) {
+  var snap = await getDoc(doc(db, 'poker_salas', salaId));
+  if (!snap.exists()) return;
+  var sala  = snap.data();
+  var saldo = currentUser.saldo || 0;
+  var enRonda = ['preflop','flop','turn','river','showdown'].includes(sala.fase);
+
+  var modalHtml =
+    '<div id="modal-poker-entrada" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.75);z-index:1000;display:flex;align-items:center;justify-content:center">' +
+      '<div style="background:var(--bg-secondary);border-radius:16px;padding:1.5rem;width:90%;max-width:340px;border:1px solid var(--bg-card)">' +
+        '<h3 style="margin-bottom:.5rem">🃏 ' + sala.nombre + '</h3>' +
+        '<p style="color:var(--text-secondary);font-size:.82rem;margin-bottom:.25rem">Apuesta mín: <strong style="color:var(--accent)">£' + sala.apuestaMin.toLocaleString('es-CO') + '</strong></p>' +
+        '<p style="color:var(--text-secondary);font-size:.82rem;margin-bottom:.25rem">Entrada mín: <strong style="color:var(--accent)">£' + sala.entradaMin.toLocaleString('es-CO') + '</strong></p>' +
+        '<p style="color:var(--text-secondary);font-size:.82rem;margin-bottom:.75rem">Tu saldo: £' + saldo.toLocaleString('es-CO') + '</p>' +
+        (enRonda ? '<p style="color:var(--warning);font-size:.78rem;margin-bottom:.75rem">⚠️ Hay una partida activa. Entrarás en la próxima ronda.</p>' : '') +
+        (saldo < sala.entradaMin ? '<p style="color:var(--danger);font-size:.78rem;margin-bottom:.75rem">Sin saldo suficiente para jugar. Puedes entrar como espectador.</p>' : '') +
+        (!enRonda && saldo >= sala.entradaMin
+          ? '<div style="margin-bottom:.75rem">' +
+              '<p style="font-size:.8rem;color:var(--text-secondary);margin-bottom:.4rem">¿Con cuánto dinero entras?</p>' +
+              '<input type="range" id="pk-entrada-slider" min="' + sala.entradaMin + '" max="' + Math.min(saldo, sala.entradaMin*20) + '" value="' + sala.entradaMin + '" step="' + sala.apuestaMin + '" style="width:100%">' +
+              '<div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--text-secondary);margin-top:.2rem">' +
+                '<span>Min £' + sala.entradaMin.toLocaleString('es-CO') + '</span>' +
+                '<span id="pk-entrada-val" style="color:var(--accent);font-weight:700">£' + sala.entradaMin.toLocaleString('es-CO') + '</span>' +
+              '</div>' +
+            '</div>'
+          : '') +
+        (!enRonda && saldo >= sala.entradaMin
+          ? '<button class="btn btn-primary btn-full" id="btn-poker-jugador" style="margin-bottom:.5rem">🃏 Entrar como jugador</button>'
+          : '') +
+        '<button class="btn btn-secondary btn-full" id="btn-poker-espectador">👁️ Entrar como espectador</button>' +
+        '<button class="btn btn-secondary btn-full" id="btn-poker-cancelar" style="margin-top:.5rem;border-color:var(--danger);color:var(--danger)">Cancelar</button>' +
+      '</div>' +
+    '</div>';
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  var sliderEl = document.getElementById('pk-entrada-slider');
+  var valEl    = document.getElementById('pk-entrada-val');
+  if (sliderEl && valEl) {
+    sliderEl.addEventListener('input', function() {
+      valEl.textContent = '£' + parseInt(sliderEl.value).toLocaleString('es-CO');
+    });
+  }
+
+  document.getElementById('btn-poker-cancelar').addEventListener('click', function() {
+    document.getElementById('modal-poker-entrada').remove();
+  });
+  document.getElementById('btn-poker-espectador').addEventListener('click', function() {
+    document.getElementById('modal-poker-entrada').remove();
+    entrarSalaPoker(salaId, 'espectador', 0);
+  });
+  var btnJug = document.getElementById('btn-poker-jugador');
+  if (btnJug) {
+    btnJug.addEventListener('click', function() {
+      var entrada = sliderEl ? parseInt(sliderEl.value) : sala.entradaMin;
+      document.getElementById('modal-poker-entrada').remove();
+      entrarSalaPoker(salaId, enRonda ? 'espectador_futuro' : 'jugador', entrada);
+    });
+  }
+}
+
+async function entrarSalaPoker(salaId, modo, montoEntrada) {
+  var snap = await getDoc(doc(db, 'poker_salas', salaId));
+  if (!snap.exists()) return;
+  var sala = snap.data();
+
+  if (modo === 'jugador') {
+    var yaEsta = sala.jugadores && sala.jugadores.find(function(j) { return j.uid === currentUser.uid; });
+    if (!yaEsta && (!sala.jugadores || sala.jugadores.length < sala.capacidad)) {
+      // Descontar la entrada del saldo
+      await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(-montoEntrada) });
+      currentUser.saldo = (currentUser.saldo || 0) - montoEntrada;
+      var nuevos = (sala.jugadores || []).concat([{
+        uid: currentUser.uid, username: currentUser.username,
+        foto: currentUser.fotoPerfil || '',
+        fichas: montoEntrada, cartas: [],
+        apuesta: 0, estado: 'activo', accion: '',
+        ganado: 0, perdido: 0, neto: 0, orden: sala.jugadores ? sala.jugadores.length : 0
+      }]);
+      var upd = { jugadores: nuevos };
+      if (!sala.liderId) upd.liderId = currentUser.uid;
+      if (nuevos.length >= 2 && (!sala.fase || sala.fase === '')) upd.fase = 'lobby';
+      else if (nuevos.length === 1 && (!sala.fase || sala.fase === '')) upd.fase = 'esperando';
+      await updateDoc(doc(db, 'poker_salas', salaId), upd);
+    }
+  } else {
+    var marca = modo === 'espectador_futuro' ? 'futuro' : 'viendo';
+    var yaEsp = sala.espectadores && sala.espectadores.find(function(e) { return e.uid === currentUser.uid; });
+    if (!yaEsp) {
+      await updateDoc(doc(db, 'poker_salas', salaId), {
+        espectadores: (sala.espectadores || []).concat([{
+          uid: currentUser.uid, username: currentUser.username,
+          foto: currentUser.fotoPerfil || '', modo: marca,
+          entradaDeseada: montoEntrada
+        }])
+      });
+    }
+  }
+
+  pokerSalaActualId = salaId;
+  renderSalaPoker(salaId);
+}
+
+function renderSalaPoker(salaId) {
+  var panel = document.getElementById('casino-panel');
+  panel.innerHTML = '<div id="poker-sala-container"></div>';
+
+  if (pokerListener)      { pokerListener();      pokerListener      = null; }
+  if (pokerTimerInterval) { clearInterval(pokerTimerInterval); pokerTimerInterval = null; }
+
+  pokerListener = onSnapshot(doc(db, 'poker_salas', salaId), function(snap) {
+    if (!snap.exists()) return;
+    var sala      = snap.data();
+    var container = document.getElementById('poker-sala-container');
+    if (!container) return;
+
+    var yoJug   = sala.jugadores   && sala.jugadores.find(function(j) { return j.uid === currentUser.uid; });
+    var yoEsp   = sala.espectadores && sala.espectadores.find(function(e) { return e.uid === currentUser.uid; });
+    var miModo  = yoJug ? 'jugador' : 'espectador';
+    var soyLider = sala.liderId === currentUser.uid;
+
+    // Convertir espectador_futuro si la ronda terminó
+    if ((sala.fase === 'lobby' || sala.fase === 'esperando') && yoEsp && yoEsp.modo === 'futuro') {
+      convertirEspectadorAJugadorPoker(salaId, sala, yoEsp);
+      return;
+    }
+
+    var ordenTurnos = sala.ordenTurnos || [];
+    var turnoIdx    = sala.turnoActual !== undefined ? sala.turnoActual : -1;
+    var uidEnTurno  = (turnoIdx >= 0 && turnoIdx < ordenTurnos.length) ? ordenTurnos[turnoIdx] : null;
+    var esMiTurno   = uidEnTurno === currentUser.uid && miModo === 'jugador' && yoJug && yoJug.estado === 'activo';
+
+    // Calcular mi mejor mano actual
+    var miManoActual = null;
+    if (yoJug && yoJug.cartas && yoJug.cartas.length === 2 && sala.cartasMesa && sala.cartasMesa.length > 0) {
+      var cartasDisp = yoJug.cartas.concat(sala.cartasMesa);
+      miManoActual = evaluarMano(cartasDisp);
+    } else if (yoJug && yoJug.cartas && yoJug.cartas.length === 2) {
+      miManoActual = evaluarMano(yoJug.cartas);
+    }
+
+    var faseLabel = { 'esperando':'⏳ Esperando', 'lobby':'🃏 Lobby', 'preflop':'🂠 Preflop', 'flop':'🂡 Flop', 'turn':'🂱 Turn', 'river':'🂭 River', 'showdown':'🏆 Showdown' }[sala.fase] || '';
+
+    container.innerHTML =
+      // Header
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
+        '<button class="btn-back" id="btn-salir-poker">← Salir</button>' +
+        '<div style="text-align:center">' +
+          '<h3 style="font-size:.88rem">🃏 ' + sala.nombre + '</h3>' +
+          '<p style="font-size:.7rem;color:var(--text-secondary)">' + faseLabel + '</p>' +
+        '</div>' +
+        '<span style="font-size:.75rem;color:var(--accent)">£' + (currentUser.saldo||0).toLocaleString('es-CO') + '</span>' +
+      '</div>' +
+
+      // Pozo + cartas de la mesa
+      '<div class="pk-pozo">' +
+        '<p style="font-size:.7rem;color:var(--text-secondary);margin-bottom:.2rem">💰 BOTE</p>' +
+        '<p style="font-size:1.2rem;font-weight:700;color:gold">£' + (sala.pozo||0).toLocaleString('es-CO') + '</p>' +
+        (sala.apuestaActual > 0 ? '<p style="font-size:.68rem;color:var(--text-secondary)">Apuesta actual: £' + sala.apuestaActual.toLocaleString('es-CO') + '</p>' : '') +
+      '</div>' +
+
+      // Mesa (cartas comunitarias)
+      '<div style="margin-bottom:.5rem">' +
+        '<p style="font-size:.68rem;color:var(--text-secondary);text-align:center;margin-bottom:.3rem">— MESA —</p>' +
+        '<div class="pk-mesa">' +
+          renderCartasMesa(sala.cartasMesa || []) +
+        '</div>' +
+      '</div>' +
+
+      // Layout principal: jugadores | guía de manos
+      '<div style="display:grid;grid-template-columns:1fr auto;gap:.5rem;align-items:start">' +
+
+        // Columna izquierda: jugadores
+        '<div id="pk-jugadores-area">' +
+          renderJugadoresPoker(sala, uidEnTurno, yoJug, miModo) +
+        '</div>' +
+
+        // Columna derecha: guía de manos
+        '<div class="pk-mano-guia" style="width:110px">' +
+          '<p style="font-size:.65rem;color:var(--text-secondary);font-weight:700;margin-bottom:.3rem;text-align:center">Tu mano</p>' +
+          MANOS_PK.slice().reverse().map(function(m, idx) {
+            var estaActiva = miManoActual && miManoActual.desc === m;
+            return '<div class="pk-mano-row' + (estaActiva ? ' activa' : '') + '">' +
+              '<span>' + m + '</span>' +
+              (estaActiva ? '<span>★</span>' : '') +
+            '</div>';
+          }).join('') +
+        '</div>' +
+
+      '</div>' +
+
+      // Panel de acciones (si es mi turno)
+      '<div id="pk-acciones-panel" style="margin-top:.5rem">' +
+        (esMiTurno ? renderAccionesPoker(sala, yoJug) : '') +
+        (miModo === 'jugador' && !esMiTurno && yoJug && yoJug.estado === 'activo' && sala.fase && sala.fase !== 'lobby' && sala.fase !== 'esperando'
+          ? '<div style="text-align:center;padding:.5rem;background:var(--bg-card);border-radius:8px"><p style="font-size:.8rem;color:var(--text-secondary)">Esperando tu turno...</p>' +
+            (uidEnTurno ? '<p style="font-size:.75rem;color:var(--accent)">Turno de ' + (sala.jugadores.find(function(j){return j.uid===uidEnTurno;})||{username:'...'}).username + '</p>' : '') +
+            '</div>'
+          : '') +
+        (miModo === 'espectador' ? '<div style="text-align:center;padding:.5rem;background:var(--bg-card);border-radius:8px"><p style="font-size:.8rem;color:var(--text-secondary)">👁️ Espectador' + (yoEsp && yoEsp.modo==='futuro' ? ' — Entrarás en la próxima ronda' : '') + '</p></div>' : '') +
+        ((sala.fase === 'lobby' || sala.fase === 'esperando') && miModo === 'jugador' && soyLider && sala.jugadores && sala.jugadores.length >= 2
+          ? '<button class="btn btn-primary btn-full" id="btn-iniciar-poker" style="margin-top:.5rem">▶️ Iniciar partida</button>'
+          : '') +
+        (sala.fase === 'showdown' ? renderShowdownPoker(sala) : '') +
+      '</div>' +
+
+      // Timer
+      ((esMiTurno && sala.timerInicio)
+        ? '<div style="display:flex;align-items:center;gap:.5rem;margin-top:.4rem;justify-content:center">' +
+            '<p style="font-size:.7rem;color:var(--text-secondary)">Tiempo:</p>' +
+            '<span class="pk-timer" id="pk-timer-display">15</span>' +
+          '</div>'
+        : '') +
+
+      // Ranking
+      '<div style="background:var(--bg-card);border-radius:10px;padding:.5rem;margin-top:.5rem">' +
+        '<p style="font-size:.65rem;color:var(--text-secondary);font-weight:700;margin-bottom:.3rem">FICHAS EN MESA</p>' +
+        (sala.jugadores && sala.jugadores.length > 0
+          ? sala.jugadores.slice().sort(function(a,b){return (b.fichas||0)-(a.fichas||0);}).map(function(j,idx) {
+              return '<div style="display:flex;justify-content:space-between;font-size:.68rem;padding:.15rem 0">' +
+                '<span style="color:' + (j.estado==='retirado'?'var(--text-secondary)':'var(--text-primary)') + '">' + (idx===0?'🥇':idx===1?'🥈':'  ') + ' ' + j.username + (j.estado==='retirado'?' (fold)':'') + '</span>' +
+                '<span style="color:var(--accent);font-weight:700">£' + (j.fichas||0).toLocaleString('es-CO') + '</span>' +
+              '</div>';
+            }).join('')
+          : '<p style="font-size:.68rem;color:var(--text-secondary)">Sin jugadores</p>'
+        ) +
+      '</div>';
+
+    // Listeners
+    document.getElementById('btn-salir-poker').addEventListener('click', function() {
+      salirSalaPoker(salaId, miModo, sala);
+    });
+
+    setTimeout(function() {
+      var btnIniciar = document.getElementById('btn-iniciar-poker');
+      if (btnIniciar) btnIniciar.addEventListener('click', function() { iniciarRondaPoker(salaId); });
+
+      configurarAccionesPoker(salaId, sala, yoJug, esMiTurno);
+      manejarTimerPoker(salaId, sala, yoJug, esMiTurno);
+      if (soyLider) manejarAutoPoker(salaId, sala);
+    }, 80);
+  });
+}
+
+function renderCartasMesa(cartas) {
+  var slots = 5;
+  var html = '';
+  for (var i = 0; i < slots; i++) {
+    if (i < cartas.length) {
+      html += renderCartaPK(cartas[i], true);
+    } else {
+      html += '<div style="width:52px;height:76px;border-radius:8px;border:1.5px dashed var(--bg-card);display:inline-flex;align-items:center;justify-content:center;opacity:.4"><span style="font-size:1.2rem">🂠</span></div>';
+    }
+  }
+  return html;
+}
+
+function renderCartaPK(carta, esNueva) {
+  if (!carta || carta.oculta) {
+    return '<div class="pk-carta oculta' + (esNueva ? ' nueva' : '') + '"></div>';
+  }
+  var esRoja = carta.p === '♥' || carta.p === '♦';
+  return '<div class="pk-carta ' + (esRoja?'roja':'negra') + (esNueva?' nueva':'') + '">' +
+    '<div><div class="pk-vt">' + carta.v + '</div><div class="pk-pt">' + carta.p + '</div></div>' +
+    '<div class="pk-centro">' + carta.p + '</div>' +
+    '<div><div class="pk-pb">' + carta.p + '</div><div class="pk-vb">' + carta.v + '</div></div>' +
+  '</div>';
+}
+
+function renderJugadoresPoker(sala, uidEnTurno, yoJug, miModo) {
+  var jugadores = sala.jugadores || [];
+  return jugadores.map(function(j) {
+    var esTurno   = j.uid === uidEnTurno;
+    var esMio     = j.uid === currentUser.uid;
+    var clasePan  = 'pk-jugador-panel' + (esTurno?' turno-activo':'') + (j.estado==='retirado'?' eliminado':'') + (j.estado==='ganador'?' ganador-pk':'') + (j.estado==='perdedor'?' perdedor-pk':'');
+    var apuestaJ  = j.apuesta || 0;
+    var mostrarCartas = esMio || sala.fase === 'showdown';
+
+    return '<div class="' + clasePan + '">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">' +
+        '<p style="font-size:.78rem;font-weight:700;color:' + (esTurno?'var(--accent)':'var(--text-primary)') + '">' +
+          (esTurno?'▶️ ':'') + j.username +
+          (j.estado==='retirado' ? ' <span style="color:var(--danger);font-size:.68rem">(fold)</span>' : '') +
+          (j.accion ? ' <span style="color:var(--text-secondary);font-size:.68rem">['+j.accion+']</span>' : '') +
+        '</p>' +
+        '<div style="text-align:right">' +
+          '<p style="font-size:.72rem;color:var(--accent);font-weight:700">£' + (j.fichas||0).toLocaleString('es-CO') + '</p>' +
+          (apuestaJ>0 ? '<p style="font-size:.65rem;color:var(--text-secondary)">Apostado: £'+apuestaJ.toLocaleString('es-CO')+'</p>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div class="pk-mano">' +
+        (j.cartas && j.cartas.length > 0
+          ? j.cartas.map(function(c) {
+              if (mostrarCartas) return renderCartaPK(c, false);
+              return renderCartaPK({ oculta: true }, false);
+            }).join('')
+          : '<p style="font-size:.68rem;color:var(--text-secondary)">Sin cartas</p>'
+        ) +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function renderAccionesPoker(sala, yoJug) {
+  var apuestaAct  = sala.apuestaActual || 0;
+  var misApuestas = yoJug ? (yoJug.apuesta || 0) : 0;
+  var diferencia  = Math.max(0, apuestaAct - misApuestas);
+  var fichas      = yoJug ? (yoJug.fichas || 0) : 0;
+  var apMin       = sala.apuestaMin || 100;
+  var puedeIgualar = diferencia > 0 && fichas >= diferencia;
+  var puedeSubir   = fichas > diferencia;
+  var puedePasar   = diferencia === 0;
+
+  var minSubida  = Math.max(apMin, apuestaAct + apMin);
+  var maxSubida  = fichas + misApuestas;
+  var valSubida  = minSubida;
+
+  return '<div style="background:var(--bg-secondary);border-radius:10px;padding:.6rem;border:1px solid var(--accent)">' +
+    '<p style="font-size:.72rem;color:var(--accent);font-weight:700;margin-bottom:.4rem;text-align:center">🎯 TU TURNO</p>' +
+    '<div class="pk-acciones">' +
+      (puedePasar ? '<button class="pk-btn pasar" id="pk-btn-pasar">Pasar</button>' : '') +
+      (puedeIgualar ? '<button class="pk-btn igualar" id="pk-btn-igualar">Igualar £' + diferencia.toLocaleString('es-CO') + '</button>' : '') +
+      (fichas > 0 && !puedeIgualar && !puedePasar ? '<button class="pk-btn igualar" id="pk-btn-allin" style="background:var(--warning);color:#000">All-in £'+fichas.toLocaleString('es-CO')+'</button>' : '') +
+      '<button class="pk-btn retirarse" id="pk-btn-fold">Fold</button>' +
+    '</div>' +
+    (puedeSubir
+      ? '<div style="margin-top:.4rem">' +
+          '<input type="range" class="pk-bet-slider" id="pk-subir-slider" min="'+minSubida+'" max="'+maxSubida+'" step="'+apMin+'" value="'+valSubida+'">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center">' +
+            '<span style="font-size:.68rem;color:var(--text-secondary)">Subida:</span>' +
+            '<span id="pk-subir-val" style="font-size:.8rem;color:var(--accent);font-weight:700">£'+valSubida.toLocaleString('es-CO')+'</span>' +
+          '</div>' +
+          '<button class="pk-btn apostar" id="pk-btn-subir" style="width:100%;margin-top:.3rem">Subir / Apostar</button>' +
+        '</div>'
+      : '') +
+  '</div>';
+}
+
+function renderShowdownPoker(sala) {
+  var jugadores = (sala.jugadores || []).filter(function(j) { return j.estado !== 'retirado'; });
+  if (!jugadores.length) return '';
+  return '<div style="margin-top:.5rem">' +
+    jugadores.map(function(j) {
+      var mano = j.cartas && j.cartas.length === 2 && sala.cartasMesa && sala.cartasMesa.length >= 3
+        ? evaluarMano(j.cartas.concat(sala.cartasMesa)) : null;
+      return '<div class="pk-showdown-card">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">' +
+          '<p style="font-size:.82rem;font-weight:700;color:' + (j.estado==='ganador'?'gold':'var(--text-primary)') + '">' +
+            (j.estado==='ganador'?'🏆 ':'') + j.username +
+          '</p>' +
+          (mano ? '<span style="font-size:.72rem;color:var(--accent);font-weight:700">' + mano.desc + '</span>' : '') +
+        '</div>' +
+        '<div class="pk-mano">' +
+          (j.cartas && j.cartas.length > 0 ? j.cartas.map(function(c){return renderCartaPK(c,false);}).join('') : '') +
+        '</div>' +
+      '</div>';
+    }).join('') +
+  '</div>';
+}
+
+function configurarAccionesPoker(salaId, sala, yoJug, esMiTurno) {
+  if (!esMiTurno) return;
+
+  var btnPasar  = document.getElementById('pk-btn-pasar');
+  var btnIgualar = document.getElementById('pk-btn-igualar');
+  var btnAllin  = document.getElementById('pk-btn-allin');
+  var btnFold   = document.getElementById('pk-btn-fold');
+  var btnSubir  = document.getElementById('pk-btn-subir');
+  var slider    = document.getElementById('pk-subir-slider');
+  var sliderVal = document.getElementById('pk-subir-val');
+
+  if (slider && sliderVal) {
+    slider.addEventListener('input', function() {
+      sliderVal.textContent = '£' + parseInt(slider.value).toLocaleString('es-CO');
+    });
+  }
+
+  if (btnPasar)   btnPasar.addEventListener('click',   function() { accionPoker(salaId, sala, 'pasar', 0); });
+  if (btnFold)    btnFold.addEventListener('click',    function() { accionPoker(salaId, sala, 'fold', 0); });
+  if (btnIgualar) btnIgualar.addEventListener('click', function() {
+    var dif = Math.max(0, (sala.apuestaActual||0) - (yoJug.apuesta||0));
+    accionPoker(salaId, sala, 'igualar', dif);
+  });
+  if (btnAllin)   btnAllin.addEventListener('click',   function() { accionPoker(salaId, sala, 'allin', yoJug.fichas||0); });
+  if (btnSubir)   btnSubir.addEventListener('click',   function() {
+    var monto = slider ? parseInt(slider.value) : (sala.apuestaActual||0) + (sala.apuestaMin||100);
+    accionPoker(salaId, sala, 'subir', monto);
+  });
+}
+
+async function accionPoker(salaId, sala, tipo, monto) {
+  if (pokerTimerInterval) { clearInterval(pokerTimerInterval); pokerTimerInterval = null; }
+
+  var snapActual = await getDoc(doc(db, 'poker_salas', salaId));
+  if (!snapActual.exists()) return;
+  var salaActual = snapActual.data();
+  if (!['preflop','flop','turn','river'].includes(salaActual.fase)) return;
+
+  var ordenTurnos = salaActual.ordenTurnos || [];
+  var turnoIdx    = salaActual.turnoActual || 0;
+  var uidEnTurno  = ordenTurnos[turnoIdx];
+  if (uidEnTurno !== currentUser.uid) return;
+
+  var jugadores = salaActual.jugadores.map(function(j) { return Object.assign({}, j, { cartas: j.cartas ? j.cartas.slice() : [] }); });
+  var yoIdx     = jugadores.findIndex(function(j) { return j.uid === currentUser.uid; });
+  var yo        = jugadores[yoIdx];
+  var pozo      = salaActual.pozo || 0;
+  var apuestaAct = salaActual.apuestaActual || 0;
+
+  if (tipo === 'fold') {
+    yo.estado = 'retirado'; yo.accion = 'fold';
+  } else if (tipo === 'pasar') {
+    yo.accion = 'pasar';
+  } else if (tipo === 'igualar') {
+    var pago = Math.min(monto, yo.fichas);
+    yo.fichas -= pago; yo.apuesta = (yo.apuesta||0) + pago; pozo += pago;
+    yo.accion = 'iguala';
+  } else if (tipo === 'subir' || tipo === 'allin') {
+    // monto es el total que el jugador quiere apostar (no la diferencia)
+    var totalApuesta = tipo === 'allin' ? (yo.fichas + (yo.apuesta||0)) : monto;
+    var diferencia = totalApuesta - (yo.apuesta||0);
+    var pago2 = Math.min(diferencia, yo.fichas);
+    yo.fichas -= pago2; yo.apuesta = (yo.apuesta||0) + pago2; pozo += pago2;
+    apuestaAct = Math.max(apuestaAct, yo.apuesta);
+    yo.accion = tipo === 'allin' ? 'all-in' : 'sube';
+  }
+
+  jugadores[yoIdx] = yo;
+
+  var upd = { jugadores: jugadores, pozo: pozo, apuestaActual: apuestaAct };
+  var siguienteResult = calcularSiguienteTurnoPoker(salaActual, turnoIdx, ordenTurnos, jugadores);
+  Object.assign(upd, siguienteResult);
+
+  await updateDoc(doc(db, 'poker_salas', salaId), upd);
+}
+
+function calcularSiguienteTurnoPoker(sala, turnoIdx, ordenTurnos, jugadores) {
+  var activos = jugadores.filter(function(j) { return j.estado === 'activo'; });
+  if (activos.length <= 1) {
+    return { fase: 'showdown' };
+  }
+
+  // Verificar si todos los activos han igualado la apuesta o hecho all-in
+  var apuestaMax = Math.max.apply(null, jugadores.map(function(j) { return j.apuesta||0; }));
+  var todosIgualados = jugadores.filter(function(j){ return j.estado==='activo';}).every(function(j) {
+    return (j.apuesta||0) >= apuestaMax || j.fichas === 0;
+  });
+
+  // Buscar siguiente jugador activo en orden circular
+  var siguiente = turnoIdx + 1;
+  var vuelta = 0;
+  while (vuelta < ordenTurnos.length) {
+    var idx2 = siguiente % ordenTurnos.length;
+    var uid = ordenTurnos[idx2];
+    var j   = jugadores.find(function(jj) { return jj.uid === uid; });
+    if (j && j.estado === 'activo') {
+      // Si todos igualaron y volvemos al primero que apostó, cambiar fase
+      if (todosIgualados && idx2 <= turnoIdx) {
+        return avanzarFasePoker(sala);
+      }
+      return { turnoActual: idx2, timerInicio: new Date().toISOString() };
+    }
+    siguiente++;
+    vuelta++;
+  }
+  return avanzarFasePoker(sala);
+}
+
+function avanzarFasePoker(sala) {
+  var fases = ['preflop','flop','turn','river','showdown'];
+  var idxFase = fases.indexOf(sala.fase);
+  var siguienteFase = fases[idxFase + 1] || 'showdown';
+
+  // Resetear apuestas por fase
+  var jugadoresReset = (sala.jugadores || []).map(function(j) {
+    return Object.assign({}, j, { apuesta: 0, accion: '' });
+  });
+
+  // Primer jugador activo en orden para la nueva fase
+  var ordenTurnos = sala.ordenTurnos || [];
+  var primerActivo = 0;
+  for (var i = 0; i < ordenTurnos.length; i++) {
+    var j = jugadoresReset.find(function(jj){ return jj.uid === ordenTurnos[i]; });
+    if (j && j.estado === 'activo') { primerActivo = i; break; }
+  }
+
+  return {
+    fase: siguienteFase,
+    turnoActual: primerActivo,
+    apuestaActual: 0,
+    jugadores: jugadoresReset,
+    timerInicio: new Date().toISOString()
+  };
+}
+
+function manejarTimerPoker(salaId, sala, yoJug, esMiTurno) {
+  if (pokerTimerInterval) { clearInterval(pokerTimerInterval); pokerTimerInterval = null; }
+  if (!esMiTurno || !sala.timerInicio) return;
+
+  var tiempoInicio = new Date(sala.timerInicio).getTime();
+  pokerTimerInterval = setInterval(async function() {
+    var restante = Math.max(0, 15 - Math.floor((Date.now() - tiempoInicio) / 1000));
+    var timerEl  = document.getElementById('pk-timer-display');
+    if (timerEl) timerEl.textContent = restante;
+    if (restante <= 0) {
+      clearInterval(pokerTimerInterval); pokerTimerInterval = null;
+      await accionPoker(salaId, sala, 'fold', 0);
+    }
+  }, 1000);
+}
+
+function manejarAutoPoker(salaId, sala) {
+  // El líder gestiona el avance de fases automáticas (revelar cartas de mesa)
+  if (sala.fase === 'lobby' || sala.fase === 'esperando') return;
+
+  // Revelar cartas de mesa según la fase
+  var cartasMesa    = sala.cartasMesa || [];
+  var cartasEsperadas = { preflop: 0, flop: 3, turn: 4, river: 5 };
+  var esperadas = cartasEsperadas[sala.fase];
+
+  if (esperadas !== undefined && cartasMesa.length < esperadas) {
+    // Revelar cartas faltantes
+    var mazo = sala.mazo || [];
+    var nuevasMesa = cartasMesa.slice();
+    while (nuevasMesa.length < esperadas && mazo.length > 0) {
+      nuevasMesa.push(mazo.pop());
+    }
+    setTimeout(async function() {
+      var sn = await getDoc(doc(db, 'poker_salas', salaId));
+      if (!sn.exists()) return;
+      if (sn.data().liderId !== currentUser.uid) return;
+      if ((sn.data().cartasMesa||[]).length >= esperadas) return;
+      await updateDoc(doc(db, 'poker_salas', salaId), { cartasMesa: nuevasMesa, mazo: mazo });
+    }, 600);
+  }
+
+  if (sala.fase === 'showdown') {
+    setTimeout(function() { resolverRondaPoker(salaId); }, 800);
+  }
+}
+
+async function iniciarRondaPoker(salaId) {
+  var snap = await getDoc(doc(db, 'poker_salas', salaId));
+  if (!snap.exists()) return;
+  var sala = snap.data();
+  if (sala.liderId !== currentUser.uid) return;
+  if (!['lobby','esperando'].includes(sala.fase)) return;
+
+  var mazo      = crearMazoPK();
+  var jugadores = sala.jugadores || [];
+
+  // Repartir 2 cartas a cada jugador
+  var jugadoresConCartas = jugadores.map(function(j) {
+    return Object.assign({}, j, { cartas: [mazo.pop(), mazo.pop()], estado: 'activo', apuesta: 0, accion: '' });
+  });
+
+  // Orden de turnos según orden de entrada (mantenemos sala.jugadores[i].orden)
+  var orden = jugadoresConCartas.slice().sort(function(a,b){return (a.orden||0)-(b.orden||0);}).map(function(j){return j.uid;});
+
+  // Blind pequeño y grande
+  var apMin = sala.apuestaMin || 100;
+  var blind1 = Math.floor(apMin / 2);
+  var blind2 = apMin;
+  var pozo   = 0;
+
+  if (orden.length >= 2) {
+    var jBig  = jugadoresConCartas.find(function(j){ return j.uid===orden[0]; });
+    var jSmall= jugadoresConCartas.find(function(j){ return j.uid===orden[1]; });
+    if (jBig && jBig.fichas >= blind1) { jBig.fichas -= blind1; jBig.apuesta = blind1; pozo += blind1; }
+    if (jSmall && jSmall.fichas >= blind2) { jSmall.fichas -= blind2; jSmall.apuesta = blind2; pozo += blind2; }
+  }
+
+  // El turno empieza en el tercer jugador (o primero si sólo hay 2)
+  var primerTurno = orden.length > 2 ? 2 : 0;
+
+  await updateDoc(doc(db, 'poker_salas', salaId), {
+    fase: 'preflop',
+    mazo: mazo,
+    jugadores: jugadoresConCartas,
+    cartasMesa: [],
+    pozo: pozo,
+    apuestaActual: blind2,
+    ordenTurnos: orden,
+    turnoActual: primerTurno,
+    timerInicio: new Date().toISOString()
+  });
+}
+
+async function resolverRondaPoker(salaId) {
+  var snap = await getDoc(doc(db, 'poker_salas', salaId));
+  if (!snap.exists()) return;
+  var sala = snap.data();
+  if (sala.resolviendo) return;
+  if (sala.liderId !== currentUser.uid) return;
+  if (sala.fase !== 'showdown') return;
+
+  await updateDoc(doc(db, 'poker_salas', salaId), { resolviendo: true });
+
+  var jugadores  = sala.jugadores || [];
+  var cartasMesa = sala.cartasMesa || [];
+  var pozo       = sala.pozo || 0;
+
+  // Evaluar manos de jugadores activos
+  var activos = jugadores.filter(function(j) { return j.estado === 'activo' && j.cartas && j.cartas.length === 2; });
+
+  var evaluados = activos.map(function(j) {
+    var todas = j.cartas.concat(cartasMesa);
+    var ev    = todas.length >= 5 ? evaluarMano(todas) : evaluarMano(j.cartas);
+    return { j: j, ev: ev };
+  });
+
+  // Ordenar de mejor a peor
+  evaluados.sort(function(a, b) {
+    if (b.ev.puntos !== a.ev.puntos) return b.ev.puntos - a.ev.puntos;
+    return b.ev.rango - a.ev.rango;
+  });
+
+  // Ganador lleva el pozo
+  var ganadores = [evaluados[0]];
+  // Empate
+  for (var i = 1; i < evaluados.length; i++) {
+    if (evaluados[i].ev.puntos === evaluados[0].ev.puntos && evaluados[i].ev.rango === evaluados[0].ev.rango) {
+      ganadores.push(evaluados[i]);
+    }
+  }
+
+  var premioXGanador = Math.floor(pozo / ganadores.length);
+
+  var jugadoresActualizados = jugadores.map(function(j) {
+    var esGanador = ganadores.some(function(g){ return g.j.uid === j.uid; });
+    var esPerdedor = activos.some(function(a){ return a.j.uid === j.uid; }) && !esGanador;
+    var cambio = esGanador ? premioXGanador - (j.apuesta||0) : -(j.apuesta||0);
+    if (j.estado === 'retirado') cambio = -(j.apuesta||0);
+
+    return Object.assign({}, j, {
+      fichas: (j.fichas||0) + (esGanador ? premioXGanador : 0),
+      estado: esGanador ? 'ganador' : (j.estado !== 'retirado' ? 'perdedor' : j.estado),
+      ganado: (j.ganado||0) + (cambio > 0 ? cambio : 0),
+      perdido: (j.perdido||0) + (cambio < 0 ? Math.abs(cambio) : 0),
+      neto: (j.neto||0) + cambio
+    });
+  });
+
+  // Actualizar saldos en Firebase (las fichas se acreditan al SALIR de la sala)
+  // Solo registramos transacción del pozo
+  for (var i2 = 0; i2 < ganadores.length; i2++) {
+    var gUid = ganadores[i2].j.uid;
+    try {
+      await registrarTransaccion({
+        tipo: 'casino_poker', de: 'sistema', deUsername: 'Casino Poker',
+        para: gUid, paraUsername: ganadores[i2].j.username,
+        monto: premioXGanador, descripcion: 'Poker: ganó el bote de £' + pozo.toLocaleString('es-CO') + ' (' + ganadores[i2].ev.desc + ')'
+      });
+    } catch(e) {}
+  }
+
+  await updateDoc(doc(db, 'poker_salas', salaId), {
+    fase: 'resultado',
+    jugadores: jugadoresActualizados,
+    pozo: 0,
+    apuestaActual: 0,
+    resolviendo: false
+  });
+
+  // Preparar siguiente ronda
+  setTimeout(async function() {
+    var sn2 = await getDoc(doc(db, 'poker_salas', salaId));
+    if (!sn2.exists()) return;
+    var salaN = sn2.data();
+    if (salaN.liderId !== currentUser.uid) return;
+    if (salaN.fase !== 'resultado') return;
+
+    var jugSig = (salaN.jugadores || []).filter(function(j){ return (j.fichas||0) > 0; });
+    var espSig = salaN.espectadores || [];
+
+    // Convertir futuros con fichas
+    var nuevosEsp = [];
+    for (var k = 0; k < espSig.length; k++) {
+      var e = espSig[k];
+      if (e.modo === 'futuro' && (e.entradaDeseada||0) > 0 && jugSig.length < 5) {
+        var saldoE = 0;
+        try { var snE = await getDoc(doc(db,'usuarios',e.uid)); saldoE = snE.data().saldo||0; } catch(_){}
+        if (saldoE >= (e.entradaDeseada||0)) {
+          await updateDoc(doc(db,'usuarios',e.uid),{saldo:increment(-(e.entradaDeseada))});
+          jugSig.push({ uid:e.uid, username:e.username, foto:e.foto||'', fichas:e.entradaDeseada, cartas:[], apuesta:0, estado:'activo', accion:'', ganado:0, perdido:0, neto:0, orden:jugSig.length });
+          continue;
+        }
+      }
+      nuevosEsp.push(e);
+    }
+
+    var nuevoEstado = jugSig.length >= 2 ? 'lobby' : 'esperando';
+    var nuevoLider  = jugSig.length > 0 ? (jugSig.some(function(j){return j.uid===salaN.liderId;}) ? salaN.liderId : jugSig[0].uid) : null;
+
+    await updateDoc(doc(db, 'poker_salas', salaId), {
+      fase: nuevoEstado, jugadores: jugSig, espectadores: nuevosEsp,
+      cartasMesa: [], mazo: [], ordenTurnos: [], turnoActual: 0,
+      pozo: 0, apuestaActual: 0, liderId: nuevoLider
+    });
+  }, 5000);
+}
+
+async function salirSalaPoker(salaId, modo, sala) {
+  if (pokerListener)      { pokerListener();      pokerListener      = null; }
+  if (pokerTimerInterval) { clearInterval(pokerTimerInterval); pokerTimerInterval = null; }
+
+  if (modo === 'jugador') {
+    var yo = sala.jugadores && sala.jugadores.find(function(j){ return j.uid === currentUser.uid; });
+    // Devolver fichas al saldo
+    if (yo && (yo.fichas||0) > 0) {
+      await updateDoc(doc(db,'usuarios',currentUser.uid),{saldo:increment(yo.fichas)});
+      currentUser.saldo = (currentUser.saldo||0) + yo.fichas;
+    }
+    var nuevosJug = (sala.jugadores||[]).filter(function(j){return j.uid!==currentUser.uid;});
+    var upd = { jugadores: nuevosJug };
+    if (nuevosJug.length < 2 && sala.fase && !['esperando','lobby','resultado'].includes(sala.fase)) {
+      upd.fase = 'showdown'; // Forzar resolución
+    } else if (nuevosJug.length === 0) {
+      upd.fase = 'esperando'; upd.liderId = null;
+    } else if (sala.liderId === currentUser.uid && nuevosJug.length > 0) {
+      upd.liderId = nuevosJug[0].uid;
+    }
+    await updateDoc(doc(db,'poker_salas',salaId), upd);
+  } else {
+    var nuevosEsp = (sala.espectadores||[]).filter(function(e){return e.uid!==currentUser.uid;});
+    await updateDoc(doc(db,'poker_salas',salaId),{espectadores:nuevosEsp});
+  }
+
+  pokerSalaActualId = null;
+  renderPoker();
+}
+
+async function convertirEspectadorAJugadorPoker(salaId, sala, yoEsp) {
+  var saldo = currentUser.saldo || 0;
+  var entrada = yoEsp.entradaDeseada || sala.entradaMin || 0;
+  var nuevosEsp = (sala.espectadores||[]).filter(function(e){return e.uid!==currentUser.uid;});
+
+  if (saldo >= entrada && sala.jugadores && sala.jugadores.length < sala.capacidad) {
+    await updateDoc(doc(db,'usuarios',currentUser.uid),{saldo:increment(-entrada)});
+    currentUser.saldo = saldo - entrada;
+    var nuevosJug = (sala.jugadores||[]).concat([{
+      uid:currentUser.uid, username:currentUser.username, foto:currentUser.fotoPerfil||'',
+      fichas:entrada, cartas:[], apuesta:0, estado:'activo', accion:'',
+      ganado:0, perdido:0, neto:0, orden:(sala.jugadores||[]).length
+    }]);
+    var upd = { jugadores:nuevosJug, espectadores:nuevosEsp };
+    if (!sala.liderId) upd.liderId = currentUser.uid;
+    if (nuevosJug.length >= 2 && (sala.fase==='esperando'||!sala.fase)) upd.fase='lobby';
+    await updateDoc(doc(db,'poker_salas',salaId),upd);
+  } else {
+    await updateDoc(doc(db,'poker_salas',salaId),{ espectadores:nuevosEsp });
   }
 }
 
