@@ -8235,9 +8235,10 @@ function renderRascaYGana() {
       document.getElementById('ryg-boleto-seleccionado').innerHTML =
   '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">' +
     '<label style="font-size:0.82rem;color:var(--text-secondary);white-space:nowrap">Cantidad:</label>' +
-    '<button class="btn-cantidad" id="ryg-qty-minus" style="width:32px;height:32px;flex-shrink:0">−</button>' +
-    '<span id="ryg-qty-val" style="font-size:1rem;font-weight:700;color:var(--accent);min-width:36px;text-align:center">1</span>' +
-    '<button class="btn-cantidad" id="ryg-qty-plus" style="width:32px;height:32px;flex-shrink:0">+</button>' +
+    '<input type="number" id="ryg-qty-input" value="1" min="1" max="100" ' +
+      'style="width:80px;padding:0.5rem;border-radius:8px;border:1px solid var(--bg-card);' +
+      'background:var(--bg-primary);color:var(--text-primary);font-size:0.95rem;' +
+      'font-weight:700;text-align:center;outline:none;box-sizing:border-box" />' +
     '<span style="font-size:0.78rem;color:var(--text-secondary)">(máx. 100)</span>' +
   '</div>' +
   '<div id="ryg-total-preview" style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:0.5rem">' +
@@ -8247,24 +8248,28 @@ function renderRascaYGana() {
     '🎟️ Comprar boleto(s) de £' + parseInt(btn.dataset.precio).toLocaleString('es-CO') +
   '</button>';
 
-var rygQty = 1;
 var rygPrecio = parseInt(btn.dataset.precio);
 
 function actualizarTotalRyg() {
+  var input   = document.getElementById('ryg-qty-input');
   var totalEl = document.getElementById('ryg-total-preview');
-  var qtyEl   = document.getElementById('ryg-qty-val');
-  if (qtyEl) qtyEl.textContent = rygQty;
-  if (totalEl) totalEl.textContent = 'Total: £' + (rygPrecio * rygQty).toLocaleString('es-CO');
+  if (!input || !totalEl) return;
+  var qty = Math.max(1, Math.min(100, parseInt(input.value) || 1));
+  totalEl.textContent = 'Total: £' + (rygPrecio * qty).toLocaleString('es-CO');
 }
 
-document.getElementById('ryg-qty-minus').addEventListener('click', function() {
-  if (rygQty > 1) { rygQty--; actualizarTotalRyg(); }
+document.getElementById('ryg-qty-input').addEventListener('input', function() {
+  // Corregir valor si se sale del rango al escribir
+  var val = parseInt(this.value) || 1;
+  if (val > 100) this.value = 100;
+  if (val < 1)   this.value = 1;
+  actualizarTotalRyg();
 });
-document.getElementById('ryg-qty-plus').addEventListener('click', function() {
-  if (rygQty < 100) { rygQty++; actualizarTotalRyg(); }
-});
+
 document.getElementById('btn-comprar-boleto').addEventListener('click', function() {
-  comprarMultiplesBoletos(boletoSeleccionado.precio, rygQty);
+  var input = document.getElementById('ryg-qty-input');
+  var qty   = Math.max(1, Math.min(100, parseInt(input ? input.value : 1) || 1));
+  comprarMultiplesBoletos(boletoSeleccionado.precio, qty);
 });
     });
   });
