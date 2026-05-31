@@ -7389,10 +7389,20 @@ function renderSalaBJ(salaId) {
   if (bjTimerInterval) { clearInterval(bjTimerInterval); bjTimerInterval = null; }
 
   bjListener = onSnapshot(doc(db, 'blackjack_salas', salaId), function(snap) {
-    if (!snap.exists()) return;
-    var sala      = snap.data();
-    var container = document.getElementById('bj-sala-container');
-    if (!container) return;
+  if (!snap.exists()) return;
+  var sala      = snap.data();
+  var container = document.getElementById('bj-sala-container');
+  if (!container) return;
+
+  // GUARD: si es mi turno y los botones ya están en pantalla, no re-renderizar
+  // para evitar que el snapshot destruya los botones mientras el jugador va a pulsar
+  var ordenTurnosGuard = sala.ordenTurnos || [];
+  var turnoIdxGuard    = sala.turnoActual || 0;
+  var uidEnTurnoGuard  = ordenTurnosGuard[turnoIdxGuard];
+  var btnYaExiste = document.getElementById('btn-bj-pedir');
+  if (uidEnTurnoGuard === currentUser.uid && btnYaExiste && sala.estado === 'turnos') {
+    return;
+  }
 
     var yoJugador   = sala.jugadores   && sala.jugadores.find(function(j)   { return j.uid === currentUser.uid; });
     var yoEspectador = sala.espectadores && sala.espectadores.find(function(e) { return e.uid === currentUser.uid; });
@@ -8067,14 +8077,14 @@ var MULT_RYG = { 2: 2, 3: 5, 4: 20, 5: 100, 6: 500 };
 
 
 var PROB_RYG = [
-  { resultado: 0, peso: 7200 },  // derrota
-  { resultado: 2, peso: 2000 },  // 2 iguales
-  { resultado: 3, peso:  550 },  // 3 iguales
-  { resultado: 4, peso:  200 },  // 4 iguales
-  { resultado: 5, peso:   45 },  // 5 iguales
-  { resultado: 6, peso:    5 }   // 6 iguales
+  { resultado: 0, peso: 8800 },  // derrota 88%
+  { resultado: 2, peso:  900 },  // 2 iguales 9%
+  { resultado: 3, peso:  220 },  // 3 iguales 2.2%
+  { resultado: 4, peso:   65 },  // 4 iguales 0.65%
+  { resultado: 5, peso:   14 },  // 5 iguales 0.14%
+  { resultado: 6, peso:    1 }   // 6 iguales 0.01%
 ];
-var PROB_RYG_TOTAL = PROB_RYG.reduce(function(s, p) { return s + p.peso; }, 0); // 10000
+var PROB_RYG_TOTAL = PROB_RYG.reduce(function(s, p) { return s + p.peso; }, 0);
 
 // ─── Motor de generación de boleto ──────────────────────────────────────────
 function generarBoleto() {
@@ -8223,17 +8233,148 @@ function renderRascaYGana() {
       btn.style.transform = 'scale(1.04)';
       boletoSeleccionado = { id: btn.dataset.id, precio: parseInt(btn.dataset.precio) };
       document.getElementById('ryg-boleto-seleccionado').innerHTML =
-        '<button class="btn btn-primary btn-full" id="btn-comprar-boleto" style="font-size:0.95rem;padding:0.85rem">' +
-          '🎟️ Comprar boleto de £' + parseInt(btn.dataset.precio).toLocaleString('es-CO') +
-        '</button>';
-      document.getElementById('btn-comprar-boleto').addEventListener('click', function() {
-        comprarBoleto(boletoSeleccionado.precio);
-      });
+  '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">' +
+    '<label style="font-size:0.82rem;color:var(--text-secondary);white-space:nowrap">Cantidad:</label>' +
+    '<button class="btn-cantidad" id="ryg-qty-minus" style="width:32px;height:32px;flex-shrink:0">−</button>' +
+    '<span id="ryg-qty-val" style="font-size:1rem;font-weight:700;color:var(--accent);min-width:36px;text-align:center">1</span>' +
+    '<button class="btn-cantidad" id="ryg-qty-plus" style="width:32px;height:32px;flex-shrink:0">+</button>' +
+    '<span style="font-size:0.78rem;color:var(--text-secondary)">(máx. 100)</span>' +
+  '</div>' +
+  '<div id="ryg-total-preview" style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:0.5rem">' +
+    'Total: £' + parseInt(btn.dataset.precio).toLocaleString('es-CO') +
+  '</div>' +
+  '<button class="btn btn-primary btn-full" id="btn-comprar-boleto" style="font-size:0.95rem;padding:0.85rem">' +
+    '🎟️ Comprar boleto(s) de £' + parseInt(btn.dataset.precio).toLocaleString('es-CO') +
+  '</button>';
+
+var rygQty = 1;
+var rygPrecio = parseInt(btn.dataset.precio);
+
+function actualizarTotalRyg() {
+  var totalEl = document.getElementById('ryg-total-preview');
+  var qtyEl   = document.getElementById('ryg-qty-val');
+  if (qtyEl) qtyEl.textContent = rygQty;
+  if (totalEl) totalEl.textContent = 'Total: £' + (rygPrecio * rygQty).toLocaleString('es-CO');
+}
+
+document.getElementById('ryg-qty-minus').addEventListener('click', function() {
+  if (rygQty > 1) { rygQty--; actualizarTotalRyg(); }
+});
+document.getElementById('ryg-qty-plus').addEventListener('click', function() {
+  if (rygQty < 100) { rygQty++; actualizarTotalRyg(); }
+});
+document.getElementById('btn-comprar-boleto').addEventListener('click', function() {
+  comprarMultiplesBoletos(boletoSeleccionado.precio, rygQty);
+});
     });
   });
 }
 
 // ─── Comprar y mostrar boleto ────────────────────────────────────────────────
+async function comprarMultiplesBoletos(precio, cantidad) {
+  var area  = document.getElementById('ryg-juego-area');
+  var saldo = currentUser.saldo || 0;
+  var totalCosto = precio * cantidad;
+
+  if (totalCosto > saldo) {
+    area.innerHTML = '<p style="color:var(--danger);text-align:center;padding:0.5rem">Saldo insuficiente. Necesitas £' + totalCosto.toLocaleString('es-CO') + ' y tienes £' + saldo.toLocaleString('es-CO') + '</p>';
+    return;
+  }
+
+  // Descontar el total de una vez
+  await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(-totalCosto) });
+  currentUser.saldo = saldo - totalCosto;
+  var saldoEl = document.getElementById('ryg-saldo');
+  if (saldoEl) saldoEl.textContent = currentUser.saldo.toLocaleString('es-CO');
+
+  // Generar todos los boletos
+  var boletos = [];
+  for (var i = 0; i < cantidad; i++) {
+    var b = generarBoleto();
+    var res = calcularPremio(b.simbolos, precio);
+    boletos.push({ simbolos: b.simbolos, ganancia: res.ganancia, iguales: res.iguales, mult: res.mult });
+  }
+
+  // Si es solo 1, mostrar el rasca normal
+  if (cantidad === 1) {
+    // Reintegrar saldo y usar el flujo normal
+    await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(totalCosto) });
+    currentUser.saldo = currentUser.saldo + totalCosto;
+    if (saldoEl) saldoEl.textContent = currentUser.saldo.toLocaleString('es-CO');
+    comprarBoleto(precio);
+    return;
+  }
+
+  // Calcular resultados totales
+  var gananciaTotal = boletos.reduce(function(s, b) { return s + b.ganancia; }, 0);
+  var boletosGanadores = boletos.filter(function(b) { return b.ganancia > 0; });
+  var neto = gananciaTotal - totalCosto;
+
+  // Acreditar ganancias
+  if (gananciaTotal > 0) {
+    await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(gananciaTotal) });
+    currentUser.saldo = currentUser.saldo + gananciaTotal;
+    if (saldoEl) saldoEl.textContent = currentUser.saldo.toLocaleString('es-CO');
+    await registrarTransaccion({
+      tipo: 'casino_rasca',
+      de: 'sistema', deUsername: 'Casino Rasca y Gana',
+      para: currentUser.uid, paraUsername: currentUser.username,
+      monto: gananciaTotal,
+      descripcion: 'Rasca y Gana x' + cantidad + ': ' + boletosGanadores.length + ' ganadores — total £' + gananciaTotal.toLocaleString('es-CO')
+    });
+  }
+  await registrarTransaccion({
+    tipo: 'casino_rasca',
+    de: currentUser.uid, deUsername: currentUser.username,
+    para: 'sistema', paraUsername: 'Casino Rasca y Gana',
+    monto: totalCosto,
+    descripcion: 'Rasca y Gana: compra de ' + cantidad + ' boletos de £' + precio.toLocaleString('es-CO')
+  });
+
+  // Mostrar resumen
+  area.innerHTML =
+    '<div class="card" style="margin-top:0.75rem;border-color:var(--accent)">' +
+      '<p style="font-size:1rem;font-weight:700;text-align:center;margin-bottom:0.75rem">📊 Resultado de ' + cantidad + ' boletos</p>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.75rem">' +
+        '<div style="background:var(--bg-primary);border-radius:10px;padding:0.75rem;text-align:center">' +
+          '<p style="font-size:0.75rem;color:var(--text-secondary)">Gastado</p>' +
+          '<p style="font-size:1.1rem;font-weight:700;color:var(--danger)">-£' + totalCosto.toLocaleString('es-CO') + '</p>' +
+        '</div>' +
+        '<div style="background:var(--bg-primary);border-radius:10px;padding:0.75rem;text-align:center">' +
+          '<p style="font-size:0.75rem;color:var(--text-secondary)">Ganado</p>' +
+          '<p style="font-size:1.1rem;font-weight:700;color:var(--success)">+£' + gananciaTotal.toLocaleString('es-CO') + '</p>' +
+        '</div>' +
+        '<div style="background:var(--bg-primary);border-radius:10px;padding:0.75rem;text-align:center">' +
+          '<p style="font-size:0.75rem;color:var(--text-secondary)">Ganadores</p>' +
+          '<p style="font-size:1.1rem;font-weight:700;color:var(--accent)">' + boletosGanadores.length + '/' + cantidad + '</p>' +
+        '</div>' +
+        '<div style="background:var(--bg-primary);border-radius:10px;padding:0.75rem;text-align:center">' +
+          '<p style="font-size:0.75rem;color:var(--text-secondary)">Neto</p>' +
+          '<p style="font-size:1.1rem;font-weight:700;color:' + (neto >= 0 ? 'var(--success)' : 'var(--danger)') + '">' + (neto >= 0 ? '+' : '') + '£' + neto.toLocaleString('es-CO') + '</p>' +
+        '</div>' +
+      '</div>' +
+      (boletosGanadores.length > 0
+        ? '<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.4rem">🏆 Boletos ganadores:</p>' +
+          '<div style="max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:0.3rem">' +
+            boletosGanadores.map(function(b) {
+              return '<div style="display:flex;justify-content:space-between;font-size:0.78rem;padding:0.3rem 0.5rem;background:var(--bg-primary);border-radius:8px">' +
+                '<span>' + b.simbolos.join(' ') + '</span>' +
+                '<span style="color:var(--success);font-weight:700">+£' + b.ganancia.toLocaleString('es-CO') + ' (×' + b.mult + ')</span>' +
+              '</div>';
+            }).join('') +
+          '</div>'
+        : '<p style="color:var(--text-secondary);text-align:center;font-size:0.85rem">😔 Ningún boleto ganador</p>'
+      ) +
+      '<button class="btn btn-primary btn-full" id="btn-ryg-nuevo" style="margin-top:0.75rem">🎟️ Comprar más boletos</button>' +
+    '</div>';
+
+  document.getElementById('btn-ryg-nuevo').addEventListener('click', function() {
+    window._rygState = null;
+    renderRascaYGana();
+  });
+}
+
+
 async function comprarBoleto(precio) {
   var area   = document.getElementById('ryg-juego-area');
   var saldo  = currentUser.saldo || 0;
@@ -8769,7 +8910,11 @@ function renderSalaPoker(salaId) {
     var ordenTurnos = sala.ordenTurnos || [];
     var turnoIdx    = sala.turnoActual !== undefined ? sala.turnoActual : -1;
     var uidEnTurno  = (turnoIdx >= 0 && turnoIdx < ordenTurnos.length) ? ordenTurnos[turnoIdx] : null;
-    var esMiTurno   = uidEnTurno === currentUser.uid && miModo === 'jugador' && yoJug && yoJug.estado === 'activo';
+    var esMiTurno = uidEnTurno === currentUser.uid &&
+                miModo === 'jugador' &&
+                yoJug !== null && yoJug !== undefined &&
+                (yoJug.estado === 'activo' || yoJug.estado === 'jugando') &&
+                ['preflop','flop','turn','river'].includes(sala.fase);
 
     // Calcular mi mejor mano actual
     var miManoActual = null;
@@ -8872,14 +9017,17 @@ function renderSalaPoker(salaId) {
       salirSalaPoker(salaId, miModo, sala);
     });
 
-    setTimeout(function() {
-      var btnIniciar = document.getElementById('btn-iniciar-poker');
-      if (btnIniciar) btnIniciar.addEventListener('click', function() { iniciarRondaPoker(salaId); });
+    
+requestAnimationFrame(function() {
+  setTimeout(function() {
+    var btnIniciar = document.getElementById('btn-iniciar-poker');
+    if (btnIniciar) btnIniciar.addEventListener('click', function() { iniciarRondaPoker(salaId); });
 
-      configurarAccionesPoker(salaId, sala, yoJug, esMiTurno);
-      manejarTimerPoker(salaId, sala, yoJug, esMiTurno);
-      if (soyLider) manejarAutoPoker(salaId, sala);
-    }, 80);
+    configurarAccionesPoker(salaId, sala, yoJug, esMiTurno);
+    manejarTimerPoker(salaId, sala, yoJug, esMiTurno);
+    if (soyLider) manejarAutoPoker(salaId, sala);
+  }, 50);
+});
   });
 }
 
@@ -8915,7 +9063,7 @@ function renderJugadoresPoker(sala, uidEnTurno, yoJug, miModo) {
     var esMio     = j.uid === currentUser.uid;
     var clasePan  = 'pk-jugador-panel' + (esTurno?' turno-activo':'') + (j.estado==='retirado'?' eliminado':'') + (j.estado==='ganador'?' ganador-pk':'') + (j.estado==='perdedor'?' perdedor-pk':'');
     var apuestaJ  = j.apuesta || 0;
-    var mostrarCartas = esMio || sala.fase === 'resultado';
+    var mostrarCartas = esMio || sala.fase === 'resultado' || sala.fase === 'showdown';
 
     return '<div class="' + clasePan + '">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">' +
