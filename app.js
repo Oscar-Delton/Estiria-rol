@@ -909,8 +909,8 @@ function renderTienda() {
     '<div class="tienda-naciones">' +
       '<button class="tienda-nacion-btn" id="tn-estiria"><span>🏛️</span><span>Estiria</span></button>' +
       '<button class="tienda-nacion-btn" id="tn-irkustk"><span>🕌</span><span>Irkustk</span></button>' +
-      '<button class="tienda-nacion-btn" id="tn-gresit"><span>🏦</span><span>Gresit</span></button>'+
-      '<button class="tienda-nacion-btn proximamente-btn"><span>🌙</span><span>Odrekao</span><span class="prox-tag">Próx.</span></button>' +
+      '<button class="tienda-nacion-btn" id="tn-gresit"><span>🏦</span><span>Gresit</span></button>' +
+      '<button class="tienda-nacion-btn" id="tn-odrekao"><span>🌙</span><span>Odrekao</span></button>' +
     '</div>' +
     '<button class="btn-viajes" id="btn-viajes">✈️ Viajes</button>' +
     '<div id="tienda-panel"></div>' +
@@ -919,9 +919,10 @@ function renderTienda() {
     '</div>';
 
   document.getElementById('tn-estiria').addEventListener('click', function() { renderCategoriasEstiria(); });
-  document.getElementById('tn-gresit').addEventListener('click', function() { renderCategoriasGresit(); });
-  document.getElementById('tn-irkustk').addEventListener('click', function() { renderCategoriasIrkustk(); });
-  document.getElementById('btn-viajes').addEventListener('click', function() { renderViajes(); });
+document.getElementById('tn-gresit').addEventListener('click', function() { renderCategoriasGresit(); });
+document.getElementById('tn-irkustk').addEventListener('click', function() { renderCategoriasIrkustk(); });
+document.getElementById('tn-odrekao').addEventListener('click', function() { renderCategoriasOdrekao(); });
+document.getElementById('btn-viajes').addEventListener('click', function() { renderViajes(); });
 }
 
 function renderCategoriasEstiria() {
@@ -1044,6 +1045,7 @@ function renderProductos(categoria, subcategoria) {
     else if (categoria === 'armas') renderSubcategoriasArmas();
     else if (categoria === 'gresit') renderSubcategoriasComidaGresit();
     else if (categoria === 'irkustk') renderSubcategoriasComidaIrkustk();
+    else if (categoria === 'odrekao') renderSubcategoriasComidaOdrekao();
   });
 
   panel.querySelectorAll('.btn-cantidad').forEach(function(btn) {
@@ -1533,6 +1535,203 @@ function renderConstruccionesIrkustk() {
   });
 }
 
+// ===== ODREKAO =====
+
+function renderCategoriasOdrekao() {
+  var panel = document.getElementById('tienda-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-naciones-odrekao">← Naciones</button>' +
+      '<h3>🌙 Odrekao</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" id="cat-odrekao-comida"><span>🍽️</span><span>Comida</span></button>' +
+      '<button class="categoria-btn" id="cat-odrekao-terrenos"><span>🌑</span><span>Terrenos</span></button>' +
+      '<button class="categoria-btn" id="cat-odrekao-construcciones"><span>🏠</span><span>Construcciones</span></button>' +
+      '<button class="categoria-btn" id="cat-odrekao-armas"><span>⚔️</span><span>Mat. Armas</span></button>' +
+    '</div>';
+
+  document.getElementById('back-naciones-odrekao').addEventListener('click', function() {
+    document.getElementById('tienda-panel').innerHTML = '';
+  });
+  document.getElementById('cat-odrekao-comida').addEventListener('click', function() { renderSubcategoriasComidaOdrekao(); });
+  document.getElementById('cat-odrekao-terrenos').addEventListener('click', function() { renderTerrenosOdrekao(); });
+  document.getElementById('cat-odrekao-construcciones').addEventListener('click', function() { renderConstruccionesOdrekao(); });
+  document.getElementById('cat-odrekao-armas').addEventListener('click', function() { renderSubcategoriasArmasOdrekao(); });
+}
+
+function renderSubcategoriasComidaOdrekao() {
+  var panel = document.getElementById('tienda-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-odrekao-comida">← Odrekao</button>' +
+      '<h3>🍽️ Comida — Odrekao</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" data-sub="od_frutas"><span>🍒</span><span>Frutas</span></button>' +
+      '<button class="categoria-btn" data-sub="od_verduras"><span>🥬</span><span>Verduras</span></button>' +
+      '<button class="categoria-btn" data-sub="od_lacteos"><span>🥛</span><span>Lácteos</span></button>' +
+      '<button class="categoria-btn" data-sub="od_carnes"><span>🥩</span><span>Carnes</span></button>' +
+      '<button class="categoria-btn" data-sub="od_extras"><span>🧂</span><span>Extras</span></button>' +
+      '<button class="categoria-btn" data-sub="od_caramelos"><span>🍡</span><span>Caramelos</span></button>' +
+      '<button class="categoria-btn" data-sub="od_jugos"><span>🥤</span><span>Jugos</span></button>' +
+      '<button class="categoria-btn" data-sub="od_bebidas"><span>🥃</span><span>Bebidas</span></button>' +
+    '</div>';
+
+  document.getElementById('back-odrekao-comida').addEventListener('click', function() { renderCategoriasOdrekao(); });
+  panel.querySelectorAll('.categoria-btn[data-sub]').forEach(function(btn) {
+    btn.addEventListener('click', function() { renderProductos('odrekao', btn.dataset.sub); });
+  });
+}
+
+function renderSubcategoriasArmasOdrekao() {
+  var panel = document.getElementById('tienda-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-odrekao-armas">← Odrekao</button>' +
+      '<h3>⚔️ Materiales para Armas — Odrekao</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" data-sub="metales_armas"><span>🔩</span><span>Metales</span></button>' +
+      '<button class="categoria-btn" data-sub="preciosos"><span>💎</span><span>Preciosos</span></button>' +
+    '</div>';
+
+  document.getElementById('back-odrekao-armas').addEventListener('click', function() { renderCategoriasOdrekao(); });
+  panel.querySelectorAll('.categoria-btn[data-sub]').forEach(function(btn) {
+    btn.addEventListener('click', function() { renderProductos('armas', btn.dataset.sub); });
+  });
+}
+
+function renderTerrenosOdrekao() {
+  var panel = document.getElementById('tienda-panel');
+  var zonas = {
+    'Distrito Central (Odrekao City Center)': [
+      { m2: '90',    precio: 2500  },
+      { m2: '150',   precio: 4800  },
+      { m2: '200',   precio: 7200  },
+      { m2: '350',   precio: 12000 },
+      { m2: '500',   precio: 18000 },
+      { m2: '750',   precio: 25000 },
+      { m2: '1.000', precio: 35000 }
+    ],
+    'Zona Residencial (Barrios de Odrekao)': [
+      { m2: '70',    precio: 1800  },
+      { m2: '110',   precio: 3200  },
+      { m2: '160',   precio: 5500  },
+      { m2: '250',   precio: 8500  },
+      { m2: '400',   precio: 14000 },
+      { m2: '600',   precio: 20000 },
+      { m2: '900',   precio: 28000 }
+    ],
+    'Zona Industrial (Periferias de Odrekao)': [
+      { m2: '500',    precio: 9000  },
+      { m2: '1.000',  precio: 16000 },
+      { m2: '2.500',  precio: 35000 },
+      { m2: '5.000',  precio: 60000 },
+      { m2: '10.000', precio: 95000 }
+    ],
+    'Zona Nocturna (Distrito Lunar)': [
+      { m2: '80',    precio: 3000  },
+      { m2: '130',   precio: 5500  },
+      { m2: '200',   precio: 9000  },
+      { m2: '400',   precio: 17000 },
+      { m2: '700',   precio: 28000 }
+    ]
+  };
+
+  var zonasKeys = Object.keys(zonas);
+
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-odrekao-terrenos">← Odrekao</button>' +
+      '<h3>🌑 Terrenos — Odrekao</h3>' +
+    '</div>' +
+    '<p style="color:var(--text-secondary);font-size:0.82rem;margin-bottom:0.75rem">Selecciona zona, tamaño y cantidad.</p>' +
+    '<label class="form-label">Zona</label>' +
+    '<select id="odrekao-terreno-zona" class="tienda-select">' +
+      '<option value="">Selecciona zona...</option>' +
+      zonasKeys.map(function(z) { return '<option value="' + z + '">' + z + '</option>'; }).join('') +
+    '</select>' +
+    '<label class="form-label" style="margin-top:0.75rem">Tamaño</label>' +
+    '<select id="odrekao-terreno-tamano" class="tienda-select">' +
+      '<option value="">Selecciona zona primero...</option>' +
+    '</select>' +
+    '<label class="form-label" style="margin-top:0.75rem">Cantidad</label>' +
+    '<div class="producto-cantidad" style="justify-content:flex-start;gap:1rem">' +
+      '<button class="btn-cantidad" id="odrekao-terreno-minus">−</button>' +
+      '<span class="cantidad-valor" id="odrekao-terreno-qty">1</span>' +
+      '<button class="btn-cantidad" id="odrekao-terreno-plus">+</button>' +
+    '</div>' +
+    '<div id="odrekao-terreno-preview" style="margin-top:0.75rem;color:var(--accent);font-weight:700;font-size:1rem"></div>' +
+    '<button class="btn btn-primary btn-full" id="btn-agregar-odrekao-terreno" style="margin-top:0.75rem">Añadir al carrito</button>' +
+    '<div id="odrekao-terreno-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>';
+
+  document.getElementById('back-odrekao-terrenos').addEventListener('click', function() { renderCategoriasOdrekao(); });
+
+  document.getElementById('odrekao-terreno-zona').addEventListener('change', function() {
+    var zona = this.value;
+    var tamSelect = document.getElementById('odrekao-terreno-tamano');
+    if (!zona) { tamSelect.innerHTML = '<option value="">Selecciona zona primero...</option>'; return; }
+    tamSelect.innerHTML = '<option value="">Selecciona tamaño...</option>' +
+      zonas[zona].map(function(t) {
+        return '<option value="' + t.precio + '" data-m2="' + t.m2 + '">' + t.m2 + ' m² — £' + t.precio.toLocaleString('es-CO') + '</option>';
+      }).join('');
+    actualizarPreviewOdrekaoTerreno();
+  });
+
+  document.getElementById('odrekao-terreno-tamano').addEventListener('change', function() { actualizarPreviewOdrekaoTerreno(); });
+
+  document.getElementById('odrekao-terreno-minus').addEventListener('click', function() {
+    var el = document.getElementById('odrekao-terreno-qty');
+    if (parseInt(el.textContent) > 1) { el.textContent = parseInt(el.textContent) - 1; actualizarPreviewOdrekaoTerreno(); }
+  });
+  document.getElementById('odrekao-terreno-plus').addEventListener('click', function() {
+    var el = document.getElementById('odrekao-terreno-qty');
+    el.textContent = parseInt(el.textContent) + 1; actualizarPreviewOdrekaoTerreno();
+  });
+
+  document.getElementById('btn-agregar-odrekao-terreno').addEventListener('click', function() {
+    var zona = document.getElementById('odrekao-terreno-zona').value;
+    var tamSelect = document.getElementById('odrekao-terreno-tamano');
+    var precio = parseInt(tamSelect.value);
+    var m2 = tamSelect.options[tamSelect.selectedIndex].dataset.m2;
+    var qty = parseInt(document.getElementById('odrekao-terreno-qty').textContent);
+    var msg = document.getElementById('odrekao-terreno-msg');
+    if (!zona || !precio) { msg.textContent = 'Completa todos los campos'; msg.style.color = 'var(--danger)'; return; }
+    carrito.push({ nombre: 'Terreno ' + m2 + 'm² — ' + zona + ' (Odrekao)', emoji: '🌑', precio: precio, cantidad: qty, categoria: 'terrenos', unidad: '' });
+    actualizarCarritoFlotante();
+    msg.textContent = '✓ Añadido al carrito'; msg.style.color = 'var(--success)';
+    setTimeout(function() { msg.textContent = ''; }, 1500);
+  });
+}
+
+function actualizarPreviewOdrekaoTerreno() {
+  var tamSelect = document.getElementById('odrekao-terreno-tamano');
+  var precio = parseInt(tamSelect.value);
+  var qty = parseInt(document.getElementById('odrekao-terreno-qty').textContent);
+  var preview = document.getElementById('odrekao-terreno-preview');
+  if (precio && qty) preview.textContent = 'Total: £' + (precio * qty).toLocaleString('es-CO');
+  else preview.textContent = '';
+}
+
+function renderConstruccionesOdrekao() {
+  var panel = document.getElementById('tienda-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-odrekao-const">← Odrekao</button>' +
+      '<h3>🏠 Construcciones — Odrekao</h3>' +
+    '</div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" data-sub="od_casas"><span>🏠</span><span>Viviendas</span></button>' +
+      '<button class="categoria-btn" data-sub="od_locales"><span>🏪</span><span>Locales</span></button>' +
+    '</div>';
+
+  document.getElementById('back-odrekao-const').addEventListener('click', function() { renderCategoriasOdrekao(); });
+  panel.querySelectorAll('.categoria-btn[data-sub]').forEach(function(btn) {
+    btn.addEventListener('click', function() { renderProductos('odrekao', btn.dataset.sub); });
+  });
+}
+
 function renderCarrito() {
   var total = carrito.reduce(function(s, i) { return s + (i.precio * i.cantidad); }, 0);
   mainContent.innerHTML =
@@ -1630,7 +1829,11 @@ var mapaCategorias = {
   'casas': 'casas',
   'materiales': 'materiales_construccion',
   'metales_armas': 'materiales_armas', 'preciosos': 'metales_preciosos',
-  'g_casas': 'casas', 'irkustk_casas': 'casas'
+  'g_casas': 'casas', 'irkustk_casas': 'casas',
+      'od_casas': 'casas', 'od_locales': 'casas',
+      'od_frutas': 'comida', 'od_verduras': 'comida', 'od_lacteos': 'comida',
+      'od_carnes': 'comida', 'od_extras': 'comida', 'od_caramelos': 'comida',
+      'od_jugos': 'comida', 'od_bebidas': 'comida'
 };
 for (var pi = 0; pi < itemsComprados.length; pi++) {
   var item = itemsComprados[pi];
@@ -2535,8 +2738,206 @@ var catalogosIrkustk = {
     ]
   };
 
+  var catalogosOdrekao = {
+    od_frutas: [
+      { emoji: '🍎', nombre: 'Manzana roja y verde', precio: 20 },
+      { emoji: '🍐', nombre: 'Pera (3 unidades)', precio: 50 },
+      { emoji: '🍊', nombre: 'Naranja dulce (3 unidades)', precio: 15 },
+      { emoji: '🍋', nombre: 'Limón (3 unidades)', precio: 15 },
+      { emoji: '🍊', nombre: 'China', precio: 10 },
+      { emoji: '🍌', nombre: 'Banana', precio: 5 },
+      { emoji: '🍉', nombre: 'Sandía', precio: 45 },
+      { emoji: '🍇', nombre: 'Uvas (ramo)', precio: 40 },
+      { emoji: '🫐', nombre: 'Frutillas (funda)', precio: 50 },
+      { emoji: '🫐', nombre: 'Arándanos (funda)', precio: 50 },
+      { emoji: '🍈', nombre: 'Melón', precio: 55 },
+      { emoji: '🍒', nombre: 'Cerezas (ramo)', precio: 45 },
+      { emoji: '🍍', nombre: 'Piña', precio: 50 },
+      { emoji: '🥥', nombre: 'Coco', precio: 100 },
+      { emoji: '🥝', nombre: 'Kiwi', precio: 30 }
+    ],
+    od_verduras: [
+      { emoji: '🥦', nombre: 'Brócoli', precio: 10 },
+      { emoji: '🫑', nombre: 'Chile morrón (3 unidades)', precio: 15 },
+      { emoji: '🧄', nombre: 'Ajo (pasta)', precio: 20 },
+      { emoji: '🍅', nombre: 'Tomate', precio: 10 },
+      { emoji: '🥕', nombre: 'Zanahoria (3 unidades)', precio: 15 },
+      { emoji: '🌽', nombre: 'Choclo', precio: 12 },
+      { emoji: '🌶️', nombre: 'Chile (5 unidades)', precio: 10 },
+      { emoji: '🥒', nombre: 'Pepino', precio: 10 },
+      { emoji: '🥬', nombre: 'Lechuga', precio: 12 },
+      { emoji: '🥑', nombre: 'Aguacate / Palta', precio: 25 },
+      { emoji: '🥔', nombre: 'Papa (1 libra)', precio: 25 },
+      { emoji: '🧅', nombre: 'Cebolla', precio: 15 },
+      { emoji: '🍆', nombre: 'Berenjena', precio: 15 }
+    ],
+    od_lacteos: [
+      { emoji: '🥛', nombre: 'Leche', precio: 35 },
+      { emoji: '🧀', nombre: 'Queso', precio: 25 },
+      { emoji: '🥛', nombre: 'Leche condensada 200ml', precio: 40 },
+      { emoji: '🥛', nombre: 'Yogurt griego 100g', precio: 30 },
+      { emoji: '🥛', nombre: 'Yogurt 50g', precio: 20 },
+      { emoji: '🧈', nombre: 'Manteca 100g', precio: 100 }
+    ],
+    od_carnes: [
+      { emoji: '🥚', nombre: 'Huevos (caja)', precio: 150 },
+      { emoji: '🥓', nombre: 'Tocino', precio: 80 },
+      { emoji: '🥩', nombre: 'Carne de vaca', precio: 100 },
+      { emoji: '🍗', nombre: 'Pollo', precio: 150 },
+      { emoji: '🐟', nombre: 'Pescado', precio: 140 },
+      { emoji: '🥩', nombre: 'Carne de cerdo', precio: 500 },
+      { emoji: '🥩', nombre: 'Carne de res', precio: 130 }
+    ],
+    od_extras: [
+      { emoji: '🧂', nombre: 'Condimentos', precio: 10 },
+      { emoji: '🫙', nombre: 'Aceite (1 litro)', precio: 40 },
+      { emoji: '🌾', nombre: 'Harina (libras)', precio: 25 },
+      { emoji: '🧂', nombre: 'Azúcar (libras)', precio: 15 },
+      { emoji: '🫙', nombre: 'Levadura', precio: 20 },
+      { emoji: '🍅', nombre: 'Ketchup', precio: 40 },
+      { emoji: '🫙', nombre: 'Mostaza', precio: 40 },
+      { emoji: '🌶️', nombre: 'Salsa picante 100g', precio: 50 },
+      { emoji: '🍅', nombre: 'Puré de tomate 200g', precio: 30 },
+      { emoji: '🧉', nombre: 'Yerba Mate (kg)', precio: 100 },
+      { emoji: '🫙', nombre: 'Esencia de vainilla 50ml', precio: 50 }
+    ],
+    od_caramelos: [
+      { emoji: '🍪', nombre: 'Galletas japonesas', precio: 5 },
+      { emoji: '🍬', nombre: 'Caramelo japonés', precio: 5 },
+      { emoji: '🥧', nombre: 'Tarta japonesa', precio: 8 },
+      { emoji: '🍡', nombre: 'Palillo japonés', precio: 8 },
+      { emoji: '🍡', nombre: 'Dulce japonés', precio: 5 },
+      { emoji: '🥧', nombre: 'Tarta', precio: 10 },
+      { emoji: '🧁', nombre: 'Cupcake', precio: 10 },
+      { emoji: '🍰', nombre: 'Pedazo de torta', precio: 15 },
+      { emoji: '🍮', nombre: 'Flan', precio: 15 },
+      { emoji: '🍭', nombre: 'Paleta', precio: 5 },
+      { emoji: '🍬', nombre: 'Caramelo', precio: 5 },
+      { emoji: '🍫', nombre: 'Chocolate', precio: 5 },
+      { emoji: '🍿', nombre: 'Palomitas', precio: 10 },
+      { emoji: '🍬', nombre: 'Chicle (3 unidades)', precio: 5 },
+      { emoji: '🍪', nombre: 'Galleta', precio: 12 },
+      { emoji: '🌰', nombre: 'Avellanas', precio: 15 },
+      { emoji: '🥜', nombre: 'Cacahuete', precio: 15 },
+      { emoji: '🍯', nombre: 'Miel', precio: 50 }
+    ],
+    od_jugos: [
+      { emoji: '💧', nombre: 'Agua', precio: 15 },
+      { emoji: '🧃', nombre: 'Fanta (1L)', precio: 20 },
+      { emoji: '🧃', nombre: 'Sprite (1L)', precio: 20 },
+      { emoji: '☕', nombre: 'Café (taza)', precio: 15 },
+      { emoji: '🍵', nombre: 'Té (taza)', precio: 15 },
+      { emoji: '🍦', nombre: 'Helado paleta', precio: 15 },
+      { emoji: '🧃', nombre: 'Jugo de naranja (1L)', precio: 25 },
+      { emoji: '⚡', nombre: 'Speed 500ml', precio: 30 },
+      { emoji: '⚡', nombre: 'Red Bull 500ml', precio: 30 },
+      { emoji: '🥤', nombre: 'Coca-Cola (1L)', precio: 35 },
+      { emoji: '🧉', nombre: 'Mate cocido (taza)', precio: 15 },
+      { emoji: '⚡', nombre: 'Monster 599ml', precio: 30 },
+      { emoji: '💧', nombre: 'Agua saborizada (1L)', precio: 15 },
+      { emoji: '🍫', nombre: 'Chocolatada (1L)', precio: 15 }
+    ],
+    od_bebidas: [
+      { emoji: '🧊', nombre: 'Hielo', precio: 5 },
+      { emoji: '🥃', nombre: 'Botella de Ron', precio: 400 },
+      { emoji: '🥃', nombre: 'Brugal Añejo Rum 750ml', precio: 900 },
+      { emoji: '🥃', nombre: 'Barceló Imperial Rum 750ml', precio: 1200 },
+      { emoji: '🍷', nombre: 'Botella de vino', precio: 600 },
+      { emoji: '🍷', nombre: 'Casillero del Diablo Cab. 750ml', precio: 900 },
+      { emoji: '🍷', nombre: 'Barefoot Moscato 750ml', precio: 700 },
+      { emoji: '🥃', nombre: 'Botella de vodka', precio: 800 },
+      { emoji: '🥃', nombre: 'Smirnoff No.21 750ml', precio: 900 },
+      { emoji: '🥃', nombre: 'Absolut Original 750ml', precio: 1100 },
+      { emoji: '🥃', nombre: 'Grey Goose Vodka', precio: 1700 },
+      { emoji: '🍺', nombre: 'Garcia', precio: 500 },
+      { emoji: '🍺', nombre: 'Cerveza', precio: 100 },
+      { emoji: '🥃', nombre: 'Whisky 750ml', precio: 1000 },
+      { emoji: '🥃', nombre: 'Johnnie Walker Red Label 750ml', precio: 1100 },
+      { emoji: '🥃', nombre: "Jack Daniel's Old No.7", precio: 1500 },
+      { emoji: '🥃', nombre: 'Chivas Regal 12 Años', precio: 2000 },
+      { emoji: '🍸', nombre: 'Martini 750ml', precio: 750 },
+      { emoji: '🍸', nombre: 'Martini Bianco', precio: 840 },
+      { emoji: '🍸', nombre: 'Martini Extra Dry', precio: 800 },
+      { emoji: '🍸', nombre: 'Martini Rosato', precio: 750 },
+      { emoji: '🥃', nombre: 'Fernet 750ml', precio: 1400 },
+      { emoji: '🍾', nombre: 'Champagne 750ml', precio: 2000 },
+      { emoji: '🥃', nombre: 'Cognac', precio: 1000 },
+      { emoji: '🍸', nombre: 'Menta al licor 750ml', precio: 700 },
+      { emoji: '🍸', nombre: 'Dulce de leche al Cognac 750ml', precio: 900 },
+      { emoji: '🍸', nombre: 'Daiquiri de Durazno 750ml', precio: 700 }
+    ],
+    od_casas: [
+      { emoji: '🏠', nombre: 'Casa china pequeña', precio: 1000 },
+      { emoji: '🏠', nombre: 'Casa china mediana', precio: 1150 },
+      { emoji: '🏠', nombre: 'Casa china grande', precio: 1200 },
+      { emoji: '🛖', nombre: 'Cabaña pequeña 3m²', precio: 1100 },
+      { emoji: '🛖', nombre: 'Cabaña pequeña 6m²', precio: 2300 },
+      { emoji: '🛖', nombre: 'Cabaña pequeña 9m²', precio: 3600 },
+      { emoji: '🛖', nombre: 'Cabaña mediana 12m²', precio: 4200 },
+      { emoji: '🛖', nombre: 'Cabaña mediana 15m²', precio: 4500 },
+      { emoji: '🛖', nombre: 'Cabaña mediana 18m²', precio: 4900 },
+      { emoji: '🛖', nombre: 'Cabaña grande 21m²', precio: 5150 },
+      { emoji: '🛖', nombre: 'Cabaña grande 24m²', precio: 5300 },
+      { emoji: '🛖', nombre: 'Cabaña grande 27m²', precio: 5800 },
+      { emoji: '🏭', nombre: 'Departamento pequeño 30m²', precio: 6200 },
+      { emoji: '🏭', nombre: 'Departamento pequeño 33m²', precio: 6500 },
+      { emoji: '🏭', nombre: 'Departamento pequeño 36m²', precio: 7800 },
+      { emoji: '🏭', nombre: 'Departamento mediano 39m²', precio: 8300 },
+      { emoji: '🏭', nombre: 'Departamento mediano 42m²', precio: 8600 },
+      { emoji: '🏭', nombre: 'Departamento mediano 45m²', precio: 8900 },
+      { emoji: '🏭', nombre: 'Departamento grande 48m²', precio: 9200 },
+      { emoji: '🏭', nombre: 'Departamento grande 51m²', precio: 9400 },
+      { emoji: '🏭', nombre: 'Departamento grande 54m²', precio: 9800 },
+      { emoji: '🏠', nombre: 'Casa pequeña 57m²', precio: 10000 },
+      { emoji: '🏠', nombre: 'Casa pequeña 60m²', precio: 10200 },
+      { emoji: '🏠', nombre: 'Casa pequeña 63m²', precio: 10400 },
+      { emoji: '🏠', nombre: 'Casa mediana 66m²', precio: 10800 },
+      { emoji: '🏠', nombre: 'Casa mediana 69m²', precio: 11300 },
+      { emoji: '🏠', nombre: 'Casa mediana 72m²', precio: 11600 },
+      { emoji: '🏠', nombre: 'Casa grande 75m²', precio: 11900 },
+      { emoji: '🏠', nombre: 'Casa grande 78m²', precio: 12400 },
+      { emoji: '🏠', nombre: 'Casa grande 81m²', precio: 12700 },
+      { emoji: '🏛️', nombre: 'Mansión pequeña 84m²', precio: 13000 },
+      { emoji: '🏛️', nombre: 'Mansión pequeña 87m²', precio: 13300 },
+      { emoji: '🏛️', nombre: 'Mansión pequeña 90m²', precio: 13800 },
+      { emoji: '🏛️', nombre: 'Mansión mediana 93m²', precio: 200000 },
+      { emoji: '🏛️', nombre: 'Mansión mediana 96m²', precio: 200900 },
+      { emoji: '🏛️', nombre: 'Mansión mediana 99m²', precio: 300300 },
+      { emoji: '🏛️', nombre: 'Mansión grande 102m²', precio: 400800 },
+      { emoji: '🏛️', nombre: 'Mansión grande 105m²', precio: 500700 },
+      { emoji: '🏛️', nombre: 'Mansión grande 108m²', precio: 600400 },
+      { emoji: '🕌', nombre: 'Castillo pequeño 111m²', precio: 4000000 },
+      { emoji: '🕌', nombre: 'Castillo pequeño 114m²', precio: 8000000 },
+      { emoji: '🕌', nombre: 'Castillo pequeño 117m²', precio: 12000000 },
+      { emoji: '🕌', nombre: 'Castillo mediano 120m²', precio: 16000000 },
+      { emoji: '🕌', nombre: 'Castillo mediano 123m²', precio: 20000000 },
+      { emoji: '🕌', nombre: 'Castillo mediano 126m²', precio: 24000000 },
+      { emoji: '🕌', nombre: 'Castillo grande 129m²', precio: 28000000 },
+      { emoji: '🕌', nombre: 'Castillo grande 132m²', precio: 32000000 },
+      { emoji: '🕌', nombre: 'Castillo grande 135m²', precio: 36000000 }
+    ],
+    od_locales: [
+      { emoji: '🏪', nombre: 'Tienda (10-30m²)', precio: 1300 },
+      { emoji: '🏪', nombre: 'Minimarket (10-30m²)', precio: 3000 },
+      { emoji: '🏥', nombre: 'Farmacia (10-30m²)', precio: 1600 },
+      { emoji: '☕', nombre: 'Cafetería (10-30m²)', precio: 1900 },
+      { emoji: '💆', nombre: 'Salón de belleza (10-30m²)', precio: 2300 },
+      { emoji: '💈', nombre: 'Barbería (10-30m²)', precio: 2600 },
+      { emoji: '👔', nombre: 'Oficina (10-30m²)', precio: 2900 },
+      { emoji: '🛠️', nombre: 'Taller (10-30m²)', precio: 3300 },
+      { emoji: '🍱', nombre: 'Restaurante (10-30m²)', precio: 3350 },
+      { emoji: '🛅', nombre: 'Depósito (10-30m²)', precio: 3370 },
+      { emoji: '🏭', nombre: 'Fábrica (10-30m²)', precio: 3390 },
+      { emoji: '🚛', nombre: 'Centro de distribución (10-30m²)', precio: 4000 }
+    ]
+  };
+
   if (categoria === 'irkustk' && catalogosIrkustk[subcategoria]) {
     return catalogosIrkustk[subcategoria];
+  }
+
+  if (categoria === 'odrekao' && catalogosOdrekao[subcategoria]) {
+    return catalogosOdrekao[subcategoria];
   }
 
   if (categoria === 'gresit' && catalogosGresit[subcategoria]) {
