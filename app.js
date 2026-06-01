@@ -5289,7 +5289,6 @@ var girando = false;
 function renderRuletaRusa() {
   var panel = document.getElementById('casino-panel');
   limpiarTodasLasSalas('casino_salas');
-    `<div class="tienda-seccion-header" style="margin-top:1rem"><button class="btn-back" id="back-casino">← Casino</button><h3>🔫 Ruleta Rusa</h3></div><div class="ruleta-menu"><button class="btn btn-primary btn-full" id="btn-crear-sala-privada" style="margin-bottom:0.5rem">🔒 Crear sala privada</button><button class="btn btn-secondary btn-full" id="btn-unirse-codigo">🔑 Unirse con código</button></div><h3 style="margin:1rem 0 0.5rem;font-size:0.95rem">🌐 Salas públicas</h3><div class="salas-tabs"><button class="sala-tab active" data-cap="2">2 jugadores</button><button class="sala-tab" data-cap="3">3 jugadores</button><button class="sala-tab" data-cap="4">4 jugadores</button><button class="sala-tab" data-cap="5">5 jugadores</button></div><div id="lista-salas-publicas"></div><div id="sala-form"></div>`;
   panel.innerHTML =
 
   document.getElementById('back-casino').addEventListener('click', function() {
