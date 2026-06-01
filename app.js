@@ -1041,11 +1041,26 @@ function renderProductos(categoria, subcategoria) {
 
   document.getElementById('back-subcat').addEventListener('click', function() {
     if (categoria === 'comida') renderSubcategoriasComida();
-    else if (categoria === 'construcciones') renderSubcategoriasConst();
+    else if (categoria === 'construcciones') {
+      if (subcategoria === 'casas') renderSubcategoriasConst();
+      else if (subcategoria === 'materiales') renderSubcategoriasConst();
+      else renderSubcategoriasConst();
+    }
     else if (categoria === 'armas') renderSubcategoriasArmas();
-    else if (categoria === 'gresit') renderSubcategoriasComidaGresit();
-    else if (categoria === 'irkustk') renderSubcategoriasComidaIrkustk();
-    else if (categoria === 'odrekao') renderSubcategoriasComidaOdrekao();
+    else if (categoria === 'gresit') {
+      if (subcategoria === 'g_casas') renderConstruccionesGresit();
+      else renderSubcategoriasComidaGresit();
+    }
+    else if (categoria === 'irkustk') {
+      if (subcategoria === 'irkustk_casas') renderConstruccionesIrkustk();
+      else if (subcategoria === 'metales_armas' || subcategoria === 'preciosos') renderSubcategoriasArmasIrkustk();
+      else renderSubcategoriasComidaIrkustk();
+    }
+    else if (categoria === 'odrekao') {
+      if (subcategoria === 'od_casas' || subcategoria === 'od_locales') renderConstruccionesOdrekao();
+      else if (subcategoria === 'metales_armas' || subcategoria === 'preciosos') renderSubcategoriasArmasOdrekao();
+      else renderSubcategoriasComidaOdrekao();
+    }
   });
 
   panel.querySelectorAll('.btn-cantidad').forEach(function(btn) {
@@ -5213,6 +5228,58 @@ function renderCasino() {
   });
 }
 
+// ===== LIMPIEZA DE SALAS INACTIVAS =====
+var TIMEOUT_SALA_MS = 5 * 60 * 1000; // 5 minutos de inactividad
+
+async function limpiarSalaInactiva(coleccion, salaId) {
+  try {
+    var snap = await getDoc(doc(db, coleccion, salaId));
+    if (!snap.exists()) return;
+    var sala = snap.data();
+
+    var faseActiva = ['jugando','apostando','turnos','casino','preflop','flop','turn','river','showdown','girando','tirando'].includes(sala.estado || sala.fase);
+    if (!faseActiva) return; // Solo limpiar si hay partida activa
+
+    var ahora = Date.now();
+    var timerRef = sala.timerInicio || sala.turnoTimer || sala.createdAt;
+    if (!timerRef) return;
+
+    var tiempoTranscurrido = ahora - new Date(timerRef).getTime();
+    if (tiempoTranscurrido < TIMEOUT_SALA_MS) return;
+
+    // La sala lleva más de 5 min sin actividad → resetear
+    console.log('Limpiando sala inactiva:', salaId);
+    await updateDoc(doc(db, coleccion, salaId), {
+      estado:       'esperando',
+      fase:         '',
+      jugadores:    [],
+      espectadores: [],
+      apuestas:     {},
+      dados:        {},
+      cartasCasino: [],
+      mazo:         [],
+      ordenTurnos:  [],
+      turnoActual:  0,
+      pozo:         0,
+      apuestaActual:0,
+      resolviendo:  false,
+      liderId:      null,
+      timerInicio:  null
+    });
+  } catch(e) {
+    console.warn('Error limpiando sala:', e);
+  }
+}
+
+async function limpiarTodasLasSalas(coleccion) {
+  try {
+    var snap = await getDocs(collection(db, coleccion));
+    for (var i = 0; i < snap.docs.length; i++) {
+      await limpiarSalaInactiva(coleccion, snap.docs[i].id);
+    }
+  } catch(e) {}
+}
+
 // ===== RULETA RUSA =====
 
 var salaActualId = null;
@@ -5221,24 +5288,9 @@ var girando = false;
 
 function renderRuletaRusa() {
   var panel = document.getElementById('casino-panel');
+  limpiarTodasLasSalas('casino_salas');
+    `<div class="tienda-seccion-header" style="margin-top:1rem"><button class="btn-back" id="back-casino">← Casino</button><h3>🔫 Ruleta Rusa</h3></div><div class="ruleta-menu"><button class="btn btn-primary btn-full" id="btn-crear-sala-privada" style="margin-bottom:0.5rem">🔒 Crear sala privada</button><button class="btn btn-secondary btn-full" id="btn-unirse-codigo">🔑 Unirse con código</button></div><h3 style="margin:1rem 0 0.5rem;font-size:0.95rem">🌐 Salas públicas</h3><div class="salas-tabs"><button class="sala-tab active" data-cap="2">2 jugadores</button><button class="sala-tab" data-cap="3">3 jugadores</button><button class="sala-tab" data-cap="4">4 jugadores</button><button class="sala-tab" data-cap="5">5 jugadores</button></div><div id="lista-salas-publicas"></div><div id="sala-form"></div>`;
   panel.innerHTML =
-    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
-      '<button class="btn-back" id="back-casino">← Casino</button>' +
-      '<h3>🔫 Ruleta Rusa</h3>' +
-    '</div>' +
-    '<div class="ruleta-menu">' +
-      '<button class="btn btn-primary btn-full" id="btn-crear-sala-privada" style="margin-bottom:0.5rem">🔒 Crear sala privada</button>' +
-      '<button class="btn btn-secondary btn-full" id="btn-unirse-codigo">🔑 Unirse con código</button>' +
-    '</div>' +
-    '<h3 style="margin:1rem 0 0.5rem;font-size:0.95rem">🌐 Salas públicas</h3>' +
-    '<div class="salas-tabs">' +
-      '<button class="sala-tab active" data-cap="2">2 jugadores</button>' +
-      '<button class="sala-tab" data-cap="3">3 jugadores</button>' +
-      '<button class="sala-tab" data-cap="4">4 jugadores</button>' +
-      '<button class="sala-tab" data-cap="5">5 jugadores</button>' +
-    '</div>' +
-    '<div id="lista-salas-publicas"></div>' +
-    '<div id="sala-form"></div>';
 
   document.getElementById('back-casino').addEventListener('click', function() {
     if (salaListener) { salaListener(); salaListener = null; }
@@ -6238,6 +6290,7 @@ var COLORES_RULETA = {
 
 async function renderRuleta() {
   var panel = document.getElementById('casino-panel');
+  limpiarTodasLasSalas('ruleta_salas');
   panel.innerHTML =
     '<div class="tienda-seccion-header" style="margin-top:1rem">' +
       '<button class="btn-back" id="back-casino-ruleta">← Casino</button>' +
@@ -6603,7 +6656,7 @@ function renderPanelApuestaRuleta(salaId, sala, yoJugador, esVip) {
   }
 
   var saldo = currentUser.saldo || 0;
-  var maxApuesta = esVip ? saldo : 5000;
+  var maxApuesta = esVip ? saldo : 25000;
 
   return '<div style="background:var(--bg-card);border-radius:12px;padding:0.75rem">' +
     '<p style="font-size:0.82rem;font-weight:700;margin-bottom:0.5rem">🎯 Tu apuesta</p>' +
@@ -6635,6 +6688,15 @@ function renderPanelApuestaRuleta(salaId, sala, yoJugador, esVip) {
       '<input type="number" id="ruleta-numero-exacto" placeholder="0-36" min="0" max="36" style="width:100%;padding:0.5rem;border-radius:8px;border:1px solid var(--bg-secondary);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;box-sizing:border-box"/>' +
     '</div>' +
 
+    '<div style="display:flex;align-items:center;gap:0.5rem;margin:0.4rem 0">' +
+      '<label style="font-size:0.75rem;color:var(--text-secondary);white-space:nowrap">Tiros:</label>' +
+      '<input type="number" id="ruleta-tiros" value="1" min="1" max="10" ' +
+        'style="width:60px;padding:0.4rem;border-radius:8px;border:1px solid var(--bg-card);' +
+        'background:var(--bg-primary);color:var(--text-primary);font-size:0.88rem;' +
+        'text-align:center;outline:none;box-sizing:border-box" />' +
+      '<span style="font-size:0.72rem;color:var(--text-secondary)">(máx. 10 · se repite la misma apuesta)</span>' +
+    '</div>' +
+    '<div id="ruleta-tiros-preview" style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.3rem"></div>' +
     '<button class="btn btn-primary btn-full" id="btn-confirmar-apuesta-ruleta">✅ Confirmar apuesta</button>' +
     '<button class="btn btn-secondary btn-full" id="btn-saltar-ronda" style="margin-top:0.4rem;font-size:0.8rem">Saltar ronda</button>' +
     '<div id="ruleta-apuesta-msg" style="margin-top:0.4rem;font-size:0.82rem"></div>' +
@@ -6679,6 +6741,27 @@ function manejarTimerRuleta(salaId, sala) {
     var minVal = esVip ? 1000 : 100;
     var maxVal = esVip ? (currentUser.saldo || 0) : 5000;
 
+    var inputTiros = document.getElementById('ruleta-tiros');
+    var previewTiros = document.getElementById('ruleta-tiros-preview');
+    function actualizarPreviewTiros() {
+      if (!inputTiros || !previewTiros) return;
+      var tiros = Math.max(1, Math.min(10, parseInt(inputTiros.value) || 1));
+      var montoActual = parseInt(document.getElementById('ruleta-monto') ? document.getElementById('ruleta-monto').value : minVal) || minVal;
+      if (tiros > 1) {
+        previewTiros.textContent = tiros + ' tiros × £' + montoActual.toLocaleString('es-CO') + ' = £' + (tiros * montoActual).toLocaleString('es-CO') + ' total';
+      } else {
+        previewTiros.textContent = '';
+      }
+    }
+    if (inputTiros) {
+      inputTiros.addEventListener('input', function() {
+        var v = parseInt(this.value) || 1;
+        if (v > 10) this.value = 10;
+        if (v < 1)  this.value = 1;
+        actualizarPreviewTiros();
+      });
+    }
+
     if (btnMinus) {
       btnMinus.addEventListener('click', function() {
         var input = document.getElementById('ruleta-monto');
@@ -6717,17 +6800,44 @@ function manejarTimerRuleta(salaId, sala) {
           desc = 'Número ' + numExacto;
         }
 
+        var tirosInput = document.getElementById('ruleta-tiros');
+        var numTiros   = tirosInput ? Math.max(1, Math.min(10, parseInt(tirosInput.value) || 1)) : 1;
+        var saldoVerif = currentUser.saldo || 0;
+        if (monto * numTiros > saldoVerif) {
+          if (msg) { msg.textContent = 'Saldo insuficiente para ' + numTiros + ' tiros (£' + (monto * numTiros).toLocaleString('es-CO') + ')'; msg.style.color = 'var(--danger)'; }
+          return;
+        }
+
         var apuestas = sala.apuestas || {};
-        apuestas[currentUser.uid] = { uid: currentUser.uid, username: currentUser.username, monto: monto, tipo: tipo, valor: valor, descripcion: desc };
+        apuestas[currentUser.uid] = {
+          uid: currentUser.uid, username: currentUser.username,
+          monto: monto, tipo: tipo, valor: valor, descripcion: desc,
+          tiros: numTiros, tirosRestantes: numTiros
+        };
 
         var update = { apuestas: apuestas };
 
-        // Si solo hay un jugador, girar inmediatamente
+        // Bloquear botón inmediatamente para evitar cambio de apuesta post-giro
+        var btnConf = document.getElementById('btn-confirmar-apuesta-ruleta');
+        var panelApuesta = document.querySelector('.pk-acciones-panel, #pk-acciones-panel') || btnConf;
+        if (btnConf) {
+          btnConf.disabled = true;
+          btnConf.textContent = '⏳ Procesando...';
+        }
+        // Ocultar selector de monto y tipo para evitar el exploit
+        var montoInput   = document.getElementById('ruleta-monto');
+        var sliderRuleta = document.getElementById('pk-bet-slider');
+        var tiposBtns    = document.querySelectorAll('.ruleta-tipo-btn');
+        var btnSaltar    = document.getElementById('btn-saltar-ronda');
+        if (montoInput)   montoInput.disabled = true;
+        if (sliderRuleta) sliderRuleta.disabled = true;
+        tiposBtns.forEach(function(b) { b.disabled = true; b.style.pointerEvents = 'none'; });
+        if (btnSaltar)    btnSaltar.disabled = true;
+
         var jugadoresActivos = sala.jugadores ? sala.jugadores.length : 0;
         if (jugadoresActivos === 1) {
           update.estado = 'girando';
         } else {
-          // Verificar si todos apostaron
           var todosApostaron = sala.jugadores && sala.jugadores.every(function(j) {
             return apuestas[j.uid] !== undefined;
           });
@@ -6853,15 +6963,37 @@ async function ejecutarGiroRuleta(salaId, sala) {
     } catch(err) { console.log('Error saldo ruleta:', err.message); }
   }
 
-  // Reiniciar sala para próxima ronda
+  // Verificar si hay jugadores con tiros restantes
+  var apuestasNuevas = {};
+  var hayTirosRestantes = false;
+  Object.keys(apuestas).forEach(function(uid) {
+    var ap = apuestas[uid];
+    if (ap && ap.tiros > 1 && ap.tirosRestantes > 1) {
+      // Conservar apuesta para siguiente tiro, decrementar contador
+      apuestasNuevas[uid] = Object.assign({}, ap, { tirosRestantes: ap.tirosRestantes - 1 });
+      hayTirosRestantes = true;
+    }
+  });
+
   await updateDoc(doc(db, 'ruleta_salas', salaId), {
     estado: sala.jugadores && sala.jugadores.length > 0 ? 'apostando' : 'esperando',
     ultimoNumero: numeroGanador,
-    apuestas: {},
+    apuestas: hayTirosRestantes ? apuestasNuevas : {},
     jugadores: jugadoresActualizados,
     timerInicio: new Date().toISOString(),
     tiempoRestante: 15
   });
+
+  // Si quedan tiros automáticos, girar de nuevo tras un breve delay
+  if (hayTirosRestantes && sala.jugadores && sala.jugadores.length > 0) {
+    setTimeout(async function() {
+      var snapSig = await getDoc(doc(db, 'ruleta_salas', salaId));
+      if (snapSig.exists() && snapSig.data().estado === 'apostando') {
+        await updateDoc(doc(db, 'ruleta_salas', salaId), { estado: 'girando' });
+        setTimeout(function() { ejecutarGiroRuleta(salaId, snapSig.data()); }, 500);
+      }
+    }, 1800);
+  }
 }
 
 async function salirSalaRuleta(salaId, modo, sala) {
@@ -6908,6 +7040,7 @@ var CATEGORIAS_DADOS = [
 
 async function renderDados() {
   var panel = document.getElementById('casino-panel');
+  limpiarTodasLasSalas('dados_salas');
   panel.innerHTML =
     '<div class="tienda-seccion-header" style="margin-top:1rem">' +
       '<button class="btn-back" id="back-casino-dados">← Casino</button>' +
@@ -7602,9 +7735,10 @@ function renderCartaSVG(carta, esNueva, esRevelando) {
   '</div>';
 }
 
-// ─── renderBlackjack ────────────────────────────────────────────────────────
+// ─── Blackjack ────────────────────────────────────────────────────────
 async function renderBlackjack() {
   var panel = document.getElementById('casino-panel');
+  limpiarTodasLasSalas('blackjack_salas');
   panel.innerHTML =
     '<div class="tienda-seccion-header" style="margin-top:1rem">' +
       '<button class="btn-back" id="back-casino-bj">← Casino</button>' +
@@ -8679,7 +8813,11 @@ document.getElementById('btn-comprar-boleto').addEventListener('click', function
 // ─── Comprar y mostrar boleto ────────────────────────────────────────────────
 async function comprarMultiplesBoletos(precio, cantidad) {
   var area  = document.getElementById('ryg-juego-area');
-  var saldo = currentUser.saldo || 0;
+  var snapSaldo = await getDoc(doc(db, 'usuarios', currentUser.uid));
+  var saldo = snapSaldo.exists() ? (snapSaldo.data().saldo || 0) : 0;
+  currentUser.saldo = saldo;
+  var saldoEl = document.getElementById('ryg-saldo');
+  if (saldoEl) saldoEl.textContent = saldo.toLocaleString('es-CO');
   var totalCosto = precio * cantidad;
 
   if (totalCosto > saldo) {
@@ -8783,7 +8921,12 @@ async function comprarMultiplesBoletos(precio, cantidad) {
 
 async function comprarBoleto(precio) {
   var area   = document.getElementById('ryg-juego-area');
-  var saldo  = currentUser.saldo || 0;
+  // Leer saldo real desde Firestore para evitar desincronización
+  var snapSaldo = await getDoc(doc(db, 'usuarios', currentUser.uid));
+  var saldo = snapSaldo.exists() ? (snapSaldo.data().saldo || 0) : 0;
+  currentUser.saldo = saldo;
+  var saldoEl = document.getElementById('ryg-saldo');
+  if (saldoEl) saldoEl.textContent = saldo.toLocaleString('es-CO');
 
   if (precio > saldo) {
     area.innerHTML = '<p style="color:var(--danger);text-align:center;padding:0.5rem">Saldo insuficiente.</p>';
@@ -8964,6 +9107,16 @@ async function resolverRyg() {
       renderRascaYGana();
     });
   }
+
+  // Sincronizar saldo real desde Firestore al entrar al Rasca y Gana
+  getDoc(doc(db, 'usuarios', currentUser.uid)).then(function(snap) {
+    if (snap.exists()) {
+      var saldoReal = snap.data().saldo || 0;
+      currentUser.saldo = saldoReal;
+      var saldoEl = document.getElementById('ryg-saldo');
+      if (saldoEl) saldoEl.textContent = saldoReal.toLocaleString('es-CO');
+    }
+  });
 }
 
 // ===== POKER =====
@@ -9051,6 +9204,7 @@ var MANOS_PK = ['Carta alta','Par','Doble par','Trío','Escalera','Color','Full 
 
 async function renderPoker() {
   var panel = document.getElementById('casino-panel');
+  limpiarTodasLasSalas('poker_salas');
   // Inyectar CSS de poker si no existe
   if (!document.getElementById('poker-styles')) {
     var st = document.createElement('style');
@@ -9973,3 +10127,4 @@ async function convertirEspectadorAJugadorPoker(salaId, sala, yoEsp) {
 
 function showError(msg) { loginError.textContent = msg; loginError.classList.remove('hidden'); }
 function hideError() { loginError.classList.add('hidden'); }
+
