@@ -8748,16 +8748,16 @@ var SIMBOLOS_RYG = ['⚔️','🏰','🐉','👑','💎','🌙'];
 //    4          ×20
 //    5          ×100
 //    6          ×500
-var MULT_RYG = { 2: 2, 3: 5, 4: 20, 5: 100, 6: 500 };
+var MULT_RYG = { 2: 1.2, 3: 2, 4: 5, 5: 25, 6: 500 };
 
 
 var PROB_RYG = [
   { resultado: 0, peso: 8200 },  // derrota 81%
   { resultado: 2, peso:  1350 },  // 2 iguales 14%
   { resultado: 3, peso:  330 },  // 3 iguales 3.75%
-  { resultado: 4, peso:   110 },  // 4 iguales 1.15%
-  { resultado: 5, peso:   15 },  // 5 iguales 0.15%
-  { resultado: 6, peso:    5 }   // 6 iguales 0.05%
+  { resultado: 4, peso:   105 },  // 4 iguales 1.15%
+  { resultado: 5, peso:   12 },  // 5 iguales 0.15%
+  { resultado: 6, peso:    3 }   // 6 iguales 0.05%
 ];
 var PROB_RYG_TOTAL = PROB_RYG.reduce(function(s, p) { return s + p.peso; }, 0);
 
