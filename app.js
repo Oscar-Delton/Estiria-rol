@@ -8752,12 +8752,12 @@ var MULT_RYG = { 2: 1.2, 3: 2, 4: 5, 5: 25, 6: 500 };
 
 
 var PROB_RYG = [
-  { resultado: 0, peso: 8200 },  // derrota 81%
-  { resultado: 2, peso:  1350 },  // 2 iguales 14%
-  { resultado: 3, peso:  330 },  // 3 iguales 3.75%
-  { resultado: 4, peso:   105 },  // 4 iguales 1.15%
-  { resultado: 5, peso:   12 },  // 5 iguales 0.15%
-  { resultado: 6, peso:    3 }   // 6 iguales 0.05%
+  { resultado: 0, peso: 5500 },  // derrota 55%
+  { resultado: 2, peso:  3000 },  // 2 iguales 30%
+  { resultado: 3, peso:  1000 },  // 3 iguales 10%
+  { resultado: 4, peso:   400 },  // 4 iguales 4%
+  { resultado: 5, peso:   80 },  // 5 iguales 0.8%
+  { resultado: 6, peso:    20 }   // 6 iguales 0.2%
 ];
 var PROB_RYG_TOTAL = PROB_RYG.reduce(function(s, p) { return s + p.peso; }, 0);
 
