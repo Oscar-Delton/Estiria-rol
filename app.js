@@ -6675,7 +6675,7 @@ function renderPanelApuestaRuleta(salaId, sala, yoJugador, esVip) {
   }
 
   var saldo = currentUser.saldo || 0;
-  var maxApuesta = esVip ? saldo : 25000;
+  var maxApuesta = esVip ? saldo : 5000;
 
   return '<div style="background:var(--bg-card);border-radius:12px;padding:0.75rem">' +
     '<p style="font-size:0.82rem;font-weight:700;margin-bottom:0.5rem">🎯 Tu apuesta</p>' +
@@ -6836,27 +6836,12 @@ function manejarTimerRuleta(salaId, sala) {
 
         var update = { apuestas: apuestas };
 
-        // Bloquear botón inmediatamente para evitar cambio de apuesta post-giro
-        var btnConf = document.getElementById('btn-confirmar-apuesta-ruleta');
-        var panelApuesta = document.querySelector('.pk-acciones-panel, #pk-acciones-panel') || btnConf;
-        if (btnConf) {
-          btnConf.disabled = true;
-          btnConf.textContent = '⏳ Procesando...';
-        }
-        // Ocultar selector de monto y tipo para evitar el exploit
-        var montoInput   = document.getElementById('ruleta-monto');
-        var sliderRuleta = document.getElementById('pk-bet-slider');
-        var tiposBtns    = document.querySelectorAll('.ruleta-tipo-btn');
-        var btnSaltar    = document.getElementById('btn-saltar-ronda');
-        if (montoInput)   montoInput.disabled = true;
-        if (sliderRuleta) sliderRuleta.disabled = true;
-        tiposBtns.forEach(function(b) { b.disabled = true; b.style.pointerEvents = 'none'; });
-        if (btnSaltar)    btnSaltar.disabled = true;
-
+        // Si solo hay un jugador, girar inmediatamente
         var jugadoresActivos = sala.jugadores ? sala.jugadores.length : 0;
         if (jugadoresActivos === 1) {
           update.estado = 'girando';
         } else {
+          // Verificar si todos apostaron
           var todosApostaron = sala.jugadores && sala.jugadores.every(function(j) {
             return apuestas[j.uid] !== undefined;
           });
