@@ -8752,8 +8752,8 @@ var MULT_RYG = { 2: 2, 3: 5, 4: 20, 5: 100, 6: 500 };
 
 
 var PROB_RYG = [
-  { resultado: 0, peso: 7400 },  // derrota 74%
-  { resultado: 2, peso:  1900 },  // 2 iguales 19%
+  { resultado: 0, peso: 7800 },  // derrota 74%
+  { resultado: 2, peso:  1500 },  // 2 iguales 19%
   { resultado: 3, peso:  475 },  // 3 iguales 4.75%
   { resultado: 4, peso:   170 },  // 4 iguales 1.7%
   { resultado: 5, peso:   45 },  // 5 iguales 0.45%
