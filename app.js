@@ -8872,14 +8872,21 @@ function renderRascaYGana() {
     // Tabla de premios
     '<div class="card" style="margin-top:0.5rem">' +
       '<p class="edit-section-title" style="margin-bottom:0.6rem">🏆 Premios</p>' +
-      '<div style="display:flex;flex-direction:column;gap:0.25rem">' +
-        [
-          ['🟰🟰', '2 iguales', '×2',   '#a0a0b0'],
-          ['🟰🟰🟰', '3 iguales', '×5',  '#4fc3f7'],
-          ['🟰×4',  '4 iguales', '×20', '#81c784'],
-          ['🟰×5',  '5 iguales', '×100','#ff9800'],
-          ['🟰×6',  '6 iguales', '×500','gold'   ]
-        ].map(function(r) {
+      '<div style="display:flex;flex-direction:column;gap:0.3rem">' +
+      [
+        ['🟰🟰',   '2 iguales', MULT_RYG[2], '#a0a0b0'],
+        ['🟰🟰🟰', '3 iguales', MULT_RYG[3], '#4fc3f7'],
+        ['🟰×4',   '4 iguales', MULT_RYG[4], '#81c784'],
+        ['🟰×5',   '5 iguales', MULT_RYG[5], '#ff9800'],
+        ['🟰×6',   '6 iguales', MULT_RYG[6], 'gold'   ]
+      ].map(function(r) {
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.3rem 0.5rem;border-radius:8px;background:var(--bg-primary)">' +
+          '<span style="font-size:0.85rem">' + r[0] + '</span>' +
+          '<span style="font-size:0.78rem;color:var(--text-secondary)">' + r[1] + '</span>' +
+          '<span style="font-size:0.88rem;font-weight:700;color:' + r[3] + '">×' + r[2] + '</span>' +
+        '</div>';
+      }).join('') +
+    '</div>' +
           return '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.3rem 0.5rem;border-radius:8px;background:var(--bg-primary)">' +
             '<span style="font-size:0.85rem">' + r[0] + '</span>' +
             '<span style="font-size:0.78rem;color:var(--text-secondary)">' + r[1] + '</span>' +
