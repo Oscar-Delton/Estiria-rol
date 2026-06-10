@@ -343,23 +343,105 @@ function navigateTo(section) {
   }
 }
 
+// ===== SISTEMA DE ROLES =====
+var JERARQUIA_ROLES = ['jugador', 'alcalde', 'admin', 'lider_suprema', 'dev'];
+
+function nivelRol(rol) {
+  var r = (rol || 'jugador').toLowerCase();
+  var idx = JERARQUIA_ROLES.indexOf(r);
+  return idx >= 0 ? idx : 0;
+}
+
+function puedeAccederPanelAdmin() {
+  if (!currentUser) return false;
+  var r = (currentUser.rol || '').toLowerCase();
+  return ['dev','lider_suprema','admin','alcalde'].includes(r);
+}
+
+function puedeAsignarRol(rolObjetivo) {
+  // Solo puedes dar roles INFERIORES al tuyo
+  return nivelRol(rolObjetivo) < nivelRol(currentUser.rol);
+}
+
+function puedeGestionarUsuario(usuarioTarget) {
+  // Solo puedes gestionar usuarios con rol inferior al tuyo
+  return nivelRol(usuarioTarget.rol) < nivelRol(currentUser.rol);
+}
+
+function getRolColor(rol) {
+  var colores = {
+    'dev': 'gold',
+    'lider_suprema': '#ff6b9d',
+    'admin': '#ff9800',
+    'alcalde': '#4fc3f7',
+    'jugador': 'var(--text-secondary)'
+  };
+  return colores[(rol||'jugador').toLowerCase()] || 'var(--text-secondary)';
+}
+
+function getRolEmoji(rol) {
+  var emojis = {
+    'dev': '⚙️',
+    'lider_suprema': '👑',
+    'admin': '🛡️',
+    'alcalde': '🏛️',
+    'jugador': '⚔️'
+  };
+  return emojis[(rol||'jugador').toLowerCase()] || '⚔️';
+}
+
 function renderInicio() {
   mainContent.innerHTML =
     '<div class="welcome-banner"><h2>Bienvenido a Estiria</h2><p>' + (currentUser ? currentUser.username : 'Ciudadano') + '</p></div>' +
+    (puedeAccederPanelAdmin()
+      ? '<button class="btn btn-secondary btn-full" id="btn-panel-admin-inicio" style="margin-bottom:0.75rem;border-color:' + getRolColor(currentUser.rol) + ';color:' + getRolColor(currentUser.rol) + '">' + getRolEmoji(currentUser.rol) + ' Panel de Administración</button>'
+      : '') +
     '<div class="inicio-grid">' +
       '<button class="inicio-card" id="inicio-tienda"><span class="inicio-icon">🛒</span><span class="inicio-label">Tienda</span></button>' +
       '<button class="inicio-card" id="inicio-casino"><span class="inicio-icon">🎰</span><span class="inicio-label">Casino</span></button>' +
       '<button class="inicio-card" id="inicio-citas"><span class="inicio-icon">💘</span><span class="inicio-label">Citas</span></button>' +
       '<button class="inicio-card" id="inicio-misiones"><span class="inicio-icon">⚔️</span><span class="inicio-label">Misiones</span></button>' +
     '</div>' +
-    '<div class="card"><h3>📢 Anuncios</h3><p>Proximamente...</p></div>' +
+    '<div class="card" id="inicio-anuncios-card"><h3>📢 Anuncios</h3><p style="color:var(--text-secondary);font-size:0.82rem">Cargando...</p></div>' +
     '<div class="card"><h3>📅 Eventos</h3><p>Proximamente...</p></div>';
+
+    
 
   document.getElementById('inicio-tienda').addEventListener('click', function() { navigateTo('tienda'); });
   document.getElementById('inicio-casino').addEventListener('click', function() { navigateTo('casino'); });
   document.getElementById('inicio-citas').addEventListener('click', function() { navigateTo('citas'); });
   document.getElementById('inicio-misiones').addEventListener('click', function() { navigateTo('misiones'); });
 }
+
+if (puedeAccederPanelAdmin()) {
+    document.getElementById('btn-panel-admin-inicio').addEventListener('click', function() {
+      renderPanelAdmin();
+    });
+  }
+
+// Cargar anuncios reales
+  onSnapshot(
+    query(collection(db, 'anuncios'), where('activo', '==', true), orderBy('creadoEn', 'desc'), limit(5)),
+    function(snap) {
+      var card = document.getElementById('inicio-anuncios-card');
+      if (!card) return;
+      var tipoEmoji = { info: 'ℹ️', evento: '🎉', urgente: '🚨', mantenimiento: '🔧' };
+      var tipoColor = { info: 'var(--text-secondary)', evento: 'var(--success)', urgente: 'var(--danger)', mantenimiento: '#ff9800' };
+      if (snap.empty) {
+        card.innerHTML = '<h3>📢 Anuncios</h3><p style="color:var(--text-secondary);font-size:0.82rem">Sin anuncios por ahora.</p>';
+        return;
+      }
+      card.innerHTML = '<h3 style="margin-bottom:0.5rem">📢 Anuncios</h3>' +
+        snap.docs.map(function(d) {
+          var a = d.data();
+          return '<div style="border-left:3px solid ' + (tipoColor[a.tipo]||'var(--accent)') + ';padding-left:0.6rem;margin-bottom:0.5rem">' +
+            '<p style="font-size:0.85rem;font-weight:700">' + (tipoEmoji[a.tipo]||'📢') + ' ' + a.titulo + '</p>' +
+            '<p style="font-size:0.78rem;color:var(--text-primary)">' + a.cuerpo + '</p>' +
+            '<p style="font-size:0.68rem;color:var(--text-secondary);margin-top:0.2rem">' + new Date(a.creadoEn).toLocaleDateString('es-CO') + ' · ' + a.autorUsername + '</p>' +
+          '</div>';
+        }).join('');
+    }
+  );
 
 function setNav(section) {
   navBtns.forEach(function(b) { b.classList.remove('active'); });
@@ -10275,6 +10357,682 @@ async function convertirEspectadorAJugadorPoker(salaId, sala, yoEsp) {
   } else {
     await updateDoc(doc(db,'poker_salas',salaId),{ espectadores:nuevosEsp });
   }
+}
+
+// ===== PANEL DE ADMINISTRACIÓN =====
+
+function renderPanelAdmin() {
+  var r = (currentUser.rol || '').toLowerCase();
+  var esDev         = r === 'dev';
+  var esLider       = r === 'lider_suprema' || esDev;
+  var esAdmin       = r === 'admin' || esLider;
+  var esAlcalde     = r === 'alcalde' || esAdmin;
+
+  mainContent.innerHTML =
+    '<div class="card" style="border-color:' + getRolColor(currentUser.rol) + ';margin-bottom:0.75rem">' +
+      '<div style="display:flex;align-items:center;gap:0.75rem">' +
+        '<span style="font-size:2rem">' + getRolEmoji(currentUser.rol) + '</span>' +
+        '<div>' +
+          '<h3 style="color:' + getRolColor(currentUser.rol) + '">' + currentUser.username + '</h3>' +
+          '<p style="font-size:0.8rem;color:var(--text-secondary)">' + (currentUser.rol || 'jugador').toUpperCase() + ' — Panel de Administración</p>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" id="padm-usuarios"><span>👥</span><span>Usuarios</span></button>' +
+      '<button class="categoria-btn" id="padm-saldos"><span>💷</span><span>Saldos</span></button>' +
+      (esAdmin
+        ? '<button class="categoria-btn" id="padm-anuncios"><span>📢</span><span>Anuncios</span></button>' +
+          '<button class="categoria-btn" id="padm-misiones"><span>⚔️</span><span>Misiones</span></button>'
+        : '') +
+      (esLider
+        ? '<button class="categoria-btn" id="padm-auditoria"><span>📋</span><span>Auditoría</span></button>' +
+          '<button class="categoria-btn" id="padm-roles"><span>🎭</span><span>Roles</span></button>'
+        : '') +
+      (esDev
+        ? '<button class="categoria-btn" id="padm-sistema"><span>⚙️</span><span>Sistema</span></button>'
+        : '') +
+    '</div>' +
+
+    '<div id="padm-contenido" style="margin-top:0.75rem"></div>';
+
+  document.getElementById('padm-usuarios').addEventListener('click', function() { padmRenderUsuarios(); });
+  document.getElementById('padm-saldos').addEventListener('click', function() { padmRenderSaldos(); });
+  if (esAdmin) {
+    document.getElementById('padm-anuncios').addEventListener('click', function() { padmRenderAnuncios(); });
+    document.getElementById('padm-misiones').addEventListener('click', function() { padmRenderMisionesAdmin(); });
+  }
+  if (esLider) {
+    document.getElementById('padm-auditoria').addEventListener('click', function() { padmRenderAuditoria(); });
+    document.getElementById('padm-roles').addEventListener('click', function() { padmRenderRoles(); });
+  }
+  if (esDev) {
+    document.getElementById('padm-sistema').addEventListener('click', function() { padmRenderSistema(); });
+  }
+}
+
+// ── Usuarios ──────────────────────────────────────────────────────────────────
+async function padmRenderUsuarios() {
+  var contenido = document.getElementById('padm-contenido');
+  contenido.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p>';
+
+  var snap = await getDocs(collection(db, 'usuarios'));
+  var usuarios = snap.docs.map(function(d) { return d.data(); });
+
+  // Filtrar por ciudad si es alcalde
+  var r = (currentUser.rol || '').toLowerCase();
+  if (r === 'alcalde') {
+    usuarios = usuarios.filter(function(u) { return u.ciudad === currentUser.ciudad; });
+  }
+
+  // Ordenar por rol (jerarquía) y luego por username
+  usuarios.sort(function(a, b) {
+    var diff = nivelRol(b.rol) - nivelRol(a.rol);
+    if (diff !== 0) return diff;
+    return (a.username || '').localeCompare(b.username || '');
+  });
+
+  contenido.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">' +
+      '<h3 style="font-size:0.95rem">👥 Usuarios (' + usuarios.length + ')</h3>' +
+      '<input type="text" id="padm-buscar-usuario" placeholder="Buscar..." style="padding:0.4rem 0.7rem;border-radius:8px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.82rem;outline:none;width:130px"/>' +
+    '</div>' +
+    '<div id="padm-usuarios-lista">' +
+      renderListaUsuariosAdmin(usuarios) +
+    '</div>';
+
+  document.getElementById('padm-buscar-usuario').addEventListener('input', function() {
+    var filtro = this.value.toLowerCase();
+    var filtrados = usuarios.filter(function(u) {
+      return (u.username || '').toLowerCase().includes(filtro) ||
+             (u.ciudad || '').toLowerCase().includes(filtro) ||
+             (u.rol || '').toLowerCase().includes(filtro);
+    });
+    document.getElementById('padm-usuarios-lista').innerHTML = renderListaUsuariosAdmin(filtrados);
+    attachListenersUsuariosAdmin();
+  });
+
+  attachListenersUsuariosAdmin();
+}
+
+function renderListaUsuariosAdmin(usuarios) {
+  if (!usuarios.length) return '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Sin usuarios.</p>';
+  return usuarios.map(function(u) {
+    var puedeGestionar = puedeGestionarUsuario(u) && u.uid !== currentUser.uid;
+    return '<div class="movimiento-item" style="border-left:3px solid ' + getRolColor(u.rol) + ';padding-left:0.75rem;margin-bottom:0.4rem" data-uid="' + u.uid + '">' +
+      '<div style="flex:1">' +
+        '<div style="display:flex;align-items:center;gap:0.4rem">' +
+          '<span style="font-size:0.82rem;font-weight:700;color:var(--text-primary)">' + getRolEmoji(u.rol) + ' ' + (u.username || '—') + '</span>' +
+          '<span style="font-size:0.68rem;color:' + getRolColor(u.rol) + ';background:var(--bg-card);padding:0.1rem 0.4rem;border-radius:6px">' + (u.rol || 'jugador') + '</span>' +
+        '</div>' +
+        '<p style="font-size:0.72rem;color:var(--text-secondary);margin-top:0.2rem">' +
+          '🏙️ ' + (u.ciudad || 'Sin ciudad') + ' · 💷 £' + (u.saldo || 0).toLocaleString('es-CO') +
+          (u.nivel ? ' · Nv.' + u.nivel : '') +
+        '</p>' +
+      '</div>' +
+      (puedeGestionar
+        ? '<button class="btn btn-secondary padm-btn-ver-usuario" data-uid="' + u.uid + '" style="padding:0.35rem 0.7rem;font-size:0.75rem">Ver</button>'
+        : '<span style="font-size:0.75rem;color:var(--text-secondary)">—</span>'
+      ) +
+    '</div>';
+  }).join('');
+}
+
+function attachListenersUsuariosAdmin() {
+  document.querySelectorAll('.padm-btn-ver-usuario').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      padmVerUsuario(btn.dataset.uid);
+    });
+  });
+}
+
+async function padmVerUsuario(uid) {
+  var snap = await getDoc(doc(db, 'usuarios', uid));
+  if (!snap.exists()) return;
+  var u = snap.data();
+
+  var puedeGestionar = puedeGestionarUsuario(u);
+  var ciudades = ['Ryazan', 'Ryla', 'Kemerov', 'Navarra', 'Gresit', 'Odrekao', 'Irkustk'];
+
+  var rolesDisponibles = JERARQUIA_ROLES.filter(function(rol) {
+    return puedeAsignarRol(rol);
+  });
+
+  var contenido = document.getElementById('padm-contenido');
+  contenido.innerHTML =
+    '<button class="btn-back" id="padm-back-usuarios" style="margin-bottom:0.75rem">← Usuarios</button>' +
+    '<div class="card" style="border-color:' + getRolColor(u.rol) + '">' +
+      '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">' +
+        (u.fotoPerfil ? '<img src="' + u.fotoPerfil + '" style="width:48px;height:48px;border-radius:50%;object-fit:cover"/>' : '<div style="width:48px;height:48px;border-radius:50%;background:var(--bg-card);display:flex;align-items:center;justify-content:center;font-size:1.5rem">👤</div>') +
+        '<div>' +
+          '<p style="font-weight:700;color:' + getRolColor(u.rol) + '">' + getRolEmoji(u.rol) + ' ' + u.username + '</p>' +
+          '<p style="font-size:0.78rem;color:var(--text-secondary)">' + (u.ciudad || 'Sin ciudad') + ' · ' + (u.rol || 'jugador') + '</p>' +
+        '</div>' +
+      '</div>' +
+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin-bottom:1rem">' +
+        '<div style="background:var(--bg-primary);border-radius:8px;padding:0.5rem;text-align:center">' +
+          '<p style="font-size:0.68rem;color:var(--text-secondary)">Saldo</p>' +
+          '<p style="font-weight:700;color:var(--accent)">£' + (u.saldo || 0).toLocaleString('es-CO') + '</p>' +
+        '</div>' +
+        '<div style="background:var(--bg-primary);border-radius:8px;padding:0.5rem;text-align:center">' +
+          '<p style="font-size:0.68rem;color:var(--text-secondary)">Nivel</p>' +
+          '<p style="font-weight:700">' + (u.nivel || '—') + '</p>' +
+        '</div>' +
+        '<div style="background:var(--bg-primary);border-radius:8px;padding:0.5rem;text-align:center">' +
+          '<p style="font-size:0.68rem;color:var(--text-secondary)">Raza</p>' +
+          '<p style="font-weight:700;font-size:0.82rem">' + (u.raza || '—') + '</p>' +
+        '</div>' +
+        '<div style="background:var(--bg-primary);border-radius:8px;padding:0.5rem;text-align:center">' +
+          '<p style="font-size:0.68rem;color:var(--text-secondary)">WhatsApp</p>' +
+          '<p style="font-weight:700;font-size:0.78rem">' + (u.whatsapp || '—') + '</p>' +
+        '</div>' +
+      '</div>' +
+
+      (puedeGestionar ? (
+        // Cambiar rol
+        '<div style="margin-bottom:0.75rem">' +
+          '<p style="font-size:0.8rem;font-weight:700;margin-bottom:0.4rem">🎭 Cambiar rol</p>' +
+          '<div style="display:flex;gap:0.4rem;flex-wrap:wrap" id="padm-roles-btns">' +
+            rolesDisponibles.map(function(rol) {
+              return '<button class="padm-rol-btn" data-rol="' + rol + '" data-uid="' + uid + '" style="' +
+                'padding:0.4rem 0.75rem;border-radius:8px;font-size:0.78rem;cursor:pointer;' +
+                'border:2px solid ' + (u.rol === rol ? getRolColor(rol) : 'var(--bg-card)') + ';' +
+                'background:' + (u.rol === rol ? getRolColor(rol) + '33' : 'var(--bg-primary)') + ';' +
+                'color:' + getRolColor(rol) + ';font-weight:700' +
+                '">' + getRolEmoji(rol) + ' ' + rol + '</button>';
+            }).join('') +
+          '</div>' +
+          '<div id="padm-rol-msg" style="font-size:0.78rem;margin-top:0.3rem"></div>' +
+        '</div>' +
+
+        // Cambiar ciudad
+        '<div style="margin-bottom:0.75rem">' +
+          '<p style="font-size:0.8rem;font-weight:700;margin-bottom:0.4rem">🏙️ Asignar ciudad</p>' +
+          '<div style="display:flex;gap:0.4rem">' +
+            '<select id="padm-ciudad-select" class="tienda-select" style="flex:1">' +
+              '<option value="">Sin ciudad</option>' +
+              ciudades.map(function(c) {
+                return '<option value="' + c + '"' + (u.ciudad === c ? ' selected' : '') + '>' + c + '</option>';
+              }).join('') +
+            '</select>' +
+            '<button class="btn btn-primary" id="padm-guardar-ciudad" style="padding:0.4rem 0.75rem;font-size:0.82rem">Guardar</button>' +
+          '</div>' +
+          '<div id="padm-ciudad-msg" style="font-size:0.78rem;margin-top:0.3rem"></div>' +
+        '</div>' +
+
+        // Ajuste de saldo rápido
+        '<div style="margin-bottom:0.75rem">' +
+          '<p style="font-size:0.8rem;font-weight:700;margin-bottom:0.4rem">💷 Ajuste de saldo</p>' +
+          '<div style="display:flex;gap:0.4rem;flex-wrap:wrap">' +
+            '<input type="number" id="padm-saldo-monto" placeholder="Monto £" style="flex:1;min-width:100px;padding:0.45rem 0.6rem;border-radius:8px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none"/>' +
+            '<input type="text" id="padm-saldo-motivo" placeholder="Motivo" style="flex:2;min-width:120px;padding:0.45rem 0.6rem;border-radius:8px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none"/>' +
+          '</div>' +
+          '<div style="display:flex;gap:0.4rem;margin-top:0.4rem">' +
+            '<button class="btn btn-primary" id="padm-sumar-saldo" style="flex:1;font-size:0.82rem;padding:0.5rem">➕ Sumar</button>' +
+            '<button class="btn btn-secondary" id="padm-restar-saldo" style="flex:1;font-size:0.82rem;padding:0.5rem;border-color:var(--danger);color:var(--danger)">➖ Restar</button>' +
+          '</div>' +
+          '<div id="padm-saldo-msg" style="font-size:0.78rem;margin-top:0.3rem"></div>' +
+        '</div>' +
+
+        // Borrar historial
+        '<button class="btn btn-secondary btn-full" id="padm-borrar-historial" style="font-size:0.82rem;border-color:var(--danger);color:var(--danger);margin-bottom:0.5rem">🗑️ Borrar historial de transacciones</button>' +
+        '<div id="padm-historial-msg" style="font-size:0.78rem"></div>'
+      ) : '<p style="color:var(--text-secondary);font-size:0.82rem">No tienes permisos para gestionar este usuario.</p>') +
+    '</div>' +
+
+    // Movimientos del usuario
+    '<div class="card" style="margin-top:0.5rem">' +
+      '<p style="font-size:0.85rem;font-weight:700;margin-bottom:0.5rem">📋 Últimas transacciones</p>' +
+      '<div id="padm-movimientos-usuario"><p style="color:var(--text-secondary);font-size:0.82rem">Cargando...</p></div>' +
+    '</div>';
+
+  document.getElementById('padm-back-usuarios').addEventListener('click', function() { padmRenderUsuarios(); });
+
+  // Cargar movimientos
+  cargarMovimientosUsuario(uid, 'padm-movimientos-usuario', uid);
+
+  if (!puedeGestionar) return;
+
+  // Listeners roles
+  document.querySelectorAll('.padm-rol-btn').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      var nuevoRol = btn.dataset.rol;
+      var msg = document.getElementById('padm-rol-msg');
+      if (!puedeAsignarRol(nuevoRol)) {
+        msg.textContent = 'No puedes asignar ese rol.'; msg.style.color = 'var(--danger)'; return;
+      }
+      if (!confirm('¿Cambiar rol de ' + u.username + ' a ' + nuevoRol + '?')) return;
+      btn.disabled = true;
+      await updateDoc(doc(db, 'usuarios', uid), { rol: nuevoRol });
+      await addDoc(collection(db, 'admin_acciones'), {
+        tipo: 'cambio_rol', adminUid: currentUser.uid, adminUsername: currentUser.username,
+        targetUid: uid, targetUsername: u.username,
+        valorAnterior: u.rol, valorNuevo: nuevoRol, fecha: new Date().toISOString()
+      });
+      msg.textContent = '✓ Rol actualizado a ' + nuevoRol; msg.style.color = 'var(--success)';
+      u.rol = nuevoRol;
+    });
+  });
+
+  // Listener ciudad
+  document.getElementById('padm-guardar-ciudad').addEventListener('click', async function() {
+    var ciudad = document.getElementById('padm-ciudad-select').value;
+    var msg = document.getElementById('padm-ciudad-msg');
+    await updateDoc(doc(db, 'usuarios', uid), { ciudad: ciudad });
+    await addDoc(collection(db, 'admin_acciones'), {
+      tipo: 'cambio_ciudad', adminUid: currentUser.uid, adminUsername: currentUser.username,
+      targetUid: uid, targetUsername: u.username,
+      valorAnterior: u.ciudad, valorNuevo: ciudad, fecha: new Date().toISOString()
+    });
+    msg.textContent = '✓ Ciudad actualizada'; msg.style.color = 'var(--success)';
+    u.ciudad = ciudad;
+  });
+
+  // Listeners saldo
+  function ajustarSaldo(tipo) {
+    return async function() {
+      var monto = parseInt(document.getElementById('padm-saldo-monto').value);
+      var motivo = document.getElementById('padm-saldo-motivo').value.trim();
+      var msg = document.getElementById('padm-saldo-msg');
+      if (!monto || monto <= 0) { msg.textContent = 'Ingresa un monto válido'; msg.style.color = 'var(--danger)'; return; }
+      if (!motivo) { msg.textContent = 'El motivo es obligatorio'; msg.style.color = 'var(--danger)'; return; }
+      var cambio = tipo === 'sumar' ? monto : -monto;
+      await updateDoc(doc(db, 'usuarios', uid), { saldo: increment(cambio) });
+      await registrarTransaccion({
+        tipo: 'ajuste_admin', de: currentUser.uid, deUsername: currentUser.username,
+        para: uid, paraUsername: u.username, monto: monto,
+        descripcion: (tipo === 'sumar' ? 'Suma' : 'Resta') + ' admin: ' + motivo
+      });
+      await addDoc(collection(db, 'admin_acciones'), {
+        tipo: 'ajuste_saldo', adminUid: currentUser.uid, adminUsername: currentUser.username,
+        targetUid: uid, targetUsername: u.username,
+        valorAnterior: u.saldo, cambio: cambio, motivo: motivo, fecha: new Date().toISOString()
+      });
+      msg.textContent = '✓ Saldo ' + (tipo === 'sumar' ? 'sumado' : 'restado'); msg.style.color = 'var(--success)';
+      u.saldo = (u.saldo || 0) + cambio;
+    };
+  }
+  document.getElementById('padm-sumar-saldo').addEventListener('click', ajustarSaldo('sumar'));
+  document.getElementById('padm-restar-saldo').addEventListener('click', ajustarSaldo('restar'));
+
+  // Borrar historial
+  document.getElementById('padm-borrar-historial').addEventListener('click', async function() {
+    if (!confirm('¿Borrar todo el historial de transacciones de ' + u.username + '?')) return;
+    var btn = this; btn.disabled = true; btn.textContent = 'Borrando...';
+    var q1 = await getDocs(query(collection(db, 'transacciones'), where('de', '==', uid)));
+    var q2 = await getDocs(query(collection(db, 'transacciones'), where('para', '==', uid)));
+    var todos = {};
+    q1.docs.forEach(function(d) { todos[d.id] = d.ref; });
+    q2.docs.forEach(function(d) { todos[d.id] = d.ref; });
+    for (var id in todos) { await deleteDoc(todos[id]); }
+    document.getElementById('padm-historial-msg').textContent = '✓ Historial borrado';
+    document.getElementById('padm-historial-msg').style.color = 'var(--success)';
+    btn.disabled = false; btn.textContent = '🗑️ Borrar historial de transacciones';
+  });
+}
+
+// ── Saldos globales ───────────────────────────────────────────────────────────
+async function padmRenderSaldos() {
+  var contenido = document.getElementById('padm-contenido');
+  contenido.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p>';
+
+  var snap = await getDocs(collection(db, 'usuarios'));
+  var usuarios = snap.docs.map(function(d) { return d.data(); });
+
+  var r = (currentUser.rol || '').toLowerCase();
+  if (r === 'alcalde') {
+    usuarios = usuarios.filter(function(u) { return u.ciudad === currentUser.ciudad; });
+  }
+
+  usuarios.sort(function(a, b) { return (b.saldo || 0) - (a.saldo || 0); });
+
+  var totalSaldo = usuarios.reduce(function(s, u) { return s + (u.saldo || 0); }, 0);
+  var saldoMedio = usuarios.length ? Math.floor(totalSaldo / usuarios.length) : 0;
+  var conNegativo = usuarios.filter(function(u) { return (u.saldo || 0) < 0; });
+
+  contenido.innerHTML =
+    '<h3 style="font-size:0.95rem;margin-bottom:0.75rem">💷 Resumen de saldos</h3>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin-bottom:0.75rem">' +
+      '<div style="background:var(--bg-card);border-radius:10px;padding:0.6rem;text-align:center">' +
+        '<p style="font-size:0.68rem;color:var(--text-secondary)">Total en circulación</p>' +
+        '<p style="font-weight:700;color:var(--accent);font-size:0.95rem">£' + totalSaldo.toLocaleString('es-CO') + '</p>' +
+      '</div>' +
+      '<div style="background:var(--bg-card);border-radius:10px;padding:0.6rem;text-align:center">' +
+        '<p style="font-size:0.68rem;color:var(--text-secondary)">Saldo medio</p>' +
+        '<p style="font-weight:700;font-size:0.95rem">£' + saldoMedio.toLocaleString('es-CO') + '</p>' +
+      '</div>' +
+      '<div style="background:var(--bg-card);border-radius:10px;padding:0.6rem;text-align:center">' +
+        '<p style="font-size:0.68rem;color:var(--text-secondary)">Total usuarios</p>' +
+        '<p style="font-weight:700;font-size:0.95rem">' + usuarios.length + '</p>' +
+      '</div>' +
+      '<div style="background:var(--bg-card);border-radius:10px;padding:0.6rem;text-align:center;border-color:' + (conNegativo.length ? 'var(--danger)' : 'transparent') + '">' +
+        '<p style="font-size:0.68rem;color:var(--text-secondary)">En negativo</p>' +
+        '<p style="font-weight:700;font-size:0.95rem;color:' + (conNegativo.length ? 'var(--danger)' : 'var(--success)') + '">' + conNegativo.length + '</p>' +
+      '</div>' +
+    '</div>' +
+    (conNegativo.length
+      ? '<div style="background:rgba(233,69,96,0.1);border:1px solid var(--danger);border-radius:10px;padding:0.6rem;margin-bottom:0.75rem">' +
+          '<p style="font-size:0.8rem;font-weight:700;color:var(--danger);margin-bottom:0.4rem">⚠️ Usuarios con saldo negativo</p>' +
+          conNegativo.map(function(u) {
+            return '<p style="font-size:0.78rem;color:var(--danger)">' + u.username + ': £' + (u.saldo || 0).toLocaleString('es-CO') + '</p>';
+          }).join('') +
+        '</div>'
+      : '') +
+    '<p style="font-size:0.8rem;font-weight:700;margin-bottom:0.5rem">🏆 Ranking de saldos</p>' +
+    usuarios.map(function(u, idx) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0.5rem;background:var(--bg-card);border-radius:8px;margin-bottom:0.3rem">' +
+        '<div style="display:flex;align-items:center;gap:0.5rem">' +
+          '<span style="font-size:0.8rem;color:var(--text-secondary);min-width:20px">' + (idx+1) + '</span>' +
+          '<div>' +
+            '<p style="font-size:0.82rem;font-weight:700">' + getRolEmoji(u.rol) + ' ' + u.username + '</p>' +
+            '<p style="font-size:0.68rem;color:var(--text-secondary)">' + (u.ciudad || 'Sin ciudad') + '</p>' +
+          '</div>' +
+        '</div>' +
+        '<p style="font-weight:700;color:' + ((u.saldo||0) < 0 ? 'var(--danger)' : 'var(--accent)') + '">£' + (u.saldo || 0).toLocaleString('es-CO') + '</p>' +
+      '</div>';
+    }).join('');
+}
+
+// ── Anuncios ─────────────────────────────────────────────────────────────────
+function padmRenderAnuncios() {
+  var contenido = document.getElementById('padm-contenido');
+  contenido.innerHTML =
+    '<h3 style="font-size:0.95rem;margin-bottom:0.75rem">📢 Gestión de anuncios</h3>' +
+    '<div class="card" style="margin-bottom:0.75rem">' +
+      '<p style="font-size:0.82rem;font-weight:700;margin-bottom:0.5rem">Nuevo anuncio</p>' +
+      '<input type="text" id="padm-anuncio-titulo" placeholder="Título del anuncio" style="width:100%;padding:0.6rem;border-radius:8px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none;display:block;box-sizing:border-box;margin-bottom:0.4rem"/>' +
+      '<textarea id="padm-anuncio-cuerpo" placeholder="Contenido del anuncio..." style="width:100%;padding:0.6rem;border-radius:8px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none;display:block;box-sizing:border-box;min-height:80px;resize:vertical;margin-bottom:0.4rem;font-family:inherit"></textarea>' +
+      '<div style="display:flex;gap:0.4rem">' +
+        '<select id="padm-anuncio-tipo" class="tienda-select" style="flex:1">' +
+          '<option value="info">ℹ️ Informativo</option>' +
+          '<option value="evento">🎉 Evento</option>' +
+          '<option value="urgente">🚨 Urgente</option>' +
+          '<option value="mantenimiento">🔧 Mantenimiento</option>' +
+        '</select>' +
+        '<button class="btn btn-primary" id="padm-publicar-anuncio" style="padding:0.6rem 1rem;font-size:0.85rem">Publicar</button>' +
+      '</div>' +
+      '<div id="padm-anuncio-msg" style="font-size:0.78rem;margin-top:0.3rem"></div>' +
+    '</div>' +
+    '<p style="font-size:0.82rem;font-weight:700;margin-bottom:0.5rem">Anuncios activos</p>' +
+    '<div id="padm-anuncios-lista"><p style="color:var(--text-secondary);font-size:0.82rem">Cargando...</p></div>';
+
+  document.getElementById('padm-publicar-anuncio').addEventListener('click', async function() {
+    var titulo = document.getElementById('padm-anuncio-titulo').value.trim();
+    var cuerpo = document.getElementById('padm-anuncio-cuerpo').value.trim();
+    var tipo   = document.getElementById('padm-anuncio-tipo').value;
+    var msg    = document.getElementById('padm-anuncio-msg');
+    if (!titulo) { msg.textContent = 'El título es obligatorio'; msg.style.color = 'var(--danger)'; return; }
+    if (!cuerpo) { msg.textContent = 'El contenido es obligatorio'; msg.style.color = 'var(--danger)'; return; }
+    var btn = document.getElementById('padm-publicar-anuncio');
+    btn.disabled = true; btn.textContent = 'Publicando...';
+    await addDoc(collection(db, 'anuncios'), {
+      titulo: titulo, cuerpo: cuerpo, tipo: tipo,
+      autorUid: currentUser.uid, autorUsername: currentUser.username,
+      activo: true, creadoEn: new Date().toISOString()
+    });
+    msg.textContent = '✓ Anuncio publicado'; msg.style.color = 'var(--success)';
+    document.getElementById('padm-anuncio-titulo').value = '';
+    document.getElementById('padm-anuncio-cuerpo').value = '';
+    btn.disabled = false; btn.textContent = 'Publicar';
+    cargarAnunciosAdmin();
+  });
+
+  cargarAnunciosAdmin();
+}
+
+function cargarAnunciosAdmin() {
+  var lista = document.getElementById('padm-anuncios-lista');
+  if (!lista) return;
+  onSnapshot(
+    query(collection(db, 'anuncios'), where('activo', '==', true), orderBy('creadoEn', 'desc')),
+    function(snap) {
+      lista = document.getElementById('padm-anuncios-lista');
+      if (!lista) return;
+      if (snap.empty) { lista.innerHTML = '<p style="color:var(--text-secondary);font-size:0.82rem">Sin anuncios activos.</p>'; return; }
+      var tipoEmoji = { info: 'ℹ️', evento: '🎉', urgente: '🚨', mantenimiento: '🔧' };
+      lista.innerHTML = snap.docs.map(function(d) {
+        var a = d.data();
+        return '<div style="background:var(--bg-card);border-radius:10px;padding:0.6rem;margin-bottom:0.4rem">' +
+          '<div style="display:flex;justify-content:space-between;align-items:start">' +
+            '<div style="flex:1">' +
+              '<p style="font-size:0.85rem;font-weight:700">' + (tipoEmoji[a.tipo]||'📢') + ' ' + a.titulo + '</p>' +
+              '<p style="font-size:0.78rem;color:var(--text-secondary);margin:0.2rem 0">' + a.cuerpo + '</p>' +
+              '<p style="font-size:0.68rem;color:var(--text-secondary)">Por ' + a.autorUsername + ' · ' + new Date(a.creadoEn).toLocaleDateString('es-CO') + '</p>' +
+            '</div>' +
+            '<button class="padm-borrar-anuncio" data-id="' + d.id + '" style="background:none;border:none;color:var(--danger);font-size:1.1rem;cursor:pointer;padding:0.2rem;flex-shrink:0">🗑️</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+      lista.querySelectorAll('.padm-borrar-anuncio').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (!confirm('¿Eliminar este anuncio?')) return;
+          await updateDoc(doc(db, 'anuncios', btn.dataset.id), { activo: false });
+        });
+      });
+    }
+  );
+}
+
+// ── Misiones admin ────────────────────────────────────────────────────────────
+function padmRenderMisionesAdmin() {
+  var contenido = document.getElementById('padm-contenido');
+  contenido.innerHTML =
+    '<h3 style="font-size:0.95rem;margin-bottom:0.75rem">⚔️ Gestión de misiones</h3>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" id="padm-mis-pendientes"><span>⏳</span><span>Pendientes</span></button>' +
+      '<button class="categoria-btn" id="padm-mis-activas"><span>▶️</span><span>En curso</span></button>' +
+      '<button class="categoria-btn" id="padm-mis-completadas"><span>✅</span><span>Completadas</span></button>' +
+      '<button class="categoria-btn" id="padm-mis-crear"><span>➕</span><span>Crear misión</span></button>' +
+    '</div>' +
+    '<div id="padm-misiones-sub"></div>';
+
+  document.getElementById('padm-mis-pendientes').addEventListener('click', function() { padmListaMisiones('pendiente_revision'); });
+  document.getElementById('padm-mis-activas').addEventListener('click', function() { padmListaMisiones('en_curso'); });
+  document.getElementById('padm-mis-completadas').addEventListener('click', function() { padmListaMisiones('confirmada'); });
+  document.getElementById('padm-mis-crear').addEventListener('click', function() {
+    document.getElementById('misiones-panel') || (mainContent.innerHTML += '<div id="misiones-panel"></div>');
+    renderFormCrearMision('individual', null);
+  });
+}
+
+function padmListaMisiones(estado) {
+  var sub = document.getElementById('padm-misiones-sub');
+  if (!sub) return;
+  sub.innerHTML = '<p style="color:var(--text-secondary);font-size:0.82rem;padding:0.5rem">Cargando...</p>';
+
+  var col = estado === 'en_curso' ? 'misiones_en_curso' : 'misiones_terminadas';
+  onSnapshot(
+    query(collection(db, col), where('estado', '==', estado)),
+    function(snap) {
+      sub = document.getElementById('padm-misiones-sub');
+      if (!sub) return;
+      var etiquetas = { 'pendiente_revision': '⏳ Pendientes', 'en_curso': '▶️ En curso', 'confirmada': '✅ Completadas' };
+      if (snap.empty) { sub.innerHTML = '<p style="color:var(--text-secondary);font-size:0.82rem;padding:0.5rem">' + (etiquetas[estado]||estado) + ': ninguna.</p>'; return; }
+      sub.innerHTML = '<p style="font-size:0.82rem;font-weight:700;margin:0.5rem 0">' + (etiquetas[estado]||estado) + ' (' + snap.docs.length + ')</p>' +
+        snap.docs.map(function(d) {
+          var m = d.data();
+          var miembros = m.miembros ? m.miembros.map(function(mb){return mb.username;}).join(', ') : m.username;
+          return '<div style="background:var(--bg-card);border-radius:10px;padding:0.6rem;margin-bottom:0.4rem">' +
+            '<p style="font-size:0.85rem;font-weight:700">' + m.titulo + '</p>' +
+            '<p style="font-size:0.72rem;color:var(--text-secondary)">👤 ' + miembros + ' · 🏙️ ' + (m.ciudad||'—') + '</p>' +
+            '<p style="font-size:0.72rem;color:var(--accent)">💷 £' + (m.recompensaDinero||0).toLocaleString('es-CO') + '</p>' +
+            (estado === 'pendiente_revision'
+              ? '<div style="display:flex;gap:0.4rem;margin-top:0.4rem">' +
+                  '<button class="btn btn-primary padm-confirmar-mision" data-id="' + d.id + '" style="flex:1;font-size:0.78rem;padding:0.4rem">✅ Confirmar</button>' +
+                  '<button class="btn btn-secondary padm-rechazar-mision" data-id="' + d.id + '" style="flex:1;font-size:0.78rem;padding:0.4rem;border-color:var(--danger);color:var(--danger)">❌ Rechazar</button>' +
+                '</div>'
+              : '') +
+          '</div>';
+        }).join('');
+
+      sub.querySelectorAll('.padm-confirmar-mision').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (!confirm('¿Confirmar esta misión?')) return;
+          btn.disabled = true;
+          var snap2 = await getDoc(doc(db, 'misiones_terminadas', btn.dataset.id));
+          var mData = snap2.data();
+          if (mData.recompensaDinero > 0) {
+            for (var i = 0; i < mData.miembros.length; i++) {
+              var mb = mData.miembros[i];
+              await updateDoc(doc(db, 'usuarios', mb.uid), { saldo: increment(mData.recompensaDinero) });
+              await registrarTransaccion({
+                tipo: 'recompensa_mision', de: 'sistema', deUsername: 'Sistema Misiones',
+                para: mb.uid, paraUsername: mb.username, monto: mData.recompensaDinero,
+                descripcion: 'Recompensa: ' + mData.titulo
+              });
+            }
+          }
+          await updateDoc(doc(db, 'misiones_terminadas', btn.dataset.id), { estado: 'confirmada' });
+          if (mData.misionEnCursoId) await updateDoc(doc(db, 'misiones_en_curso', mData.misionEnCursoId), { estado: 'completada' });
+        });
+      });
+
+      sub.querySelectorAll('.padm-rechazar-mision').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (!confirm('¿Rechazar esta misión?')) return;
+          var snap2 = await getDoc(doc(db, 'misiones_terminadas', btn.dataset.id));
+          var mData = snap2.data();
+          await updateDoc(doc(db, 'misiones_terminadas', btn.dataset.id), { estado: 'rechazada' });
+          if (mData.misionEnCursoId) await updateDoc(doc(db, 'misiones_en_curso', mData.misionEnCursoId), { estado: 'en_curso' });
+        });
+      });
+    }
+  );
+}
+
+// ── Auditoría ─────────────────────────────────────────────────────────────────
+function padmRenderAuditoria() {
+  var contenido = document.getElementById('padm-contenido');
+  contenido.innerHTML =
+    '<h3 style="font-size:0.95rem;margin-bottom:0.75rem">📋 Auditoría de acciones admin</h3>' +
+    '<div id="padm-auditoria-lista"><p style="color:var(--text-secondary);font-size:0.82rem">Cargando...</p></div>';
+
+  onSnapshot(
+    query(collection(db, 'admin_acciones'), orderBy('fecha', 'desc'), limit(50)),
+    function(snap) {
+      var lista = document.getElementById('padm-auditoria-lista');
+      if (!lista) return;
+      if (snap.empty) { lista.innerHTML = '<p style="color:var(--text-secondary);font-size:0.82rem">Sin acciones registradas.</p>'; return; }
+      var tipoLabel = {
+        'cambio_rol': '🎭 Cambio de rol',
+        'cambio_ciudad': '🏙️ Cambio de ciudad',
+        'ajuste_saldo': '💷 Ajuste de saldo'
+      };
+      lista.innerHTML = snap.docs.map(function(d) {
+        var a = d.data();
+        return '<div style="background:var(--bg-card);border-radius:8px;padding:0.5rem 0.6rem;margin-bottom:0.3rem">' +
+          '<div style="display:flex;justify-content:space-between">' +
+            '<p style="font-size:0.8rem;font-weight:700">' + (tipoLabel[a.tipo]||a.tipo) + '</p>' +
+            '<p style="font-size:0.68rem;color:var(--text-secondary)">' + new Date(a.fecha).toLocaleString('es-CO') + '</p>' +
+          '</div>' +
+          '<p style="font-size:0.75rem;color:var(--text-secondary)">Admin: <strong>' + a.adminUsername + '</strong> → Usuario: <strong>' + a.targetUsername + '</strong></p>' +
+          (a.tipo === 'cambio_rol' ? '<p style="font-size:0.72rem">' + a.valorAnterior + ' → ' + a.valorNuevo + '</p>' : '') +
+          (a.tipo === 'cambio_ciudad' ? '<p style="font-size:0.72rem">' + (a.valorAnterior||'—') + ' → ' + (a.valorNuevo||'—') + '</p>' : '') +
+          (a.tipo === 'ajuste_saldo' ? '<p style="font-size:0.72rem;color:' + (a.cambio>0?'var(--success)':'var(--danger)') + '">' + (a.cambio>0?'+':'') + '£' + (a.cambio||0).toLocaleString('es-CO') + ' — ' + (a.motivo||'—') + '</p>' : '') +
+        '</div>';
+      }).join('');
+    }
+  );
+}
+
+// ── Gestión de roles ──────────────────────────────────────────────────────────
+async function padmRenderRoles() {
+  var contenido = document.getElementById('padm-contenido');
+  contenido.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p>';
+
+  var snap = await getDocs(collection(db, 'usuarios'));
+  var usuarios = snap.docs.map(function(d) { return d.data(); })
+    .filter(function(u) { return (u.rol||'jugador') !== 'jugador'; })
+    .sort(function(a, b) { return nivelRol(b.rol) - nivelRol(a.rol); });
+
+  contenido.innerHTML =
+    '<h3 style="font-size:0.95rem;margin-bottom:0.75rem">🎭 Roles asignados</h3>' +
+    '<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.75rem">Solo usuarios con roles especiales. Para cambiar un rol, ve a la sección Usuarios.</p>' +
+    JERARQUIA_ROLES.slice().reverse().filter(function(r){ return r !== 'jugador'; }).map(function(rol) {
+      var grupo = usuarios.filter(function(u) { return (u.rol||'').toLowerCase() === rol; });
+      if (!grupo.length) return '';
+      return '<div style="margin-bottom:0.75rem">' +
+        '<p style="font-size:0.82rem;font-weight:700;color:' + getRolColor(rol) + ';margin-bottom:0.4rem">' + getRolEmoji(rol) + ' ' + rol.toUpperCase() + ' (' + grupo.length + ')</p>' +
+        grupo.map(function(u) {
+          return '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-card);border-radius:8px;padding:0.4rem 0.6rem;margin-bottom:0.25rem">' +
+            '<p style="font-size:0.82rem">' + u.username + '</p>' +
+            '<p style="font-size:0.72rem;color:var(--text-secondary)">' + (u.ciudad||'Sin ciudad') + '</p>' +
+          '</div>';
+        }).join('') +
+      '</div>';
+    }).join('');
+}
+
+// ── Sistema (solo DEV) ────────────────────────────────────────────────────────
+function padmRenderSistema() {
+  var contenido = document.getElementById('padm-contenido');
+  contenido.innerHTML =
+    '<h3 style="font-size:0.95rem;margin-bottom:0.75rem">⚙️ Sistema</h3>' +
+    '<div class="card" style="margin-bottom:0.5rem">' +
+      '<p style="font-size:0.85rem;font-weight:700;margin-bottom:0.75rem">🗑️ Limpieza de datos</p>' +
+      '<button class="btn btn-secondary btn-full" id="padm-limpiar-salas" style="margin-bottom:0.4rem;font-size:0.85rem">♻️ Limpiar salas inactivas (todos los juegos)</button>' +
+      '<button class="btn btn-secondary btn-full" id="padm-limpiar-misiones" style="margin-bottom:0.4rem;font-size:0.85rem;border-color:var(--danger);color:var(--danger)">🗑️ Borrar misiones canceladas y rechazadas</button>' +
+      '<div id="padm-sistema-msg" style="font-size:0.78rem;margin-top:0.3rem"></div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<p style="font-size:0.85rem;font-weight:700;margin-bottom:0.75rem">📊 Estado de colecciones</p>' +
+      '<div id="padm-stats-col"><p style="color:var(--text-secondary);font-size:0.82rem">Cargando...</p></div>' +
+    '</div>';
+
+  document.getElementById('padm-limpiar-salas').addEventListener('click', async function() {
+    var msg = document.getElementById('padm-sistema-msg');
+    var btn = this; btn.disabled = true; btn.textContent = 'Limpiando...';
+    var colecciones = ['casino_salas','ruleta_salas','dados_salas','blackjack_salas','poker_salas'];
+    for (var i = 0; i < colecciones.length; i++) {
+      await limpiarTodasLasSalas(colecciones[i]).catch(function(){});
+    }
+    msg.textContent = '✓ Salas limpiadas'; msg.style.color = 'var(--success)';
+    btn.disabled = false; btn.textContent = '♻️ Limpiar salas inactivas (todos los juegos)';
+  });
+
+  document.getElementById('padm-limpiar-misiones').addEventListener('click', async function() {
+    if (!confirm('¿Borrar todas las misiones canceladas y rechazadas?')) return;
+    var msg = document.getElementById('padm-sistema-msg');
+    var btn = this; btn.disabled = true; btn.textContent = 'Borrando...';
+    var q1 = await getDocs(query(collection(db, 'misiones_en_curso'), where('estado', '==', 'cancelada')));
+    var q2 = await getDocs(query(collection(db, 'misiones_terminadas'), where('estado', '==', 'rechazada')));
+    var total = 0;
+    for (var i = 0; i < q1.docs.length; i++) { await deleteDoc(q1.docs[i].ref); total++; }
+    for (var j = 0; j < q2.docs.length; j++) { await deleteDoc(q2.docs[j].ref); total++; }
+    msg.textContent = '✓ ' + total + ' registros eliminados'; msg.style.color = 'var(--success)';
+    btn.disabled = false; btn.textContent = '🗑️ Borrar misiones canceladas y rechazadas';
+  });
+
+  // Stats de colecciones
+  var cols = [
+    { id: 'usuarios',            label: '👥 Usuarios'          },
+    { id: 'transacciones',       label: '💷 Transacciones'      },
+    { id: 'misiones',            label: '⚔️ Misiones'           },
+    { id: 'misiones_en_curso',   label: '▶️ Misiones en curso'  },
+    { id: 'misiones_terminadas', label: '✅ Misiones terminadas' },
+    { id: 'anuncios',            label: '📢 Anuncios'           },
+    { id: 'admin_acciones',      label: '📋 Acciones admin'     },
+    { id: 'patrimonio',          label: '💎 Items patrimonio'   }
+  ];
+
+  Promise.all(cols.map(function(c) {
+    return getDocs(collection(db, c.id)).then(function(s) {
+      return { label: c.label, count: s.size };
+    }).catch(function() {
+      return { label: c.label, count: '—' };
+    });
+  })).then(function(resultados) {
+    var statsEl = document.getElementById('padm-stats-col');
+    if (!statsEl) return;
+    statsEl.innerHTML = resultados.map(function(r) {
+      return '<div style="display:flex;justify-content:space-between;padding:0.3rem 0;border-bottom:1px solid var(--bg-secondary);font-size:0.8rem">' +
+        '<span>' + r.label + '</span>' +
+        '<span style="font-weight:700;color:var(--accent)">' + r.count + '</span>' +
+      '</div>';
+    }).join('');
+  });
 }
 
 function showError(msg) { loginError.textContent = msg; loginError.classList.remove('hidden'); }
