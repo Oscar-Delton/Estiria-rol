@@ -405,21 +405,18 @@ function renderInicio() {
     '<div class="card" id="inicio-anuncios-card"><h3>📢 Anuncios</h3><p style="color:var(--text-secondary);font-size:0.82rem">Cargando...</p></div>' +
     '<div class="card"><h3>📅 Eventos</h3><p>Proximamente...</p></div>';
 
-    
-
   document.getElementById('inicio-tienda').addEventListener('click', function() { navigateTo('tienda'); });
   document.getElementById('inicio-casino').addEventListener('click', function() { navigateTo('casino'); });
   document.getElementById('inicio-citas').addEventListener('click', function() { navigateTo('citas'); });
   document.getElementById('inicio-misiones').addEventListener('click', function() { navigateTo('misiones'); });
-}
 
-if (puedeAccederPanelAdmin()) {
+  if (puedeAccederPanelAdmin()) {
     document.getElementById('btn-panel-admin-inicio').addEventListener('click', function() {
       renderPanelAdmin();
     });
   }
 
-// Cargar anuncios reales
+  // Cargar anuncios reales
   onSnapshot(
     query(collection(db, 'anuncios'), where('activo', '==', true), orderBy('creadoEn', 'desc'), limit(5)),
     function(snap) {
@@ -442,6 +439,7 @@ if (puedeAccederPanelAdmin()) {
         }).join('');
     }
   );
+}
 
 function setNav(section) {
   navBtns.forEach(function(b) { b.classList.remove('active'); });
