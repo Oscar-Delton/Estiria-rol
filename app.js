@@ -4718,7 +4718,7 @@ function renderBanco() {
   }
 }
 
-function renderPanelAdmin() {
+function renderPanelAdminBanco() {
   return '<div class="card" style="border-color:var(--accent);margin-top:1rem"><h3>🏦 Panel Admin Banco</h3><div class="banco-acciones" style="margin-top:0.75rem"><button class="btn-banco" id="btn-admin-ver"><span>👁️</span><span>Ver usuario</span></button><button class="btn-banco" id="btn-admin-editar"><span>✏️</span><span>Editar saldo</span></button><button class="btn-banco" id="btn-admin-sumar"><span>➕</span><span>Sumar</span></button><button class="btn-banco" id="btn-admin-restar"><span>➖</span><span>Restar</span></button></div></div>';
 }
 
