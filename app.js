@@ -5316,38 +5316,20 @@ async function limpiarSalaInactiva(coleccion, salaId) {
     var snap = await getDoc(doc(db, coleccion, salaId));
     if (!snap.exists()) return;
     var sala = snap.data();
-
-    var faseActiva = ['jugando','apostando','turnos','casino','preflop','flop','turn','river','showdown','girando','tirando'].includes(sala.estado || sala.fase);
-    if (!faseActiva) return; // Solo limpiar si hay partida activa
-
-    var ahora = Date.now();
+    var estado = sala.estado || sala.fase || '';
+    var activo = ['jugando','apostando','turnos','casino','preflop',
+                  'flop','turn','river','showdown','girando','tirando',
+                  'lobby','resultado'].includes(estado);
+    if (!activo) return;
     var timerRef = sala.timerInicio || sala.turnoTimer || sala.createdAt;
     if (!timerRef) return;
+    if (Date.now() - new Date(timerRef).getTime() < TIMEOUT_SALA_MS) return;
 
-    var tiempoTranscurrido = ahora - new Date(timerRef).getTime();
-    if (tiempoTranscurrido < TIMEOUT_SALA_MS) return;
-
-    // La sala lleva más de 5 min sin actividad → resetear
-    console.log('Limpiando sala inactiva:', salaId);
-    await updateDoc(doc(db, coleccion, salaId), {
-      estado:       'esperando',
-      fase:         '',
-      jugadores:    [],
-      espectadores: [],
-      apuestas:     {},
-      dados:        {},
-      cartasCasino: [],
-      mazo:         [],
-      ordenTurnos:  [],
-      turnoActual:  0,
-      pozo:         0,
-      apuestaActual:0,
-      resolviendo:  false,
-      liderId:      null,
-      timerInicio:  null
-    });
+    // Reset mínimo garantizado
+    var resetData = { estado: 'esperando', fase: '', jugadores: [], pozo: 0 };
+    await updateDoc(doc(db, coleccion, salaId), resetData);
   } catch(e) {
-    console.warn('Error limpiando sala:', e);
+    console.warn('Error limpiando sala ' + salaId + ':', e.message);
   }
 }
 
@@ -10457,7 +10439,8 @@ async function padmRenderUsuarios() {
 function renderListaUsuariosAdmin(usuarios) {
   if (!usuarios.length) return '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Sin usuarios.</p>';
   return usuarios.map(function(u) {
-    var puedeGestionar = puedeGestionarUsuario(u) && u.uid !== currentUser.uid;
+    var esDev = (currentUser.rol || '').toLowerCase() === 'dev';
+var puedeGestionar = puedeGestionarUsuario(u) && (u.uid !== currentUser.uid || esDev);
     return '<div class="movimiento-item" style="border-left:3px solid ' + getRolColor(u.rol) + ';padding-left:0.75rem;margin-bottom:0.4rem" data-uid="' + u.uid + '">' +
       '<div style="flex:1">' +
         '<div style="display:flex;align-items:center;gap:0.4rem">' +
@@ -10568,9 +10551,10 @@ async function padmVerUsuario(uid) {
             '<input type="text" id="padm-saldo-motivo" placeholder="Motivo" style="flex:2;min-width:120px;padding:0.45rem 0.6rem;border-radius:8px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none"/>' +
           '</div>' +
           '<div style="display:flex;gap:0.4rem;margin-top:0.4rem">' +
-            '<button class="btn btn-primary" id="padm-sumar-saldo" style="flex:1;font-size:0.82rem;padding:0.5rem">➕ Sumar</button>' +
-            '<button class="btn btn-secondary" id="padm-restar-saldo" style="flex:1;font-size:0.82rem;padding:0.5rem;border-color:var(--danger);color:var(--danger)">➖ Restar</button>' +
-          '</div>' +
+  '<button class="btn btn-primary" id="padm-sumar-saldo" style="flex:1;font-size:0.82rem;padding:0.5rem">➕ Sumar</button>' +
+  '<button class="btn btn-secondary" id="padm-restar-saldo" style="flex:1;font-size:0.82rem;padding:0.5rem;border-color:var(--danger);color:var(--danger)">➖ Restar</button>' +
+  '<button class="btn btn-secondary" id="padm-editar-saldo" style="flex:1;font-size:0.82rem;padding:0.5rem;border-color:#ff9800;color:#ff9800">✏️ Fijar</button>' +
+'</div>' +
           '<div id="padm-saldo-msg" style="font-size:0.78rem;margin-top:0.3rem"></div>' +
         '</div>' +
 
@@ -10654,6 +10638,38 @@ async function padmVerUsuario(uid) {
   }
   document.getElementById('padm-sumar-saldo').addEventListener('click', ajustarSaldo('sumar'));
   document.getElementById('padm-restar-saldo').addEventListener('click', ajustarSaldo('restar'));
+  document.getElementById('padm-editar-saldo').addEventListener('click', async function() {
+  var monto = parseInt(document.getElementById('padm-saldo-monto').value);
+  var motivo = document.getElementById('padm-saldo-motivo').value.trim();
+  var msg = document.getElementById('padm-saldo-msg');
+  if (isNaN(monto) || monto < 0) { 
+    msg.textContent = 'Ingresa un saldo válido'; 
+    msg.style.color = 'var(--danger)'; 
+    return; 
+  }
+  if (!motivo) { 
+    msg.textContent = 'El motivo es obligatorio'; 
+    msg.style.color = 'var(--danger)'; 
+    return; 
+  }
+  if (!confirm('¿Fijar saldo de ' + u.username + ' a £' + monto.toLocaleString('es-CO') + '?')) return;
+  var saldoAnterior = u.saldo || 0;
+  await updateDoc(doc(db, 'usuarios', uid), { saldo: monto });
+  await registrarTransaccion({
+    tipo: 'ajuste_admin', de: currentUser.uid, deUsername: currentUser.username,
+    para: uid, paraUsername: u.username, monto: monto,
+    descripcion: 'Saldo fijado a £' + monto.toLocaleString('es-CO') + ' (antes £' + saldoAnterior.toLocaleString('es-CO') + '). Motivo: ' + motivo
+  });
+  await addDoc(collection(db, 'admin_acciones'), {
+    tipo: 'ajuste_saldo', adminUid: currentUser.uid, adminUsername: currentUser.username,
+    targetUid: uid, targetUsername: u.username,
+    valorAnterior: saldoAnterior, cambio: monto - saldoAnterior, 
+    motivo: 'FIJAR: ' + motivo, fecha: new Date().toISOString()
+  });
+  msg.textContent = '✓ Saldo fijado a £' + monto.toLocaleString('es-CO'); 
+  msg.style.color = 'var(--success)';
+  u.saldo = monto;
+});
 
   // Borrar historial
   document.getElementById('padm-borrar-historial').addEventListener('click', async function() {
