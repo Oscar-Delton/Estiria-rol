@@ -222,12 +222,46 @@ FORMATO DE RESPUESTA — SOLO JSON, SIN TEXTO EXTRA:
 }`;
 
 
+// ===== SISTEMA DE NOTIFICACIONES =====
+
+var NOTIF_ICONOS = {
+  'transferencia_recibida': '💷',
+  'mision_aprobada':        '✅',
+  'mision_rechazada':       '❌',
+  'match_nuevo':            '💞',
+  'objeto_recibido':        '🎁',
+  'compra_realizada':       '🛒',
+  'casino_ganancia':        '🎰',
+  'ajuste_admin':           '⚙️',
+  'anuncio':                '📢',
+  'venta_recibida':         '🏪',
+  'impuesto_nuevo':         '📜',
+  'sistema':                '🔔'
+};
+
+async function crearNotificacion(uid, tipo, titulo, cuerpo, extra) {
+  if (!uid || uid === 'sistema') return;
+  try {
+    await addDoc(collection(db, 'notificaciones'), {
+      uid:      uid,
+      tipo:     tipo,
+      titulo:   titulo,
+      cuerpo:   cuerpo,
+      leida:    false,
+      fecha:    new Date().toISOString(),
+      extra:    extra || {}
+    });
+  } catch(e) {
+    console.warn('Error creando notificación:', e.message);
+  }
+}
 
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = await loadUserProfile(user);
     await cargarTodosLosUsuarios();
     showApp();
+    iniciarListenerNotificaciones(); // ← añade esto
   } else {
     showLogin();
   }
@@ -244,6 +278,12 @@ function showApp() {
   appDiv.classList.remove('hidden');
   userInfo.textContent = currentUser ? currentUser.username : '';
   navigateTo('inicio');
+setTimeout(function() {
+  var btnNotif = document.getElementById('btn-notificaciones');
+  if (btnNotif) {
+    btnNotif.addEventListener('click', renderNotificaciones);
+  }
+}, 200);
 }
 
 function showLogin() {
@@ -364,7 +404,8 @@ function puedeAsignarRol(rolObjetivo) {
 }
 
 function puedeGestionarUsuario(usuarioTarget) {
-  // Solo puedes gestionar usuarios con rol inferior al tuyo
+  var esDev = (currentUser.rol || '').toLowerCase() === 'dev';
+  if (esDev && usuarioTarget.uid === currentUser.uid) return true;
   return nivelRol(usuarioTarget.rol) < nivelRol(currentUser.rol);
 }
 
@@ -3406,6 +3447,11 @@ async function cargarTarjetasCitas(miPerfil) {
           usernames: [p.username, currentUser.username],
           fecha: new Date().toISOString()
         });
+        await crearNotificacion(para, 'match_nuevo',
+  '💞 ¡Nuevo match!',
+  currentUser.username + ' también te dio like. ¡Es un match!',
+  { con: currentUser.username }
+);
         tarjetas.innerHTML =
           '<div class="citas-match-banner">' +
             '<p style="font-size:3rem">💞</p>' +
@@ -4275,6 +4321,11 @@ function renderAdminCompletadas() {
                 monto: mData.recompensaDinero,
                 descripcion: 'Recompensa por completar misión: ' + mData.titulo
               });
+              await crearNotificacion(miembro.uid, 'mision_aprobada',
+  '✅ Misión aprobada',
+  'Tu misión "' + mData.titulo + '" fue aprobada. Recompensa: £' + mData.recompensaDinero.toLocaleString('es-CO'),
+  { mision: mData.titulo, recompensa: mData.recompensaDinero }
+);
             }
           }
 
@@ -4290,6 +4341,11 @@ function renderAdminCompletadas() {
           var mData = snap2.data();
           await updateDoc(doc(db, 'misiones_terminadas', btn.dataset.id), { estado: 'rechazada' });
           await updateDoc(doc(db, 'misiones_en_curso', mData.misionEnCursoId || btn.dataset.id), { estado: 'en_curso' });
+          await crearNotificacion(mData.uid, 'mision_rechazada',
+  '❌ Misión rechazada',
+  'Tu misión "' + mData.titulo + '" fue rechazada.',
+  { mision: mData.titulo }
+);
         });
       });
     }
@@ -4867,6 +4923,11 @@ function mostrarImpuestos() {
         await updateDoc(doc(db, 'impuestos', id), { pagado: true });
         await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(-monto) });
         await registrarTransaccion({ tipo: 'impuesto', de: currentUser.uid, deUsername: currentUser.username, para: 'sistema', paraUsername: 'Estiria', monto: monto, descripcion: 'Pago de impuesto' });
+        await crearNotificacion(uidDestino, 'transferencia_recibida',
+  '💷 Transferencia recibida',
+  currentUser.username + ' te envió £' + monto.toLocaleString('es-CO'),
+  { de: currentUser.username, monto: monto, descripcion: descripcion }
+);
       });
     });
   });
@@ -5317,29 +5378,82 @@ async function limpiarSalaInactiva(coleccion, salaId) {
     if (!snap.exists()) return;
     var sala = snap.data();
     var estado = sala.estado || sala.fase || '';
-    var activo = ['jugando','apostando','turnos','casino','preflop',
-                  'flop','turn','river','showdown','girando','tirando',
-                  'lobby','resultado'].includes(estado);
+    var activo = [
+      'jugando','apostando','turnos','casino',
+      'preflop','flop','turn','river','showdown',
+      'girando','tirando','lobby','resultado'
+    ].includes(estado);
     if (!activo) return;
-    var timerRef = sala.timerInicio || sala.turnoTimer || sala.createdAt;
+    var timerRef = sala.timerInicio || sala.turnoTimer || sala.lobbyInicio || sala.createdAt;
     if (!timerRef) return;
     if (Date.now() - new Date(timerRef).getTime() < TIMEOUT_SALA_MS) return;
 
-    // Reset mínimo garantizado
-    var resetData = { estado: 'esperando', fase: '', jugadores: [], pozo: 0 };
-    await updateDoc(doc(db, coleccion, salaId), resetData);
+    console.log('[Limpieza] Reseteando sala inactiva:', coleccion, salaId);
+
+    // Campos base que existen en TODAS las salas
+    var resetBase = {
+      estado: 'esperando',
+      fase: '',
+      jugadores: [],
+      espectadores: [],
+      pozo: 0,
+      apuestaActual: 0,
+      turnoActual: 0,
+      ordenTurnos: [],
+      timerInicio: null,
+      resolviendo: false,
+      liderId: null
+    };
+
+    // Campos específicos según colección
+    if (coleccion === 'casino_salas') {
+      Object.assign(resetBase, {
+        apuestas: {},
+        dadosLanzados: {},
+        disparoActual: 0,
+        balaEnPosicion: null,
+        ganadores: [],
+        perdedor: null,
+        apretadasEsteTurno: 0
+      });
+    } else if (coleccion === 'ruleta_salas') {
+      Object.assign(resetBase, { apuestas: {} });
+      delete resetBase.fase;
+    } else if (coleccion === 'dados_salas') {
+      Object.assign(resetBase, { dados: {}, resultados: {}, rankingRonda: [] });
+      delete resetBase.fase;
+    } else if (coleccion === 'blackjack_salas') {
+      Object.assign(resetBase, {
+        mazo: [], cartasCasino: [],
+        plantados: [], eliminados: []
+      });
+    } else if (coleccion === 'poker_salas') {
+      Object.assign(resetBase, {
+        mazo: [], cartasMesa: [],
+        apuestas: {}
+      });
+    }
+
+    // Usar set con merge para no perder campos estáticos (nombre, apuestaMin, etc.)
+    var { setDoc: setDocFn } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+    await setDocFn(doc(db, coleccion, salaId), resetBase, { merge: true });
+
   } catch(e) {
-    console.warn('Error limpiando sala ' + salaId + ':', e.message);
+    console.warn('[Limpieza] Error en sala ' + salaId + ':', e.message);
   }
 }
 
 async function limpiarTodasLasSalas(coleccion) {
   try {
     var snap = await getDocs(collection(db, coleccion));
-    for (var i = 0; i < snap.docs.length; i++) {
-      await limpiarSalaInactiva(coleccion, snap.docs[i].id);
-    }
-  } catch(e) {}
+    var promesas = snap.docs.map(function(d) {
+      return limpiarSalaInactiva(coleccion, d.id);
+    });
+    await Promise.all(promesas);
+    console.log('[Limpieza] Completada para:', coleccion);
+  } catch(e) {
+    console.warn('[Limpieza] Error general en', coleccion, ':', e.message);
+  }
 }
 
 // ===== RULETA RUSA =====
@@ -10473,7 +10587,8 @@ async function padmVerUsuario(uid) {
   if (!snap.exists()) return;
   var u = snap.data();
 
-  var puedeGestionar = puedeGestionarUsuario(u);
+  var esDev = (currentUser.rol || '').toLowerCase() === 'dev';
+  var puedeGestionar = puedeGestionarUsuario(u) && (u.uid !== currentUser.uid || esDev);
   var ciudades = ['Ryazan', 'Ryla', 'Kemerov', 'Navarra', 'Gresit', 'Odrekao', 'Irkustk'];
 
   var rolesDisponibles = JERARQUIA_ROLES.filter(function(rol) {
@@ -10910,9 +11025,10 @@ function padmListaMisiones(estado) {
           var mData = snap2.data();
           await updateDoc(doc(db, 'misiones_terminadas', btn.dataset.id), { estado: 'rechazada' });
           if (mData.misionEnCursoId) await updateDoc(doc(db, 'misiones_en_curso', mData.misionEnCursoId), { estado: 'en_curso' });
-        });
-      });
-    }
+          await crearNotificacion(mData.uid, 'mision_rechazada',
+    '❌ Misión rechazada',
+    'Tu misión "' + mData.titulo + '" fue rechazada.',
+    { mision: mData.titulo }
   );
 }
 
@@ -10980,31 +11096,33 @@ async function padmRenderRoles() {
 }
 
 // ── Sistema (solo DEV) ────────────────────────────────────────────────────────
-function padmRenderSistema() {
-  var contenido = document.getElementById('padm-contenido');
-  contenido.innerHTML =
-    '<h3 style="font-size:0.95rem;margin-bottom:0.75rem">⚙️ Sistema</h3>' +
-    '<div class="card" style="margin-bottom:0.5rem">' +
-      '<p style="font-size:0.85rem;font-weight:700;margin-bottom:0.75rem">🗑️ Limpieza de datos</p>' +
-      '<button class="btn btn-secondary btn-full" id="padm-limpiar-salas" style="margin-bottom:0.4rem;font-size:0.85rem">♻️ Limpiar salas inactivas (todos los juegos)</button>' +
-      '<button class="btn btn-secondary btn-full" id="padm-limpiar-misiones" style="margin-bottom:0.4rem;font-size:0.85rem;border-color:var(--danger);color:var(--danger)">🗑️ Borrar misiones canceladas y rechazadas</button>' +
-      '<div id="padm-sistema-msg" style="font-size:0.78rem;margin-top:0.3rem"></div>' +
-    '</div>' +
-    '<div class="card">' +
-      '<p style="font-size:0.85rem;font-weight:700;margin-bottom:0.75rem">📊 Estado de colecciones</p>' +
-      '<div id="padm-stats-col"><p style="color:var(--text-secondary);font-size:0.82rem">Cargando...</p></div>' +
-    '</div>';
-
-  document.getElementById('padm-limpiar-salas').addEventListener('click', async function() {
-    var msg = document.getElementById('padm-sistema-msg');
-    var btn = this; btn.disabled = true; btn.textContent = 'Limpiando...';
-    var colecciones = ['casino_salas','ruleta_salas','dados_salas','blackjack_salas','poker_salas'];
-    for (var i = 0; i < colecciones.length; i++) {
-      await limpiarTodasLasSalas(colecciones[i]).catch(function(){});
+document.getElementById('padm-limpiar-salas').addEventListener('click', async function() {
+  var msg = document.getElementById('padm-sistema-msg');
+  var btn = this; 
+  btn.disabled = true; 
+  btn.textContent = 'Limpiando...';
+  msg.textContent = ''; 
+  msg.style.color = 'var(--text-secondary)';
+  
+  var colecciones = ['casino_salas','ruleta_salas','dados_salas','blackjack_salas','poker_salas'];
+  var errores = 0;
+  
+  for (var i = 0; i < colecciones.length; i++) {
+    msg.textContent = 'Limpiando ' + colecciones[i] + '...';
+    try {
+      await limpiarTodasLasSalas(colecciones[i]);
+    } catch(e) {
+      errores++;
     }
-    msg.textContent = '✓ Salas limpiadas'; msg.style.color = 'var(--success)';
-    btn.disabled = false; btn.textContent = '♻️ Limpiar salas inactivas (todos los juegos)';
-  });
+  }
+  
+  msg.textContent = errores === 0 
+    ? '✓ Todas las salas limpiadas correctamente' 
+    : '⚠️ Limpieza completada con ' + errores + ' errores (ver consola)';
+  msg.style.color = errores === 0 ? 'var(--success)' : 'var(--warning)';
+  btn.disabled = false; 
+  btn.textContent = '♻️ Limpiar salas inactivas (todos los juegos)';
+});
 
   document.getElementById('padm-limpiar-misiones').addEventListener('click', async function() {
     if (!confirm('¿Borrar todas las misiones canceladas y rechazadas?')) return;
@@ -11046,6 +11164,156 @@ function padmRenderSistema() {
         '<span style="font-weight:700;color:var(--accent)">' + r.count + '</span>' +
       '</div>';
     }).join('');
+  });
+}
+
+var notifListener = null;
+
+function iniciarListenerNotificaciones() {
+  if (notifListener) { notifListener(); notifListener = null; }
+  if (!currentUser) return;
+
+  notifListener = onSnapshot(
+    query(
+      collection(db, 'notificaciones'),
+      where('uid', '==', currentUser.uid),
+      where('leida', '==', false),
+      orderBy('fecha', 'desc'),
+      limit(50)
+    ),
+    function(snap) {
+      var badge = document.getElementById('notif-badge');
+      if (!badge) return;
+      var count = snap.size;
+      if (count > 0) {
+        badge.style.display = 'flex';
+        badge.textContent = count > 9 ? '9+' : count;
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  );
+}
+
+function renderNotificaciones() {
+  // Panel deslizable desde arriba
+  var existente = document.getElementById('notif-panel-overlay');
+  if (existente) { existente.remove(); return; }
+
+  var overlay = document.createElement('div');
+  overlay.id = 'notif-panel-overlay';
+  overlay.style.cssText = [
+    'position:fixed;top:0;left:0;width:100%;height:100%;',
+    'background:rgba(0,0,0,0.6);z-index:2000;',
+    'display:flex;flex-direction:column;justify-content:flex-start'
+  ].join('');
+
+  overlay.innerHTML =
+    '<div id="notif-panel" style="' +
+      'background:var(--bg-secondary);width:100%;max-height:80vh;' +
+      'border-radius:0 0 20px 20px;overflow-y:auto;' +
+      'box-shadow:0 8px 32px rgba(0,0,0,0.4)' +
+    '">' +
+      '<div style="' +
+        'display:flex;justify-content:space-between;align-items:center;' +
+        'padding:1rem 1rem 0.5rem;border-bottom:1px solid var(--bg-card);' +
+        'position:sticky;top:0;background:var(--bg-secondary);z-index:1' +
+      '">' +
+        '<h3 style="font-size:0.95rem">🔔 Notificaciones</h3>' +
+        '<div style="display:flex;gap:0.5rem;align-items:center">' +
+          '<button id="notif-marcar-todas" style="' +
+            'background:none;border:none;color:var(--text-secondary);' +
+            'font-size:0.75rem;cursor:pointer;padding:0.2rem 0.4rem' +
+          '">Marcar todas leídas</button>' +
+          '<button id="notif-cerrar" style="' +
+            'background:none;border:none;color:var(--text-primary);' +
+            'font-size:1.2rem;cursor:pointer' +
+          '">✕</button>' +
+        '</div>' +
+      '</div>' +
+      '<div id="notif-lista" style="padding:0.5rem">' +
+        '<p style="color:var(--text-secondary);text-align:center;padding:2rem;font-size:0.85rem">Cargando...</p>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+
+  // Cerrar al click fuera del panel
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) overlay.remove();
+  });
+  document.getElementById('notif-cerrar').addEventListener('click', function() {
+    overlay.remove();
+  });
+  document.getElementById('notif-marcar-todas').addEventListener('click', async function() {
+    var snap = await getDocs(query(
+      collection(db, 'notificaciones'),
+      where('uid', '==', currentUser.uid),
+      where('leida', '==', false)
+    ));
+    var batch = writeBatch(db);
+    snap.docs.forEach(function(d) { batch.update(d.ref, { leida: true }); });
+    await batch.commit();
+  });
+
+  cargarNotificaciones();
+}
+
+async function cargarNotificaciones() {
+  var lista = document.getElementById('notif-lista');
+  if (!lista) return;
+
+  var snap = await getDocs(query(
+    collection(db, 'notificaciones'),
+    where('uid', '==', currentUser.uid),
+    orderBy('fecha', 'desc'),
+    limit(30)
+  ));
+
+  if (snap.empty) {
+    lista.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:2rem;font-size:0.85rem">Sin notificaciones</p>';
+    return;
+  }
+
+  lista.innerHTML = snap.docs.map(function(d) {
+    var n = d.data();
+    var icono = NOTIF_ICONOS[n.tipo] || '🔔';
+    var fecha = new Date(n.fecha);
+    var ahora = new Date();
+    var diff  = Math.floor((ahora - fecha) / 60000); // minutos
+    var tiempoStr = diff < 1 ? 'Ahora' 
+      : diff < 60 ? diff + 'm'
+      : diff < 1440 ? Math.floor(diff/60) + 'h'
+      : Math.floor(diff/1440) + 'd';
+
+    return '<div class="notif-item' + (!n.leida ? ' notif-no-leida' : '') + '" data-id="' + d.id + '" style="' +
+      'display:flex;gap:0.6rem;padding:0.65rem 0.5rem;border-radius:10px;' +
+      'margin-bottom:0.3rem;cursor:pointer;' +
+      'background:' + (!n.leida ? 'rgba(233,69,96,0.08)' : 'transparent') + ';' +
+      'border-left:3px solid ' + (!n.leida ? 'var(--accent)' : 'transparent') +
+    '">' +
+      '<span style="font-size:1.4rem;flex-shrink:0;line-height:1.2">' + icono + '</span>' +
+      '<div style="flex:1;min-width:0">' +
+        '<p style="font-size:0.82rem;font-weight:' + (!n.leida ? '700' : '600') + ';color:var(--text-primary);margin:0">' + n.titulo + '</p>' +
+        '<p style="font-size:0.75rem;color:var(--text-secondary);margin:0.15rem 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + n.cuerpo + '</p>' +
+      '</div>' +
+      '<span style="font-size:0.65rem;color:var(--text-secondary);flex-shrink:0;align-self:flex-start;margin-top:0.1rem">' + tiempoStr + '</span>' +
+    '</div>';
+  }).join('');
+
+  // Marcar como leída al tocar
+  lista.querySelectorAll('.notif-item').forEach(function(item) {
+    item.addEventListener('click', async function() {
+      var id = item.dataset.id;
+      if (item.classList.contains('notif-no-leida')) {
+        item.style.background = 'transparent';
+        item.style.borderLeftColor = 'transparent';
+        item.classList.remove('notif-no-leida');
+        var pTitulo = item.querySelector('p');
+        if (pTitulo) pTitulo.style.fontWeight = '600';
+        await updateDoc(doc(db, 'notificaciones', id), { leida: true });
+      }
+    });
   });
 }
 
