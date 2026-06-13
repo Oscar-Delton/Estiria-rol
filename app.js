@@ -11096,33 +11096,43 @@ async function padmRenderRoles() {
 }
 
 // ── Sistema (solo DEV) ────────────────────────────────────────────────────────
-document.getElementById('padm-limpiar-salas').addEventListener('click', async function() {
-  var msg = document.getElementById('padm-sistema-msg');
-  var btn = this; 
-  btn.disabled = true; 
-  btn.textContent = 'Limpiando...';
-  msg.textContent = ''; 
-  msg.style.color = 'var(--text-secondary)';
-  
-  var colecciones = ['casino_salas','ruleta_salas','dados_salas','blackjack_salas','poker_salas'];
-  var errores = 0;
-  
-  for (var i = 0; i < colecciones.length; i++) {
-    msg.textContent = 'Limpiando ' + colecciones[i] + '...';
-    try {
-      await limpiarTodasLasSalas(colecciones[i]);
-    } catch(e) {
-      errores++;
+function padmRenderSistema() {
+  var contenido = document.getElementById('padm-contenido');
+  contenido.innerHTML =
+    '<h3 style="font-size:0.95rem;margin-bottom:0.75rem">⚙️ Sistema</h3>' +
+    '<button class="btn btn-secondary btn-full" id="padm-limpiar-salas" style="margin-bottom:0.5rem">♻️ Limpiar salas inactivas (todos los juegos)</button>' +
+    '<button class="btn btn-secondary btn-full" id="padm-limpiar-misiones" style="margin-bottom:0.75rem;border-color:var(--danger);color:var(--danger)">🗑️ Borrar misiones canceladas y rechazadas</button>' +
+    '<div id="padm-sistema-msg" style="font-size:0.82rem;margin-bottom:0.75rem"></div>' +
+    '<p style="font-size:0.82rem;font-weight:700;margin-bottom:0.4rem">📊 Estadísticas</p>' +
+    '<div id="padm-stats-col"></div>';
+
+  document.getElementById('padm-limpiar-salas').addEventListener('click', async function() {
+    var msg = document.getElementById('padm-sistema-msg');
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Limpiando...';
+    msg.textContent = '';
+    msg.style.color = 'var(--text-secondary)';
+
+    var colecciones = ['casino_salas','ruleta_salas','dados_salas','blackjack_salas','poker_salas'];
+    var errores = 0;
+
+    for (var i = 0; i < colecciones.length; i++) {
+      msg.textContent = 'Limpiando ' + colecciones[i] + '...';
+      try {
+        await limpiarTodasLasSalas(colecciones[i]);
+      } catch(e) {
+        errores++;
+      }
     }
-  }
-  
-  msg.textContent = errores === 0 
-    ? '✓ Todas las salas limpiadas correctamente' 
-    : '⚠️ Limpieza completada con ' + errores + ' errores (ver consola)';
-  msg.style.color = errores === 0 ? 'var(--success)' : 'var(--warning)';
-  btn.disabled = false; 
-  btn.textContent = '♻️ Limpiar salas inactivas (todos los juegos)';
-});
+
+    msg.textContent = errores === 0
+      ? '✓ Todas las salas limpiadas correctamente'
+      : '⚠️ Limpieza completada con ' + errores + ' errores (ver consola)';
+    msg.style.color = errores === 0 ? 'var(--success)' : 'var(--warning)';
+    btn.disabled = false;
+    btn.textContent = '♻️ Limpiar salas inactivas (todos los juegos)';
+  });
 
   document.getElementById('padm-limpiar-misiones').addEventListener('click', async function() {
     if (!confirm('¿Borrar todas las misiones canceladas y rechazadas?')) return;
@@ -11137,7 +11147,6 @@ document.getElementById('padm-limpiar-salas').addEventListener('click', async fu
     btn.disabled = false; btn.textContent = '🗑️ Borrar misiones canceladas y rechazadas';
   });
 
-  // Stats de colecciones
   var cols = [
     { id: 'usuarios',            label: '👥 Usuarios'          },
     { id: 'transacciones',       label: '💷 Transacciones'      },
