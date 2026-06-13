@@ -11026,9 +11026,13 @@ function padmListaMisiones(estado) {
           await updateDoc(doc(db, 'misiones_terminadas', btn.dataset.id), { estado: 'rechazada' });
           if (mData.misionEnCursoId) await updateDoc(doc(db, 'misiones_en_curso', mData.misionEnCursoId), { estado: 'en_curso' });
           await crearNotificacion(mData.uid, 'mision_rechazada',
-    '❌ Misión rechazada',
-    'Tu misión "' + mData.titulo + '" fue rechazada.',
-    { mision: mData.titulo }
+            '❌ Misión rechazada',
+            'Tu misión "' + mData.titulo + '" fue rechazada.',
+            { mision: mData.titulo }
+          );
+        });
+      });
+    }
   );
 }
 
@@ -11174,7 +11178,7 @@ function padmRenderSistema() {
       '</div>';
     }).join('');
   });
-}
+} 
 
 var notifListener = null;
 
