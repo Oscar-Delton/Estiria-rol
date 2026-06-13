@@ -5129,8 +5129,7 @@ function renderPerfil() {
             '<p class="edit-section-title">🖼️ Foto de perfil</p>' +
             '<div class="foto-preview-wrap">' +
               '<div id="foto-preview-container">' +
-                (foto'<button class="btn btn-secondary btn-full" id="btn-inventario-rapido" style="margin-top:0.5rem">📦 Ver inventario completo</button>' +
-                     '<button class="btn btn-secondary btn-full" id="logout-btn" style="margin-top:0.5rem">Cerrar sesion</button>' +
+                (foto
                   ? '<img id="foto-preview-img" src="' + foto + '" class="foto-preview-img" onerror="this.style.display=\'none\'" />'
                   : '<div id="foto-preview-placeholder" class="foto-preview-placeholder">👤</div>'
                 ) +
