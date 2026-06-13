@@ -5115,7 +5115,7 @@ function renderPerfil() {
       '</div>' +
       '<button class="btn btn-primary btn-full" id="btn-abrir-editar-perfil" style="margin-top:1rem">✏️ Editar perfil</button>' +
     '</div>' +
-    '<button class="btn btn-secondary btn-full" id="logout-btn" style="margin-top:0.5rem">Cerrar sesion</button>' +
+    
 
     '<div id="modal-editar-perfil" class="modal-overlay hidden">' +
       '<div class="modal-box">' +
@@ -5129,7 +5129,8 @@ function renderPerfil() {
             '<p class="edit-section-title">🖼️ Foto de perfil</p>' +
             '<div class="foto-preview-wrap">' +
               '<div id="foto-preview-container">' +
-                (foto
+                (foto'<button class="btn btn-secondary btn-full" id="btn-inventario-rapido" style="margin-top:0.5rem">📦 Ver inventario completo</button>' +
+                     '<button class="btn btn-secondary btn-full" id="logout-btn" style="margin-top:0.5rem">Cerrar sesion</button>' +
                   ? '<img id="foto-preview-img" src="' + foto + '" class="foto-preview-img" onerror="this.style.display=\'none\'" />'
                   : '<div id="foto-preview-placeholder" class="foto-preview-placeholder">👤</div>'
                 ) +
@@ -5327,7 +5328,10 @@ function renderPerfil() {
     btn.disabled = false; btn.textContent = 'Cambiar contrasena';
   });
 
-  document.getElementById('logout-btn').addEventListener('click', function() { signOut(auth); });
+  document.getElementById('btn-inventario-rapido').addEventListener('click', function() {
+  renderInventarioRapido();
+});
+document.getElementById('logout-btn').addEventListener('click', function() { signOut(auth); });
 }
 
 // ===== CASINO =====
@@ -11326,6 +11330,185 @@ async function cargarNotificaciones() {
         if (pTitulo) pTitulo.style.fontWeight = '600';
         await updateDoc(doc(db, 'notificaciones', id), { leida: true });
       }
+    });
+  });
+}
+
+async function renderInventarioRapido() {
+  var categorias = [
+    { key: 'armas',                emoji: '⚔️',  label: 'Armas'                    },
+    { key: 'vehiculos',            emoji: '🚗',  label: 'Vehículos'                },
+    { key: 'casas',                emoji: '🏠',  label: 'Casas'                    },
+    { key: 'terrenos',             emoji: '🏔️',  label: 'Terrenos'                 },
+    { key: 'construcciones',       emoji: '🏗️',  label: 'Construcciones'           },
+    { key: 'comida',               emoji: '🍽️',  label: 'Comida'                   },
+    { key: 'materiales_armas',     emoji: '🔩',  label: 'Mat. Armas'               },
+    { key: 'materiales_construccion', emoji: '🧱', label: 'Mat. Construcción'      },
+    { key: 'metales_preciosos',    emoji: '💎',  label: 'Metales preciosos'        },
+    { key: 'artilugios',           emoji: '🔮',  label: 'Artilugios'               },
+    { key: 'animales',             emoji: '🐾',  label: 'Animales'                 },
+    { key: 'esclavos',             emoji: '⛓️',  label: 'Esclavos'                 },
+    { key: 'otros',                emoji: '📦',  label: 'Otros'                    }
+  ];
+
+  // Modal de carga
+  var overlay = document.createElement('div');
+  overlay.id = 'inventario-overlay';
+  overlay.style.cssText = [
+    'position:fixed;top:0;left:0;width:100%;height:100%;',
+    'background:rgba(0,0,0,0.75);z-index:2000;',
+    'display:flex;flex-direction:column;align-items:stretch'
+  ].join('');
+
+  overlay.innerHTML =
+    '<div style="' +
+      'background:var(--bg-secondary);width:100%;height:100%;' +
+      'overflow-y:auto;display:flex;flex-direction:column' +
+    '">' +
+      '<div style="' +
+        'display:flex;justify-content:space-between;align-items:center;' +
+        'padding:1rem;border-bottom:1px solid var(--bg-card);' +
+        'position:sticky;top:0;background:var(--bg-secondary);z-index:1' +
+      '">' +
+        '<h3 style="font-size:0.95rem">📦 Inventario de ' + currentUser.username + '</h3>' +
+        '<button id="btn-cerrar-inventario" style="' +
+          'background:none;border:none;color:var(--text-primary);' +
+          'font-size:1.3rem;cursor:pointer;padding:0.2rem' +
+        '">✕</button>' +
+      '</div>' +
+      '<div id="inventario-cuerpo" style="padding:0.75rem;flex:1">' +
+        '<p style="color:var(--text-secondary);text-align:center;padding:2rem">Cargando inventario...</p>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+
+  document.getElementById('btn-cerrar-inventario').addEventListener('click', function() {
+    overlay.remove();
+  });
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  // Cargar todos los items activos del usuario
+  var snap = await getDocs(
+    query(
+      collection(db, 'patrimonio'),
+      where('uid', '==', currentUser.uid),
+      where('activo', '==', true)
+    )
+  );
+
+  var items = snap.docs.map(function(d) { return d.data(); });
+
+  if (items.length === 0) {
+    document.getElementById('inventario-cuerpo').innerHTML =
+      '<div style="text-align:center;padding:3rem">' +
+        '<p style="font-size:2rem;margin-bottom:0.5rem">📭</p>' +
+        '<p style="color:var(--text-secondary)">Tu inventario está vacío.</p>' +
+        '<p style="font-size:0.82rem;color:var(--text-secondary);margin-top:0.3rem">Visita la tienda para comprar objetos.</p>' +
+      '</div>';
+    return;
+  }
+
+  // Agrupar por categoría
+  var grupos = {};
+  categorias.forEach(function(c) { grupos[c.key] = []; });
+
+  items.forEach(function(item) {
+    var cat = item.categoria || 'otros';
+    if (!grupos[cat]) grupos[cat] = [];
+    grupos[cat].push(item);
+  });
+
+  // Calcular valor total del inventario
+  var valorTotal = items.reduce(function(s, item) {
+    return s + ((item.precioMercado || 0) * (item.cantidad || 1));
+  }, 0);
+
+  var categoriasCon = categorias.filter(function(c) { return grupos[c.key] && grupos[c.key].length > 0; });
+
+  var html =
+    // Resumen superior
+    '<div style="' +
+      'background:var(--bg-card);border-radius:12px;padding:0.75rem;' +
+      'margin-bottom:0.75rem;display:grid;grid-template-columns:1fr 1fr;gap:0.4rem' +
+    '">' +
+      '<div style="text-align:center">' +
+        '<p style="font-size:0.68rem;color:var(--text-secondary)">Total objetos</p>' +
+        '<p style="font-weight:700;font-size:1.1rem;color:var(--accent)">' + items.length + '</p>' +
+      '</div>' +
+      '<div style="text-align:center">' +
+        '<p style="font-size:0.68rem;color:var(--text-secondary)">Valor estimado</p>' +
+        '<p style="font-weight:700;font-size:1.1rem;color:var(--success)">£' + valorTotal.toLocaleString('es-CO') + '</p>' +
+      '</div>' +
+      '<div style="text-align:center">' +
+        '<p style="font-size:0.68rem;color:var(--text-secondary)">Categorías</p>' +
+        '<p style="font-weight:700;font-size:1.1rem">' + categoriasCon.length + '</p>' +
+      '</div>' +
+      '<div style="text-align:center">' +
+        '<p style="font-size:0.68rem;color:var(--text-secondary)">Saldo en banco</p>' +
+        '<p style="font-weight:700;font-size:1.1rem;color:var(--accent)">£' + (currentUser.saldo || 0).toLocaleString('es-CO') + '</p>' +
+      '</div>' +
+    '</div>' +
+
+    // Categorías con items
+    categoriasCon.map(function(cat) {
+      var lista = grupos[cat.key];
+      var valorCat = lista.reduce(function(s, item) {
+        return s + ((item.precioMercado || 0) * (item.cantidad || 1));
+      }, 0);
+
+      return '<div style="margin-bottom:0.75rem">' +
+        // Header de categoría
+        '<div style="' +
+          'display:flex;justify-content:space-between;align-items:center;' +
+          'padding:0.4rem 0.6rem;background:var(--bg-card);border-radius:8px;' +
+          'margin-bottom:0.4rem;cursor:pointer' +
+        '" class="inv-cat-header" data-cat="' + cat.key + '">' +
+          '<span style="font-weight:700;font-size:0.85rem">' +
+            cat.emoji + ' ' + cat.label +
+            ' <span style="color:var(--text-secondary);font-size:0.72rem;font-weight:400">(' + lista.length + ')</span>' +
+          '</span>' +
+          '<span style="font-size:0.72rem;color:var(--success)">£' + valorCat.toLocaleString('es-CO') + '</span>' +
+        '</div>' +
+        // Items de la categoría
+        '<div class="inv-cat-items" data-cat="' + cat.key + '">' +
+          lista.map(function(item) {
+            return '<div style="' +
+              'display:flex;justify-content:space-between;align-items:center;' +
+              'padding:0.4rem 0.6rem;border-radius:8px;' +
+              'background:var(--bg-primary);margin-bottom:0.25rem' +
+            '">' +
+              '<div style="flex:1;min-width:0">' +
+                '<p style="font-size:0.82rem;color:var(--text-primary);font-weight:600;' +
+                  'white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' +
+                  (item.cantidad > 1 ? '×' + item.cantidad + ' ' : '') + item.nombre +
+                '</p>' +
+                (item.descripcion
+                  ? '<p style="font-size:0.68rem;color:var(--text-secondary);margin-top:0.1rem">' + item.descripcion + '</p>'
+                  : '') +
+              '</div>' +
+              '<p style="font-size:0.75rem;color:var(--text-secondary);flex-shrink:0;margin-left:0.5rem">' +
+                '£' + ((item.precioMercado || 0) * (item.cantidad || 1)).toLocaleString('es-CO') +
+              '</p>' +
+            '</div>';
+          }).join('') +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+  document.getElementById('inventario-cuerpo').innerHTML = html;
+
+  // Toggle colapsar/expandir categorías
+  document.querySelectorAll('.inv-cat-header').forEach(function(header) {
+    header.addEventListener('click', function() {
+      var cat    = header.dataset.cat;
+      var items2 = document.querySelector('.inv-cat-items[data-cat="' + cat + '"]');
+      if (!items2) return;
+      var oculto = items2.style.display === 'none';
+      items2.style.display = oculto ? 'block' : 'none';
+      header.style.opacity = oculto ? '1' : '0.6';
     });
   });
 }
