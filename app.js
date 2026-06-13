@@ -367,7 +367,7 @@ function navigateTo(section) {
   var titulos = {
     inicio: 'Inicio', banco: 'Banco', biblioteca: 'Biblioteca',
     perfil: 'Perfil', patrimonio: 'Patrimonio',
-    tienda: 'Tienda', casino: 'Casino', citas: 'Citas', misiones: 'Misiones'
+    tienda: 'Tienda', casino: 'Casino', citas: 'Citas', misiones: 'Misiones', mercado: 'Mercado'
   };
   document.getElementById('header-title').textContent = titulos[section] || section;
   switch (section) {
@@ -380,6 +380,7 @@ function navigateTo(section) {
     case 'casino': renderCasino(); break;
     case 'citas': renderCitas(); break;
     case 'misiones': renderMisiones(); break;
+    case 'mercado': renderMercado(); break;
   }
 }
 
@@ -442,6 +443,7 @@ function renderInicio() {
       '<button class="inicio-card" id="inicio-casino"><span class="inicio-icon">🎰</span><span class="inicio-label">Casino</span></button>' +
       '<button class="inicio-card" id="inicio-citas"><span class="inicio-icon">💘</span><span class="inicio-label">Citas</span></button>' +
       '<button class="inicio-card" id="inicio-misiones"><span class="inicio-icon">⚔️</span><span class="inicio-label">Misiones</span></button>' +
+'<button class="inicio-card" id="inicio-mercado"><span class="inicio-icon">🏪</span><span class="inicio-label">Mercado</span></button>' +
     '</div>' +
     '<div class="card" id="inicio-anuncios-card"><h3>📢 Anuncios</h3><p style="color:var(--text-secondary);font-size:0.82rem">Cargando...</p></div>' +
     '<div class="card"><h3>📅 Eventos</h3><p>Proximamente...</p></div>';
@@ -450,6 +452,7 @@ function renderInicio() {
   document.getElementById('inicio-casino').addEventListener('click', function() { navigateTo('casino'); });
   document.getElementById('inicio-citas').addEventListener('click', function() { navigateTo('citas'); });
   document.getElementById('inicio-misiones').addEventListener('click', function() { navigateTo('misiones'); });
+document.getElementById('inicio-mercado').addEventListener('click', function() { navigateTo('mercado'); });
 
   if (puedeAccederPanelAdmin()) {
     document.getElementById('btn-panel-admin-inicio').addEventListener('click', function() {
@@ -11511,6 +11514,578 @@ async function renderInventarioRapido() {
       header.style.opacity = oculto ? '1' : '0.6';
     });
   });
+}
+
+// ===== MERCADO ENTRE JUGADORES =====
+
+function renderMercado() {
+  mainContent.innerHTML =
+    '<div class="card"><h3>🏪 Mercado de Estiria</h3><p style="color:var(--text-secondary);font-size:0.85rem">Compra y vende objetos entre jugadores</p></div>' +
+    '<div class="categorias-grid">' +
+      '<button class="categoria-btn" id="mercado-explorar"><span>🔍</span><span>Explorar</span></button>' +
+      '<button class="categoria-btn" id="mercado-vender"><span>💰</span><span>Vender</span></button>' +
+      '<button class="categoria-btn" id="mercado-mis-ventas"><span>📦</span><span>Mis ventas</span></button>' +
+    '</div>' +
+    '<div id="mercado-panel"></div>';
+
+  document.getElementById('mercado-explorar').addEventListener('click', function() { renderMercadoExplorar(); });
+  document.getElementById('mercado-vender').addEventListener('click', function() { renderMercadoVender(); });
+  document.getElementById('mercado-mis-ventas').addEventListener('click', function() { renderMercadoMisVentas(); });
+}
+
+// ── Explorar publicaciones ────────────────────────────────────────────────────
+function renderMercadoExplorar() {
+  var panel = document.getElementById('mercado-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-mercado">← Mercado</button>' +
+      '<h3>🔍 Explorar</h3>' +
+    '</div>' +
+    '<div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">' +
+      '<input type="text" id="mercado-buscar" placeholder="Buscar objeto..." ' +
+        'style="flex:1;padding:0.6rem 0.8rem;border-radius:10px;border:1px solid var(--bg-card);' +
+        'background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none"/>' +
+      '<select id="mercado-filtro-cat" ' +
+        'style="padding:0.6rem;border-radius:10px;border:1px solid var(--bg-card);' +
+        'background:var(--bg-primary);color:var(--text-primary);font-size:0.82rem;outline:none">' +
+        '<option value="">Todas</option>' +
+        '<option value="armas">⚔️ Armas</option>' +
+        '<option value="vehiculos">🚗 Vehículos</option>' +
+        '<option value="casas">🏠 Casas</option>' +
+        '<option value="terrenos">🏔️ Terrenos</option>' +
+        '<option value="construcciones">🏗️ Construcciones</option>' +
+        '<option value="comida">🍽️ Comida</option>' +
+        '<option value="materiales_armas">🔩 Mat. Armas</option>' +
+        '<option value="materiales_construccion">🧱 Mat. Construcción</option>' +
+        '<option value="metales_preciosos">💎 Metales</option>' +
+        '<option value="artilugios">🔮 Artilugios</option>' +
+        '<option value="animales">🐾 Animales</option>' +
+        '<option value="otros">📦 Otros</option>' +
+      '</select>' +
+    '</div>' +
+    '<div id="mercado-lista-publica"><p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p></div>';
+
+  document.getElementById('back-mercado').addEventListener('click', function() {
+    panel.innerHTML = '';
+  });
+
+  var buscarTimeout = null;
+  document.getElementById('mercado-buscar').addEventListener('input', function() {
+    clearTimeout(buscarTimeout);
+    buscarTimeout = setTimeout(function() { cargarMercadoPublico(); }, 350);
+  });
+  document.getElementById('mercado-filtro-cat').addEventListener('change', function() {
+    cargarMercadoPublico();
+  });
+
+  cargarMercadoPublico();
+}
+
+function cargarMercadoPublico() {
+  var lista = document.getElementById('mercado-lista-publica');
+  if (!lista) return;
+
+  var buscar  = document.getElementById('mercado-buscar') ? document.getElementById('mercado-buscar').value.trim().toLowerCase() : '';
+  var catFiltro = document.getElementById('mercado-filtro-cat') ? document.getElementById('mercado-filtro-cat').value : '';
+
+  var q = query(
+    collection(db, 'mercado_publicaciones'),
+    where('activa', '==', true),
+    orderBy('creadoEn', 'desc'),
+    limit(60)
+  );
+
+  onSnapshot(q, function(snap) {
+    lista = document.getElementById('mercado-lista-publica');
+    if (!lista) return;
+
+    var items = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+
+    // Filtrar por búsqueda y categoría
+    if (buscar) {
+      items = items.filter(function(i) {
+        return i.nombre.toLowerCase().includes(buscar) ||
+               (i.descripcion || '').toLowerCase().includes(buscar);
+      });
+    }
+    if (catFiltro) {
+      items = items.filter(function(i) { return i.categoria === catFiltro; });
+    }
+
+    // Ocultar los propios
+    items = items.filter(function(i) { return i.vendedorUid !== currentUser.uid; });
+
+    if (items.length === 0) {
+      lista.innerHTML = '<div style="text-align:center;padding:2rem"><p style="font-size:1.5rem">🏪</p><p style="color:var(--text-secondary)">No hay publicaciones disponibles.</p></div>';
+      return;
+    }
+
+    var catEmoji = {
+      armas:'⚔️', vehiculos:'🚗', casas:'🏠', terrenos:'🏔️',
+      construcciones:'🏗️', comida:'🍽️', materiales_armas:'🔩',
+      materiales_construccion:'🧱', metales_preciosos:'💎',
+      artilugios:'🔮', animales:'🐾', esclavos:'⛓️', otros:'📦'
+    };
+
+    lista.innerHTML = items.map(function(item) {
+      return '<div class="mercado-card" data-id="' + item.id + '" style="' +
+        'background:var(--bg-card);border-radius:12px;padding:0.75rem;' +
+        'margin-bottom:0.5rem;cursor:pointer;border:1px solid transparent;' +
+        'transition:border-color 0.2s' +
+        '">' +
+        '<div style="display:flex;gap:0.75rem;align-items:start">' +
+          (item.imagen
+            ? '<img src="' + item.imagen + '" style="width:56px;height:56px;border-radius:8px;object-fit:cover;flex-shrink:0" onerror="this.style.display=\'none\'"/>'
+            : '<div style="width:56px;height:56px;border-radius:8px;background:var(--bg-primary);display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0">' + (catEmoji[item.categoria] || '📦') + '</div>'
+          ) +
+          '<div style="flex:1;min-width:0">' +
+            '<p style="font-weight:700;font-size:0.88rem;color:var(--text-primary)">' + item.nombre + '</p>' +
+            (item.descripcion ? '<p style="font-size:0.75rem;color:var(--text-secondary);margin:0.15rem 0">' + item.descripcion + '</p>' : '') +
+            '<p style="font-size:0.72rem;color:var(--text-secondary)">Por <strong>' + item.vendedorUsername + '</strong> · ' + (catEmoji[item.categoria] || '📦') + ' ' + (item.categoria || '') + '</p>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--bg-primary)">' +
+          '<div>' +
+            '<p style="font-size:1rem;font-weight:700;color:var(--accent)">£' + item.precioVenta.toLocaleString('es-CO') + ' <span style="font-size:0.72rem;font-weight:400;color:var(--text-secondary)">/ unidad</span></p>' +
+            '<p style="font-size:0.72rem;color:var(--text-secondary)">Disponible: ' + item.cantidadDisponible + ' ud.</p>' +
+          '</div>' +
+          '<button class="btn btn-primary btn-comprar-mercado" data-id="' + item.id + '" style="padding:0.5rem 1rem;font-size:0.82rem">Comprar</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    lista.querySelectorAll('.btn-comprar-mercado').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var item = items.find(function(i) { return i.id === btn.dataset.id; });
+        if (item) mostrarModalCompra(item);
+      });
+    });
+  });
+}
+
+function mostrarModalCompra(item) {
+  var existente = document.getElementById('modal-compra-mercado');
+  if (existente) existente.remove();
+
+  var saldo = currentUser.saldo || 0;
+  var maxCompra = Math.min(item.cantidadDisponible, Math.floor(saldo / item.precioVenta));
+
+  var modalHtml =
+    '<div id="modal-compra-mercado" style="' +
+      'position:fixed;top:0;left:0;width:100%;height:100%;' +
+      'background:rgba(0,0,0,0.75);z-index:2000;' +
+      'display:flex;align-items:center;justify-content:center' +
+    '">' +
+      '<div style="' +
+        'background:var(--bg-secondary);border-radius:16px;padding:1.5rem;' +
+        'width:90%;max-width:360px;border:1px solid var(--bg-card)' +
+      '">' +
+        '<h3 style="margin-bottom:0.5rem">🛒 Comprar</h3>' +
+        '<p style="font-weight:700;font-size:0.95rem;margin-bottom:0.25rem">' + item.nombre + '</p>' +
+        '<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.75rem">Vendedor: ' + item.vendedorUsername + '</p>' +
+
+        '<div style="background:var(--bg-card);border-radius:10px;padding:0.6rem;margin-bottom:0.75rem">' +
+          '<div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:0.25rem">' +
+            '<span style="color:var(--text-secondary)">Precio por unidad</span>' +
+            '<span style="font-weight:700;color:var(--accent)">£' + item.precioVenta.toLocaleString('es-CO') + '</span>' +
+          '</div>' +
+          '<div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:0.25rem">' +
+            '<span style="color:var(--text-secondary)">Disponibles</span>' +
+            '<span style="font-weight:700">' + item.cantidadDisponible + '</span>' +
+          '</div>' +
+          '<div style="display:flex;justify-content:space-between;font-size:0.82rem">' +
+            '<span style="color:var(--text-secondary)">Tu saldo</span>' +
+            '<span style="font-weight:700">£' + saldo.toLocaleString('es-CO') + '</span>' +
+          '</div>' +
+        '</div>' +
+
+        '<p style="font-size:0.8rem;font-weight:700;margin-bottom:0.4rem">Cantidad a comprar</p>' +
+        '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem">' +
+          '<button class="btn-cantidad" id="compra-minus">−</button>' +
+          '<span id="compra-qty" style="font-size:1.2rem;font-weight:700;color:var(--accent);min-width:40px;text-align:center">1</span>' +
+          '<button class="btn-cantidad" id="compra-plus">+</button>' +
+        '</div>' +
+        '<div id="compra-total-preview" style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.75rem">Total: £' + item.precioVenta.toLocaleString('es-CO') + '</div>' +
+
+        (maxCompra === 0
+          ? '<p style="color:var(--danger);font-size:0.82rem;margin-bottom:0.75rem">⚠️ Saldo insuficiente para comprar.</p>'
+          : '') +
+
+        '<div style="display:flex;gap:0.5rem">' +
+          '<button class="btn btn-secondary" id="btn-cancelar-compra" style="flex:1">Cancelar</button>' +
+          '<button class="btn btn-primary" id="btn-confirmar-compra-mercado" style="flex:1"' + (maxCompra === 0 ? ' disabled' : '') + '>Confirmar</button>' +
+        '</div>' +
+        '<div id="compra-msg" style="margin-top:0.5rem;font-size:0.82rem;text-align:center"></div>' +
+      '</div>' +
+    '</div>';
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  var qty = 1;
+
+  function actualizarTotal() {
+    document.getElementById('compra-qty').textContent = qty;
+    document.getElementById('compra-total-preview').textContent = 'Total: £' + (item.precioVenta * qty).toLocaleString('es-CO');
+  }
+
+  document.getElementById('compra-minus').addEventListener('click', function() {
+    if (qty > 1) { qty--; actualizarTotal(); }
+  });
+  document.getElementById('compra-plus').addEventListener('click', function() {
+    if (qty < item.cantidadDisponible && qty < maxCompra) { qty++; actualizarTotal(); }
+  });
+  document.getElementById('btn-cancelar-compra').addEventListener('click', function() {
+    document.getElementById('modal-compra-mercado').remove();
+  });
+
+  document.getElementById('btn-confirmar-compra-mercado').addEventListener('click', async function() {
+    var btn = this;
+    var msg = document.getElementById('compra-msg');
+    btn.disabled = true; btn.textContent = 'Procesando...';
+
+    try {
+      // Verificar saldo real
+      var snapUser = await getDoc(doc(db, 'usuarios', currentUser.uid));
+      var saldoReal = snapUser.data().saldo || 0;
+      var total = item.precioVenta * qty;
+
+      if (total > saldoReal) {
+        msg.textContent = 'Saldo insuficiente.'; msg.style.color = 'var(--danger)';
+        btn.disabled = false; btn.textContent = 'Confirmar';
+        return;
+      }
+
+      // Verificar que la publicación sigue activa y tiene stock
+      var snapPub = await getDoc(doc(db, 'mercado_publicaciones', item.id));
+      if (!snapPub.exists() || !snapPub.data().activa) {
+        msg.textContent = 'Esta publicación ya no está disponible.'; msg.style.color = 'var(--danger)';
+        btn.disabled = false; btn.textContent = 'Confirmar';
+        return;
+      }
+      var pubData = snapPub.data();
+      if (pubData.cantidadDisponible < qty) {
+        msg.textContent = 'Stock insuficiente (' + pubData.cantidadDisponible + ' disponibles).'; msg.style.color = 'var(--danger)';
+        btn.disabled = false; btn.textContent = 'Confirmar';
+        return;
+      }
+
+      // 1. Descontar saldo al comprador
+      await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(-total) });
+      currentUser.saldo = saldoReal - total;
+
+      // 2. Sumar saldo al vendedor
+      await updateDoc(doc(db, 'usuarios', item.vendedorUid), { saldo: increment(total) });
+
+      // 3. Actualizar o cerrar la publicación
+      var nuevaCantidad = pubData.cantidadDisponible - qty;
+      if (nuevaCantidad <= 0) {
+        await updateDoc(doc(db, 'mercado_publicaciones', item.id), { activa: false, cantidadDisponible: 0 });
+      } else {
+        await updateDoc(doc(db, 'mercado_publicaciones', item.id), { cantidadDisponible: nuevaCantidad });
+      }
+
+      // 4. Añadir al patrimonio del comprador
+      await addDoc(collection(db, 'patrimonio'), {
+        uid: currentUser.uid, username: currentUser.username,
+        categoria: item.categoria, nombre: item.nombre,
+        cantidad: qty, descripcion: item.descripcion || '',
+        precioCompra: item.precioVenta, precioMercado: item.precioMercado || item.precioVenta,
+        imagen: item.imagen || '', activo: true,
+        creadoEn: new Date().toISOString(), creadoPor: 'mercado'
+      });
+
+      // 5. Restar del patrimonio del vendedor (buscar el item original)
+      var snapPatVendedor = await getDocs(query(
+        collection(db, 'patrimonio'),
+        where('uid', '==', item.vendedorUid),
+        where('nombre', '==', item.nombre),
+        where('activo', '==', true),
+        limit(1)
+      ));
+      if (!snapPatVendedor.empty) {
+        var patDoc = snapPatVendedor.docs[0];
+        var cantActual = patDoc.data().cantidad || 1;
+        if (cantActual - qty <= 0) {
+          await updateDoc(doc(db, 'patrimonio', patDoc.id), { activo: false, cantidad: 0 });
+        } else {
+          await updateDoc(doc(db, 'patrimonio', patDoc.id), { cantidad: cantActual - qty });
+        }
+      }
+
+      // 6. Registrar transacciones
+      await registrarTransaccion({
+        tipo: 'mercado_compra',
+        de: currentUser.uid, deUsername: currentUser.username,
+        para: item.vendedorUid, paraUsername: item.vendedorUsername,
+        monto: total,
+        descripcion: 'Mercado: compra de ' + qty + 'x ' + item.nombre + ' a £' + item.precioVenta.toLocaleString('es-CO') + ' c/u'
+      });
+
+      // 7. Notificaciones
+      await crearNotificacion(item.vendedorUid, 'venta_recibida',
+        '🏪 Venta realizada',
+        currentUser.username + ' compró ' + qty + 'x ' + item.nombre + ' por £' + total.toLocaleString('es-CO'),
+        { comprador: currentUser.username, item: item.nombre, monto: total }
+      );
+      await crearNotificacion(currentUser.uid, 'compra_realizada',
+        '🛒 Compra exitosa',
+        'Compraste ' + qty + 'x ' + item.nombre + ' a ' + item.vendedorUsername + ' por £' + total.toLocaleString('es-CO'),
+        { vendedor: item.vendedorUsername, item: item.nombre, monto: total }
+      );
+
+      msg.textContent = '✅ ¡Compra realizada!'; msg.style.color = 'var(--success)';
+      setTimeout(function() {
+        document.getElementById('modal-compra-mercado').remove();
+      }, 1500);
+
+    } catch (err) {
+      msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--danger)';
+      btn.disabled = false; btn.textContent = 'Confirmar';
+    }
+  });
+}
+
+// ── Publicar a la venta ───────────────────────────────────────────────────────
+function renderMercadoVender() {
+  var panel = document.getElementById('mercado-panel');
+  var categorias = [
+    { key: 'armas',                emoji: '⚔️',  label: 'Armas'              },
+    { key: 'vehiculos',            emoji: '🚗',  label: 'Vehículos'          },
+    { key: 'casas',                emoji: '🏠',  label: 'Casas'              },
+    { key: 'terrenos',             emoji: '🏔️',  label: 'Terrenos'           },
+    { key: 'construcciones',       emoji: '🏗️',  label: 'Construcciones'     },
+    { key: 'comida',               emoji: '🍽️',  label: 'Comida'             },
+    { key: 'materiales_armas',     emoji: '🔩',  label: 'Mat. Armas'         },
+    { key: 'materiales_construccion', emoji: '🧱', label: 'Mat. Construcción'},
+    { key: 'metales_preciosos',    emoji: '💎',  label: 'Metales'            },
+    { key: 'artilugios',           emoji: '🔮',  label: 'Artilugios'         },
+    { key: 'animales',             emoji: '🐾',  label: 'Animales'           },
+    { key: 'esclavos',             emoji: '⛓️',  label: 'Esclavos'           },
+    { key: 'otros',                emoji: '📦',  label: 'Otros'              }
+  ];
+
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-mercado-vender">← Mercado</button>' +
+      '<h3>💰 Poner a la venta</h3>' +
+    '</div>' +
+    '<p style="color:var(--text-secondary);font-size:0.82rem;margin-bottom:0.75rem">Selecciona la categoría del objeto que quieres vender</p>' +
+    '<div class="categorias-grid">' +
+      categorias.map(function(c) {
+        return '<button class="categoria-btn mercado-cat-btn" data-cat="' + c.key + '">' +
+          '<span>' + c.emoji + '</span><span>' + c.label + '</span>' +
+        '</button>';
+      }).join('') +
+    '</div>' +
+    '<div id="mercado-vender-panel"></div>';
+
+  document.getElementById('back-mercado-vender').addEventListener('click', function() {
+    panel.innerHTML = '';
+  });
+
+  panel.querySelectorAll('.mercado-cat-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var cat = categorias.find(function(c) { return c.key === btn.dataset.cat; });
+      renderMercadoSeleccionarItem(btn.dataset.cat, cat);
+    });
+  });
+}
+
+async function renderMercadoSeleccionarItem(catKey, catObj) {
+  var subPanel = document.getElementById('mercado-vender-panel');
+  subPanel.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando tu inventario...</p>';
+
+  var snap = await getDocs(query(
+    collection(db, 'patrimonio'),
+    where('uid', '==', currentUser.uid),
+    where('categoria', '==', catKey),
+    where('activo', '==', true)
+  ));
+
+  if (snap.empty) {
+    subPanel.innerHTML =
+      '<div style="text-align:center;padding:1.5rem;background:var(--bg-card);border-radius:12px;margin-top:0.5rem">' +
+        '<p style="font-size:1.5rem;margin-bottom:0.4rem">' + catObj.emoji + '</p>' +
+        '<p style="color:var(--text-secondary);font-size:0.85rem">No tienes objetos en esta categoría.</p>' +
+      '</div>';
+    return;
+  }
+
+  var items = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+
+  subPanel.innerHTML =
+    '<div style="margin-top:0.75rem">' +
+      '<p style="font-size:0.85rem;font-weight:700;margin-bottom:0.5rem">' + catObj.emoji + ' ' + catObj.label + ' — Selecciona un objeto</p>' +
+      items.map(function(item) {
+        return '<div class="mercado-item-selec" data-id="' + item.id + '" style="' +
+          'display:flex;justify-content:space-between;align-items:center;' +
+          'padding:0.6rem 0.75rem;background:var(--bg-card);border-radius:10px;' +
+          'margin-bottom:0.4rem;cursor:pointer;border:2px solid transparent;transition:border-color 0.2s' +
+        '">' +
+          '<div>' +
+            '<p style="font-size:0.88rem;font-weight:700">' + item.nombre + '</p>' +
+            '<p style="font-size:0.72rem;color:var(--text-secondary)">Cantidad: ' + (item.cantidad || 1) + ' · Valor: £' + (item.precioMercado || 0).toLocaleString('es-CO') + '</p>' +
+          '</div>' +
+          '<span style="font-size:1.2rem;color:var(--accent)">›</span>' +
+        '</div>';
+      }).join('') +
+    '</div>' +
+    '<div id="mercado-form-publicar"></div>';
+
+  subPanel.querySelectorAll('.mercado-item-selec').forEach(function(el) {
+    el.addEventListener('click', function() {
+      subPanel.querySelectorAll('.mercado-item-selec').forEach(function(e) {
+        e.style.borderColor = 'transparent';
+      });
+      el.style.borderColor = 'var(--accent)';
+      var item = items.find(function(i) { return i.id === el.dataset.id; });
+      if (item) renderFormPublicarItem(item);
+    });
+  });
+}
+
+function renderFormPublicarItem(item) {
+  var form = document.getElementById('mercado-form-publicar');
+
+  form.innerHTML =
+    '<div class="card" style="margin-top:0.75rem;border-color:var(--accent)">' +
+      '<p style="font-size:0.85rem;font-weight:700;margin-bottom:0.75rem">📋 Configurar publicación</p>' +
+
+      '<div style="background:var(--bg-primary);border-radius:8px;padding:0.5rem;margin-bottom:0.75rem">' +
+        '<p style="font-size:0.78rem;color:var(--text-secondary)">Nombre</p>' +
+        '<p style="font-weight:700">' + item.nombre + '</p>' +
+        (item.descripcion ? '<p style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.2rem">' + item.descripcion + '</p>' : '') +
+        '<p style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.2rem">Precio de mercado: £' + (item.precioMercado || 0).toLocaleString('es-CO') + '</p>' +
+      '</div>' +
+
+      '<label style="font-size:0.8rem;color:var(--text-secondary);display:block;margin-bottom:0.25rem">Precio de venta por unidad (£)</label>' +
+      '<input type="number" id="pub-precio" value="' + (item.precioMercado || 0) + '" min="1" ' +
+        'style="width:100%;padding:0.6rem 0.8rem;border-radius:10px;border:1px solid var(--bg-card);' +
+        'background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;' +
+        'box-sizing:border-box;margin-bottom:0.5rem"/>' +
+
+      '<label style="font-size:0.8rem;color:var(--text-secondary);display:block;margin-bottom:0.25rem">Cantidad a vender (tienes ' + (item.cantidad || 1) + ')</label>' +
+      '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem">' +
+        '<button class="btn-cantidad" id="pub-minus">−</button>' +
+        '<span id="pub-qty" style="font-size:1.1rem;font-weight:700;color:var(--accent);min-width:40px;text-align:center">1</span>' +
+        '<button class="btn-cantidad" id="pub-plus">+</button>' +
+      '</div>' +
+
+      '<button class="btn btn-primary btn-full" id="btn-publicar-mercado">📤 Publicar en el mercado</button>' +
+      '<div id="pub-msg" style="margin-top:0.4rem;font-size:0.82rem;text-align:center"></div>' +
+    '</div>';
+
+  var qty = 1;
+  var maxQty = item.cantidad || 1;
+
+  document.getElementById('pub-minus').addEventListener('click', function() {
+    if (qty > 1) { qty--; document.getElementById('pub-qty').textContent = qty; }
+  });
+  document.getElementById('pub-plus').addEventListener('click', function() {
+    if (qty < maxQty) { qty++; document.getElementById('pub-qty').textContent = qty; }
+  });
+
+  document.getElementById('btn-publicar-mercado').addEventListener('click', async function() {
+    var precio = parseInt(document.getElementById('pub-precio').value);
+    var msg    = document.getElementById('pub-msg');
+    if (!precio || precio < 1) { msg.textContent = 'El precio debe ser mayor a 0'; msg.style.color = 'var(--danger)'; return; }
+
+    var btn = this; btn.disabled = true; btn.textContent = 'Publicando...';
+
+    try {
+      await addDoc(collection(db, 'mercado_publicaciones'), {
+        vendedorUid:        currentUser.uid,
+        vendedorUsername:   currentUser.username,
+        patrimonioId:       item.id,
+        categoria:          item.categoria,
+        nombre:             item.nombre,
+        descripcion:        item.descripcion || '',
+        imagen:             item.imagen || '',
+        precioVenta:        precio,
+        precioMercado:      item.precioMercado || 0,
+        cantidadDisponible: qty,
+        cantidadOriginal:   qty,
+        activa:             true,
+        creadoEn:           new Date().toISOString()
+      });
+
+      msg.textContent = '✅ Publicado correctamente'; msg.style.color = 'var(--success)';
+      btn.disabled = false; btn.textContent = '📤 Publicar en el mercado';
+
+      setTimeout(function() {
+        document.getElementById('mercado-vender-panel').innerHTML = '';
+      }, 1500);
+
+    } catch (err) {
+      msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--danger)';
+      btn.disabled = false; btn.textContent = '📤 Publicar en el mercado';
+    }
+  });
+}
+
+// ── Mis ventas activas ────────────────────────────────────────────────────────
+function renderMercadoMisVentas() {
+  var panel = document.getElementById('mercado-panel');
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-mis-ventas">← Mercado</button>' +
+      '<h3>📦 Mis publicaciones</h3>' +
+    '</div>' +
+    '<div id="mis-ventas-lista"><p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p></div>';
+
+  document.getElementById('back-mis-ventas').addEventListener('click', function() {
+    panel.innerHTML = '';
+  });
+
+  onSnapshot(
+    query(
+      collection(db, 'mercado_publicaciones'),
+      where('vendedorUid', '==', currentUser.uid),
+      orderBy('creadoEn', 'desc'),
+      limit(30)
+    ),
+    function(snap) {
+      var lista = document.getElementById('mis-ventas-lista');
+      if (!lista) return;
+
+      if (snap.empty) {
+        lista.innerHTML = '<div style="text-align:center;padding:2rem"><p style="font-size:1.5rem">📭</p><p style="color:var(--text-secondary)">No tienes publicaciones.</p></div>';
+        return;
+      }
+
+      lista.innerHTML = snap.docs.map(function(d) {
+        var p = d.data();
+        var activa = p.activa;
+        return '<div style="' +
+          'background:var(--bg-card);border-radius:12px;padding:0.75rem;' +
+          'margin-bottom:0.5rem;border-left:3px solid ' + (activa ? 'var(--success)' : 'var(--danger)') +
+        '">' +
+          '<div style="display:flex;justify-content:space-between;align-items:start">' +
+            '<div style="flex:1">' +
+              '<p style="font-weight:700;font-size:0.88rem">' + p.nombre + '</p>' +
+              '<p style="font-size:0.75rem;color:var(--text-secondary);margin:0.2rem 0">' +
+                '£' + p.precioVenta.toLocaleString('es-CO') + ' / ud · Quedan: ' + p.cantidadDisponible + '/' + p.cantidadOriginal +
+              '</p>' +
+              '<p style="font-size:0.7rem;color:' + (activa ? 'var(--success)' : 'var(--danger)') + '">' +
+                (activa ? '🟢 Activa' : '🔴 Vendida / Cerrada') +
+              '</p>' +
+            '</div>' +
+            (activa
+              ? '<button class="btn btn-secondary btn-retirar-pub" data-id="' + d.id + '" style="padding:0.35rem 0.7rem;font-size:0.75rem;border-color:var(--danger);color:var(--danger);flex-shrink:0">Retirar</button>'
+              : '') +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      lista.querySelectorAll('.btn-retirar-pub').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (!confirm('¿Retirar esta publicación del mercado?')) return;
+          await updateDoc(doc(db, 'mercado_publicaciones', btn.dataset.id), { activa: false });
+        });
+      });
+    }
+  );
 }
 
 function showError(msg) { loginError.textContent = msg; loginError.classList.remove('hidden'); }
