@@ -5114,8 +5114,9 @@ function renderPerfil() {
         '<div class="perfil-info-item"><span class="perfil-info-label">✨ Dato curioso</span><span class="perfil-info-valor">' + (currentUser && currentUser.datoCurioso ? currentUser.datoCurioso : 'No definido') + '</span></div>' +
       '</div>' +
       '<button class="btn btn-primary btn-full" id="btn-abrir-editar-perfil" style="margin-top:1rem">✏️ Editar perfil</button>' +
+      '<button class="btn btn-secondary btn-full" id="btn-inventario-rapido" style="margin-top:0.5rem">📦 Ver inventario completo</button>' +
     '</div>' +
-    
+    '<button class="btn btn-secondary btn-full" id="logout-btn" style="margin-top:0.5rem">Cerrar sesion</button>' +
 
     '<div id="modal-editar-perfil" class="modal-overlay hidden">' +
       '<div class="modal-box">' +
@@ -5328,9 +5329,9 @@ function renderPerfil() {
   });
 
   document.getElementById('btn-inventario-rapido').addEventListener('click', function() {
-  renderInventarioRapido();
-});
-document.getElementById('logout-btn').addEventListener('click', function() { signOut(auth); });
+    renderInventarioRapido();
+  });
+  document.getElementById('logout-btn').addEventListener('click', function() { signOut(auth); });
 }
 
 // ===== CASINO =====
