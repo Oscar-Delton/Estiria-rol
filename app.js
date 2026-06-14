@@ -12096,6 +12096,7 @@ function mostrarModalCompra(item) {
       }, 1500);
 
     } catch (err) {
+      console.error('ERROR MERCADO PASO:', err.code, err.message, err);
       msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--danger)';
       btn.disabled = false; btn.textContent = 'Confirmar';
     }
