@@ -12036,21 +12036,29 @@ function mostrarModalCompra(item) {
       });
 
       // 5. Restar del patrimonio del vendedor (buscar el item original)
-      var snapPatVendedor = await getDocs(query(
-        collection(db, 'patrimonio'),
-        where('uid', '==', item.vendedorUid),
-        where('nombre', '==', item.nombre),
-        where('activo', '==', true),
-        limit(1)
-      ));
-      if (!snapPatVendedor.empty) {
-        var patDoc = snapPatVendedor.docs[0];
-        var cantActual = patDoc.data().cantidad || 1;
-        if (cantActual - qty <= 0) {
-          await updateDoc(doc(db, 'patrimonio', patDoc.id), { activo: false, cantidad: 0 });
-        } else {
-          await updateDoc(doc(db, 'patrimonio', patDoc.id), { cantidad: cantActual - qty });
+      try {
+        var snapPatVendedor = await getDocs(query(
+          collection(db, 'patrimonio'),
+          where('uid', '==', item.vendedorUid),
+          where('activo', '==', true),
+          limit(10)
+        ));
+        if (!snapPatVendedor.empty) {
+          var patDoc = null;
+          snapPatVendedor.docs.forEach(function(d) {
+            if (d.data().nombre === item.nombre) patDoc = d;
+          });
+          if (patDoc) {
+            var cantActual = patDoc.data().cantidad || 1;
+            if (cantActual - qty <= 0) {
+              await updateDoc(doc(db, 'patrimonio', patDoc.id), { activo: false, cantidad: 0 });
+            } else {
+              await updateDoc(doc(db, 'patrimonio', patDoc.id), { cantidad: cantActual - qty });
+            }
+          }
         }
+      } catch(e) {
+        console.warn('Error actualizando patrimonio vendedor:', e.message);
       }
 
       // 6. Registrar transacciones
