@@ -4952,11 +4952,6 @@ function mostrarImpuestos() {
         await updateDoc(doc(db, 'impuestos', id), { pagado: true });
         await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(-monto) });
         await registrarTransaccion({ tipo: 'impuesto', de: currentUser.uid, deUsername: currentUser.username, para: 'sistema', paraUsername: 'Estiria', monto: monto, descripcion: 'Pago de impuesto' });
-        await crearNotificacion(uidDestino, 'transferencia_recibida',
-  '💷 Transferencia recibida',
-  currentUser.username + ' te envió £' + monto.toLocaleString('es-CO'),
-  { de: currentUser.username, monto: monto, descripcion: descripcion }
-);
       });
     });
   });
@@ -12462,12 +12457,11 @@ function renderSalidaCasino() {
       // Acreditar comisión a la cuenta del casino
       if (comision > 0) {
         var cuentaRef = doc(db, 'casino_cuenta', 'principal');
-var cuentaSnap = await getDoc(cuentaRef);
-if (cuentaSnap.exists()) {
-  await updateDoc(cuentaRef, { saldo: increment(comision) });
-} else {
-  await setDoc(cuentaRef, { saldo: comision, creadoEn: new Date().toISOString() });
-}
+        try {
+          await updateDoc(cuentaRef, { saldo: increment(comision) });
+        } catch(e) {
+          await setDoc(cuentaRef, { saldo: comision, creadoEn: new Date().toISOString() }, { merge: true });
+        }
         await addDoc(collection(db, 'casino_cuenta_historial'), {
           tipo: 'comision',
           de: currentUser.uid,
