@@ -377,7 +377,7 @@ function navigateTo(section) {
     case 'perfil': renderPerfil(); break;
     case 'patrimonio': renderPatrimonio(); break;
     case 'tienda': renderTienda(); break;
-    case 'casino': renderCasino(); break;
+    case 'casino': renderPortalCasino(); break;
     case 'citas': renderCitas(); break;
     case 'misiones': renderMisiones(); break;
     case 'mercado': renderMercado(); break;
@@ -5337,10 +5337,197 @@ function renderPerfil() {
   document.getElementById('logout-btn').addEventListener('click', function() { signOut(auth); });
 }
 
+// ===== PORTAL DE ENTRADA AL CASINO =====
+
+var CASINO_SESSION = {
+  activa: false,
+  fichas: 0,
+  dineroInvertido: 0,
+  historial: [],       // max 75 entradas
+  modoEspectador: false
+};
+
+function renderPortalCasino() {
+  // Si ya hay sesión activa, ir directo al casino
+  if (CASINO_SESSION.activa) {
+    renderCasino();
+    return;
+  }
+
+  mainContent.innerHTML =
+    '<div class="card" style="text-align:center;border-color:var(--accent);margin-bottom:0.75rem">' +
+      '<p style="font-size:2.5rem;margin-bottom:0.5rem">🎰</p>' +
+      '<h2 style="color:var(--accent);margin-bottom:0.25rem">Casino de Estiria</h2>' +
+      '<p style="color:var(--text-secondary);font-size:0.85rem">¿Cómo deseas entrar?</p>' +
+    '</div>' +
+
+    '<div style="display:flex;flex-direction:column;gap:0.75rem">' +
+
+      // Opción jugador
+      '<div class="card" style="border-color:var(--accent)">' +
+        '<h3 style="margin-bottom:0.5rem">🎮 Entrar como jugador</h3>' +
+        '<p style="color:var(--text-secondary);font-size:0.82rem;margin-bottom:0.75rem">' +
+          'Convierte dinero en fichas y juega. Al salir puedes cambiar tus fichas por dinero (se retiene un 3%).' +
+        '</p>' +
+        '<p style="font-size:0.85rem;margin-bottom:0.5rem">Tu saldo: <strong style="color:var(--accent)">£' + (currentUser.saldo || 0).toLocaleString('es-CO') + '</strong></p>' +
+        '<p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:0.4rem">¿Cuánto dinero convertir en fichas?</p>' +
+        '<input type="range" id="casino-fichas-slider" ' +
+          'min="100" ' +
+          'max="' + Math.max(100, currentUser.saldo || 0) + '" ' +
+          'step="100" ' +
+          'value="' + Math.min(1000, Math.max(100, currentUser.saldo || 0)) + '" ' +
+          'style="width:100%;margin-bottom:0.3rem">' +
+        '<div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.5rem">' +
+          '<span>Mín £100</span>' +
+          '<span id="casino-fichas-val" style="color:var(--accent);font-weight:700">£1.000 = 🎫 1.000 fichas</span>' +
+          '<span>Máx £' + (currentUser.saldo || 0).toLocaleString('es-CO') + '</span>' +
+        '</div>' +
+        '<button class="btn btn-primary btn-full" id="btn-entrar-jugador-casino">🎮 Entrar como jugador</button>' +
+        '<div id="portal-msg" style="font-size:0.82rem;margin-top:0.4rem;text-align:center"></div>' +
+      '</div>' +
+
+      // Opción espectador
+      '<div class="card">' +
+        '<h3 style="margin-bottom:0.5rem">👁️ Entrar como espectador</h3>' +
+        '<p style="color:var(--text-secondary);font-size:0.82rem;margin-bottom:0.75rem">' +
+          'Observa las partidas sin apostar. En juegos con selección de modo, se te asignará espectador automáticamente.' +
+        '</p>' +
+        '<button class="btn btn-secondary btn-full" id="btn-entrar-espectador-casino">👁️ Entrar como espectador</button>' +
+      '</div>' +
+
+    '</div>';
+
+  // Slider
+  var slider = document.getElementById('casino-fichas-slider');
+  var valEl  = document.getElementById('casino-fichas-val');
+  if (slider) {
+    slider.addEventListener('input', function() {
+      var v = parseInt(slider.value);
+      valEl.textContent = '£' + v.toLocaleString('es-CO') + ' = 🎫 ' + v.toLocaleString('es-CO') + ' fichas';
+    });
+  }
+
+  document.getElementById('btn-entrar-espectador-casino').addEventListener('click', function() {
+    CASINO_SESSION.activa       = true;
+    CASINO_SESSION.modoEspectador = true;
+    CASINO_SESSION.fichas       = 0;
+    CASINO_SESSION.dineroInvertido = 0;
+    CASINO_SESSION.historial    = [];
+    renderCasino();
+  });
+
+  document.getElementById('btn-entrar-jugador-casino').addEventListener('click', async function() {
+    var monto = parseInt(document.getElementById('casino-fichas-slider').value);
+    var msg   = document.getElementById('portal-msg');
+    var saldo = currentUser.saldo || 0;
+
+    if (monto < 100)   { msg.textContent = 'Mínimo £100'; msg.style.color = 'var(--danger)'; return; }
+    if (monto > saldo) { msg.textContent = 'Saldo insuficiente'; msg.style.color = 'var(--danger)'; return; }
+
+    var btn = this; btn.disabled = true; btn.textContent = 'Procesando...';
+
+    try {
+      // Descontar del banco
+      await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(-monto) });
+      currentUser.saldo = saldo - monto;
+
+      // Registrar en banco: UN solo movimiento de entrada
+      await registrarTransaccionCasino('entrada', monto);
+
+      // Iniciar sesión de casino
+      CASINO_SESSION.activa          = true;
+      CASINO_SESSION.modoEspectador  = false;
+      CASINO_SESSION.fichas          = monto;
+      CASINO_SESSION.dineroInvertido = monto;
+      CASINO_SESSION.historial       = [];
+
+      renderCasino();
+    } catch (err) {
+      msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--danger)';
+      btn.disabled = false; btn.textContent = '🎮 Entrar como jugador';
+    }
+  });
+}
+
+async function registrarTransaccionCasino(tipo, monto, descripcion) {
+  // Registra en la colección casino_historial (separada del banco)
+  await addDoc(collection(db, 'casino_historial'), {
+    uid:         currentUser.uid,
+    username:    currentUser.username,
+    tipo:        tipo,   // 'entrada','ganancia','perdida','salida'
+    monto:       monto,
+    descripcion: descripcion || '',
+    fecha:       new Date().toISOString()
+  });
+}
+
+// Llamar esto desde cada juego cuando el jugador gana o pierde fichas
+function registrarMovimientoCasino(tipo, monto, juego) {
+  if (!CASINO_SESSION.activa || CASINO_SESSION.modoEspectador) return;
+
+  var entrada = {
+    tipo:   tipo,   // 'ganancia' o 'perdida'
+    monto:  monto,
+    juego:  juego,
+    fecha:  new Date().toISOString()
+  };
+
+  CASINO_SESSION.historial.unshift(entrada);
+  if (CASINO_SESSION.historial.length > 75) CASINO_SESSION.historial.pop();
+
+  if (tipo === 'ganancia') {
+    CASINO_SESSION.fichas += monto;
+  } else {
+    CASINO_SESSION.fichas -= monto;
+    if (CASINO_SESSION.fichas < 0) CASINO_SESSION.fichas = 0;
+  }
+
+  // Si se quedó sin fichas, cerrar sesión automáticamente
+  if (CASINO_SESSION.fichas <= 0) {
+    cerrarSesionCasinoSinFichas();
+  }
+}
+
+async function cerrarSesionCasinoSinFichas() {
+  // Solo registra la entrada (ya se registró), nada más
+  CASINO_SESSION.activa = false;
+  CASINO_SESSION.fichas = 0;
+  // Mostrar aviso
+  setTimeout(function() {
+    alert('🎰 Te quedaste sin fichas. Tu sesión de casino ha terminado.');
+    navigateTo('inicio');
+  }, 500);
+}
+
 // ===== CASINO =====
 
 function renderCasino() {
+  var esModoEsp = CASINO_SESSION.modoEspectador;
+  var fichas    = CASINO_SESSION.fichas;
+
   mainContent.innerHTML =
+    // Panel de sesión activa
+    (!esModoEsp
+      ? '<div style="' +
+          'background:linear-gradient(135deg,#1a3a1a,#0d2d0d);' +
+          'border-radius:12px;padding:0.6rem 0.75rem;margin-bottom:0.75rem;' +
+          'border:1px solid #2a5a2a;display:flex;justify-content:space-between;align-items:center' +
+        '">' +
+          '<div>' +
+            '<p style="font-size:0.68rem;color:#90ee90;margin-bottom:0.1rem">🎫 TUS FICHAS</p>' +
+            '<p style="font-size:1.3rem;font-weight:900;color:#90ee90">' + fichas.toLocaleString('es-CO') + '</p>' +
+          '</div>' +
+          '<div style="display:flex;gap:0.4rem">' +
+            '<button class="btn btn-secondary" id="btn-casino-historial" style="font-size:0.75rem;padding:0.4rem 0.6rem;border-color:#90ee90;color:#90ee90">📋 Historial</button>' +
+            '<button class="btn btn-primary" id="btn-casino-salir" style="font-size:0.75rem;padding:0.4rem 0.6rem;background:#c0392b;border-color:#c0392b">💱 Salir</button>' +
+          '</div>' +
+        '</div>'
+      : '<div style="background:var(--bg-card);border-radius:10px;padding:0.5rem 0.75rem;margin-bottom:0.75rem;display:flex;justify-content:space-between;align-items:center">' +
+          '<p style="font-size:0.82rem;color:var(--text-secondary)">👁️ Modo espectador</p>' +
+          '<button class="btn btn-secondary" id="btn-casino-salir-esp" style="font-size:0.75rem;padding:0.35rem 0.6rem">Salir</button>' +
+        '</div>'
+    ) +
+
     '<div class="card"><h3>🎰 Casino de Estiria</h3><p style="color:var(--text-secondary);font-size:0.85rem">Elige un juego</p></div>' +
     '<div class="categorias-grid">' +
       '<button class="categoria-btn" id="casino-ruleta-rusa"><span>🔫</span><span>Ruleta Rusa</span></button>' +
@@ -5351,29 +5538,38 @@ function renderCasino() {
       '<button class="categoria-btn" id="casino-rasca"><span>🎟️</span><span>Rasca y Gana</span></button>' +
       '<button class="categoria-btn" id="casino-poker"><span>♠️</span><span>Poker</span></button>' +
     '</div>' +
-    '<div id="casino-panel"></div>';
+    '<div id="casino-panel"></div>' +
+(puedeVerCuentaCasino()
+  ? '<button class="btn btn-secondary btn-full" id="btn-casino-cuenta" style="margin-top:0.5rem;border-color:gold;color:gold">💰 Cuenta del Casino</button>'
+  : '');
 
-  document.getElementById('casino-ruleta-rusa').addEventListener('click', function() {
-    renderRuletaRusa();
-  });
-  document.getElementById('casino-tragaperras').addEventListener('click', function() {
-    renderTragaperras();
-  });
-  document.getElementById('casino-ruleta').addEventListener('click', function() {
-    renderRuleta();
-  });
-  document.getElementById('casino-dados').addEventListener('click', function() {
-    renderDados();
-  });
-  document.getElementById('casino-blackjack').addEventListener('click', function() {
-    renderBlackjack();
-  });
-  document.getElementById('casino-rasca').addEventListener('click', function() {
-    renderRascaYGana();
-  });
-  document.getElementById('casino-poker').addEventListener('click', function() {
-    renderPoker();
-  });
+  // Listeners panel sesión
+  if (!esModoEsp) {
+    document.getElementById('btn-casino-historial').addEventListener('click', function() {
+      renderHistorialCasino();
+    });
+    document.getElementById('btn-casino-salir').addEventListener('click', function() {
+      renderSalidaCasino();
+    });
+  } else {
+    document.getElementById('btn-casino-salir-esp').addEventListener('click', function() {
+      CASINO_SESSION.activa = false;
+      CASINO_SESSION.modoEspectador = false;
+      navigateTo('inicio');
+    });
+  }
+
+  var btnCuenta = document.getElementById('btn-casino-cuenta');
+if (btnCuenta) {
+  btnCuenta.addEventListener('click', function() { renderCuentaCasino(); });
+}
+  document.getElementById('casino-ruleta-rusa').addEventListener('click', function() { renderRuletaRusa(); });
+  document.getElementById('casino-tragaperras').addEventListener('click', function() { renderTragaperras(); });
+  document.getElementById('casino-ruleta').addEventListener('click', function() { renderRuleta(); });
+  document.getElementById('casino-dados').addEventListener('click', function() { renderDados(); });
+  document.getElementById('casino-blackjack').addEventListener('click', function() { renderBlackjack(); });
+  document.getElementById('casino-rasca').addEventListener('click', function() { renderRascaYGana(); });
+  document.getElementById('casino-poker').addEventListener('click', function() { renderPoker(); });
 }
 
 // ===== LIMPIEZA DE SALAS INACTIVAS =====
@@ -8700,7 +8896,7 @@ async function resolverRondaBJ(salaId) {
 
     if (ganadores.length > 0 && perdedores.length > 0) {
       var pozoTotal     = perdedores.length * apuesta;
-      var pozoJugadores = Math.floor(pozoTotal * 0.90);  // 10% para el casino
+      var pozoJugadores = pozoTotal; 
       var partePorGanador = Math.floor(pozoJugadores / ganadores.length);
       ganadores.forEach(function(c) { cambios[c.j.uid] = partePorGanador; });
     } else if (ganadores.length > 0 && perdedores.length === 0) {
@@ -12086,6 +12282,312 @@ function renderMercadoMisVentas() {
       });
     }
   );
+}
+
+function renderHistorialCasino() {
+  var historial = CASINO_SESSION.historial;
+  var fichas    = CASINO_SESSION.fichas;
+  var invertido = CASINO_SESSION.dineroInvertido;
+  var alSalir   = Math.floor(fichas * 0.97);
+  var neto      = alSalir - invertido;
+
+  var overlay = document.createElement('div');
+  overlay.id  = 'casino-historial-overlay';
+  overlay.style.cssText = [
+    'position:fixed;top:0;left:0;width:100%;height:100%;',
+    'background:rgba(0,0,0,0.8);z-index:2000;',
+    'display:flex;flex-direction:column'
+  ].join('');
+
+  overlay.innerHTML =
+    '<div style="background:var(--bg-secondary);width:100%;height:100%;overflow-y:auto;display:flex;flex-direction:column">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:1rem;border-bottom:1px solid var(--bg-card);position:sticky;top:0;background:var(--bg-secondary);z-index:1">' +
+        '<h3 style="font-size:0.95rem">📋 Historial de sesión</h3>' +
+        '<button id="btn-cerrar-hist-casino" style="background:none;border:none;color:var(--text-primary);font-size:1.3rem;cursor:pointer">✕</button>' +
+      '</div>' +
+
+      // Resumen
+      '<div style="padding:0.75rem;border-bottom:1px solid var(--bg-card)">' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem">' +
+          '<div style="background:var(--bg-card);border-radius:10px;padding:0.6rem;text-align:center">' +
+            '<p style="font-size:0.68rem;color:var(--text-secondary)">Invertido</p>' +
+            '<p style="font-weight:700;color:var(--accent)">£' + invertido.toLocaleString('es-CO') + '</p>' +
+          '</div>' +
+          '<div style="background:var(--bg-card);border-radius:10px;padding:0.6rem;text-align:center">' +
+            '<p style="font-size:0.68rem;color:var(--text-secondary)">Fichas actuales</p>' +
+            '<p style="font-weight:700;color:#90ee90">🎫 ' + fichas.toLocaleString('es-CO') + '</p>' +
+          '</div>' +
+          '<div style="background:var(--bg-card);border-radius:10px;padding:0.6rem;text-align:center">' +
+            '<p style="font-size:0.68rem;color:var(--text-secondary)">Al salir recibirías</p>' +
+            '<p style="font-weight:700;color:var(--success)">£' + alSalir.toLocaleString('es-CO') + '</p>' +
+            '<p style="font-size:0.62rem;color:var(--text-secondary)">(−3% comisión)</p>' +
+          '</div>' +
+          '<div style="background:var(--bg-card);border-radius:10px;padding:0.6rem;text-align:center">' +
+            '<p style="font-size:0.68rem;color:var(--text-secondary)">Ganancia / Pérdida</p>' +
+            '<p style="font-weight:700;color:' + (neto >= 0 ? 'var(--success)' : 'var(--danger)') + '">' +
+              (neto >= 0 ? '+' : '') + '£' + neto.toLocaleString('es-CO') +
+            '</p>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+
+      // Lista de movimientos
+      '<div style="padding:0.75rem;flex:1">' +
+        '<p style="font-size:0.78rem;font-weight:700;color:var(--text-secondary);margin-bottom:0.5rem">' +
+          'Últimos ' + historial.length + ' movimientos (máx. 75)' +
+        '</p>' +
+        (historial.length === 0
+          ? '<p style="color:var(--text-secondary);text-align:center;padding:2rem;font-size:0.85rem">Sin movimientos aún en esta sesión.</p>'
+          : historial.map(function(h) {
+              var fecha = new Date(h.fecha);
+              var hora  = fecha.getHours() + ':' + String(fecha.getMinutes()).padStart(2,'0');
+              return '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.45rem 0.5rem;border-radius:8px;background:var(--bg-card);margin-bottom:0.25rem">' +
+                '<div>' +
+                  '<p style="font-size:0.8rem;font-weight:600">' + (h.juego || 'Casino') + '</p>' +
+                  '<p style="font-size:0.68rem;color:var(--text-secondary)">' + hora + '</p>' +
+                '</div>' +
+                '<p style="font-weight:700;font-size:0.88rem;color:' + (h.tipo === 'ganancia' ? 'var(--success)' : 'var(--danger)') + '">' +
+                  (h.tipo === 'ganancia' ? '+' : '−') + '🎫 ' + h.monto.toLocaleString('es-CO') +
+                '</p>' +
+              '</div>';
+            }).join('')
+        ) +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+
+  document.getElementById('btn-cerrar-hist-casino').addEventListener('click', function() {
+    overlay.remove();
+  });
+}
+
+function renderSalidaCasino() {
+  var fichas    = CASINO_SESSION.fichas;
+  var invertido = CASINO_SESSION.dineroInvertido;
+  var alSalir   = Math.floor(fichas * 0.97);
+  var comision  = fichas - alSalir;
+  var neto      = alSalir - invertido;
+
+  var overlay = document.createElement('div');
+  overlay.id  = 'casino-salida-overlay';
+  overlay.style.cssText = [
+    'position:fixed;top:0;left:0;width:100%;height:100%;',
+    'background:rgba(0,0,0,0.85);z-index:2000;',
+    'display:flex;align-items:center;justify-content:center'
+  ].join('');
+
+  overlay.innerHTML =
+    '<div style="background:var(--bg-secondary);border-radius:16px;padding:1.5rem;width:90%;max-width:360px;border:1px solid var(--bg-card)">' +
+      '<h3 style="text-align:center;margin-bottom:1rem">💱 Salir del casino</h3>' +
+
+      '<div style="background:var(--bg-card);border-radius:12px;padding:0.75rem;margin-bottom:1rem">' +
+        '<div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.4rem">' +
+          '<span style="color:var(--text-secondary)">Tus fichas</span>' +
+          '<span style="font-weight:700;color:#90ee90">🎫 ' + fichas.toLocaleString('es-CO') + '</span>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.4rem">' +
+          '<span style="color:var(--text-secondary)">Comisión casino (3%)</span>' +
+          '<span style="color:var(--danger)">−🎫 ' + comision.toLocaleString('es-CO') + '</span>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.4rem;border-top:1px solid var(--bg-primary);padding-top:0.4rem">' +
+          '<span style="font-weight:700">Recibirás</span>' +
+          '<span style="font-weight:700;color:var(--success)">£' + alSalir.toLocaleString('es-CO') + '</span>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;font-size:0.85rem">' +
+          '<span style="color:var(--text-secondary)">Invertiste</span>' +
+          '<span>£' + invertido.toLocaleString('es-CO') + '</span>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;font-size:0.9rem;font-weight:700;margin-top:0.4rem;border-top:1px solid var(--bg-primary);padding-top:0.4rem">' +
+          '<span>Balance de sesión</span>' +
+          '<span style="color:' + (neto >= 0 ? 'var(--success)' : 'var(--danger)') + '">' +
+            (neto >= 0 ? '+' : '') + '£' + neto.toLocaleString('es-CO') +
+          '</span>' +
+        '</div>' +
+      '</div>' +
+
+      '<button class="btn btn-primary btn-full" id="btn-confirmar-salida-casino" style="margin-bottom:0.5rem">✅ Confirmar y salir</button>' +
+      '<button class="btn btn-secondary btn-full" id="btn-cancelar-salida-casino">← Seguir jugando</button>' +
+      '<div id="salida-msg" style="font-size:0.82rem;margin-top:0.4rem;text-align:center"></div>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+
+  document.getElementById('btn-cancelar-salida-casino').addEventListener('click', function() {
+    overlay.remove();
+  });
+
+  document.getElementById('btn-confirmar-salida-casino').addEventListener('click', async function() {
+    var btn = this;
+    var msg = document.getElementById('salida-msg');
+    btn.disabled = true; btn.textContent = 'Procesando...';
+
+    try {
+      // Acreditar al banco
+      if (alSalir > 0) {
+        await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(alSalir) });
+        currentUser.saldo = (currentUser.saldo || 0) + alSalir;
+      }
+
+      // Acreditar comisión a la cuenta del casino
+      if (comision > 0) {
+        await updateDoc(doc(db, 'casino_cuenta', 'principal'), {
+          saldo: increment(comision)
+        });
+        await addDoc(collection(db, 'casino_cuenta_historial'), {
+          tipo: 'comision',
+          de: currentUser.uid,
+          deUsername: currentUser.username,
+          monto: comision,
+          fecha: new Date().toISOString()
+        });
+      }
+
+      // Registrar en banco: DOS movimientos únicos
+      // 1. Lo que invirtió (ya se registró al entrar — no duplicar)
+      // 2. Lo que recibe al salir
+      await addDoc(collection(db, 'transacciones'), {
+        tipo: 'casino_salida',
+        de: neto >= 0 ? 'sistema' : currentUser.uid,
+        deUsername: neto >= 0 ? 'Casino Estiria' : currentUser.username,
+        para: neto >= 0 ? currentUser.uid : 'sistema',
+        paraUsername: neto >= 0 ? currentUser.username : 'Casino Estiria',
+        monto: Math.abs(neto),
+        descripcion: 'Casino: sesión terminada. ' +
+          (neto >= 0
+            ? 'Ganancia neta: +£' + neto.toLocaleString('es-CO')
+            : 'Pérdida neta: −£' + Math.abs(neto).toLocaleString('es-CO')
+          ),
+        fecha: new Date().toISOString(),
+        estado: 'completada'
+      });
+
+      // Guardar sesión en historial de casino
+      await registrarTransaccionCasino('salida', alSalir,
+        'Sesión terminada. Fichas: ' + fichas + ' → £' + alSalir.toLocaleString('es-CO') + ' (−3% comisión)'
+      );
+
+      // Resetear sesión
+      CASINO_SESSION.activa          = false;
+      CASINO_SESSION.fichas          = 0;
+      CASINO_SESSION.dineroInvertido = 0;
+      CASINO_SESSION.historial       = [];
+      CASINO_SESSION.modoEspectador  = false;
+
+      msg.textContent = '✅ ¡Hasta pronto!'; msg.style.color = 'var(--success)';
+      setTimeout(function() {
+        overlay.remove();
+        navigateTo('inicio');
+      }, 1200);
+
+    } catch (err) {
+      msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--danger)';
+      btn.disabled = false; btn.textContent = '✅ Confirmar y salir';
+    }
+  });
+}
+
+function puedeVerCuentaCasino() {
+  if (!currentUser) return false;
+  var r = (currentUser.rol || '').toLowerCase();
+  return r === 'dev' || r === 'dueno_casino';
+}
+
+async function renderCuentaCasino() {
+  var panel = document.getElementById('casino-panel');
+  panel.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando cuenta...</p>';
+
+  // Crear documento si no existe
+  var cuentaRef = doc(db, 'casino_cuenta', 'principal');
+  var snapCuenta = await getDoc(cuentaRef);
+  if (!snapCuenta.exists()) {
+    await setDoc(cuentaRef, { saldo: 0, creadoEn: new Date().toISOString() });
+  }
+  var saldoCasino = snapCuenta.exists() ? (snapCuenta.data().saldo || 0) : 0;
+
+  var snapHistorial = await getDocs(query(
+    collection(db, 'casino_cuenta_historial'),
+    orderBy('fecha', 'desc'),
+    limit(50)
+  ));
+
+  panel.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<button class="btn-back" id="back-casino-cuenta">← Casino</button>' +
+      '<h3>💰 Cuenta del Casino</h3>' +
+    '</div>' +
+
+    '<div style="background:linear-gradient(135deg,#1a1a0d,#2d2d00);border-radius:12px;padding:1rem;margin-bottom:0.75rem;text-align:center;border:1px solid gold">' +
+      '<p style="font-size:0.75rem;color:gold;margin-bottom:0.25rem">SALDO DE LA CASA</p>' +
+      '<p style="font-size:2rem;font-weight:900;color:gold">£' + saldoCasino.toLocaleString('es-CO') + '</p>' +
+      '<p style="font-size:0.72rem;color:rgba(255,215,0,0.6)">Comisiones acumuladas (3% de fichas convertidas)</p>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">' +
+      '<button class="btn btn-secondary" id="btn-retirar-casino" style="flex:1;border-color:gold;color:gold">💸 Retirar fondos</button>' +
+    '</div>' +
+    '<div id="retiro-casino-form"></div>' +
+
+    '<p style="font-size:0.82rem;font-weight:700;margin-bottom:0.5rem">📋 Últimas comisiones</p>' +
+    (snapHistorial.empty
+      ? '<p style="color:var(--text-secondary);font-size:0.82rem;text-align:center;padding:1rem">Sin movimientos aún.</p>'
+      : '<div>' +
+          snapHistorial.docs.map(function(d) {
+            var h = d.data();
+            return '<div style="display:flex;justify-content:space-between;padding:0.4rem 0.5rem;background:var(--bg-card);border-radius:8px;margin-bottom:0.25rem">' +
+              '<div>' +
+                '<p style="font-size:0.8rem">' + (h.deUsername || '—') + '</p>' +
+                '<p style="font-size:0.68rem;color:var(--text-secondary)">' + new Date(h.fecha).toLocaleString('es-CO') + '</p>' +
+              '</div>' +
+              '<p style="font-weight:700;color:gold;font-size:0.85rem">+£' + (h.monto || 0).toLocaleString('es-CO') + '</p>' +
+            '</div>';
+          }).join('') +
+        '</div>'
+    );
+
+  document.getElementById('back-casino-cuenta').addEventListener('click', function() {
+    panel.innerHTML = '';
+    renderCasino();
+  });
+
+  document.getElementById('btn-retirar-casino').addEventListener('click', function() {
+    var form = document.getElementById('retiro-casino-form');
+    form.innerHTML =
+      '<div class="card" style="margin-bottom:0.75rem;border-color:gold">' +
+        '<p style="font-size:0.85rem;font-weight:700;margin-bottom:0.5rem">💸 Retirar fondos a tu cuenta</p>' +
+        '<input type="number" id="retiro-monto" placeholder="Monto a retirar £" min="1" max="' + saldoCasino + '" ' +
+          'style="width:100%;padding:0.6rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;box-sizing:border-box;margin-bottom:0.5rem"/>' +
+        '<button class="btn btn-primary btn-full" id="btn-confirmar-retiro">Confirmar retiro</button>' +
+        '<div id="retiro-msg" style="font-size:0.82rem;margin-top:0.4rem;text-align:center"></div>' +
+      '</div>';
+
+    document.getElementById('btn-confirmar-retiro').addEventListener('click', async function() {
+      var monto = parseInt(document.getElementById('retiro-monto').value);
+      var msg   = document.getElementById('retiro-msg');
+      if (!monto || monto < 1) { msg.textContent = 'Ingresa un monto válido'; msg.style.color = 'var(--danger)'; return; }
+      if (monto > saldoCasino) { msg.textContent = 'Fondos insuficientes en la cuenta del casino'; msg.style.color = 'var(--danger)'; return; }
+
+      var btn = this; btn.disabled = true; btn.textContent = 'Procesando...';
+      try {
+        await updateDoc(doc(db, 'casino_cuenta', 'principal'), { saldo: increment(-monto) });
+        await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(monto) });
+        currentUser.saldo = (currentUser.saldo || 0) + monto;
+        await registrarTransaccion({
+          tipo: 'casino_retiro',
+          de: 'casino', deUsername: 'Casino Estiria',
+          para: currentUser.uid, paraUsername: currentUser.username,
+          monto: monto, descripcion: 'Retiro de fondos de la cuenta del casino'
+        });
+        msg.textContent = '✅ £' + monto.toLocaleString('es-CO') + ' retirados a tu cuenta'; msg.style.color = 'var(--success)';
+        btn.disabled = false; btn.textContent = 'Confirmar retiro';
+        form.innerHTML = '';
+        renderCuentaCasino();
+      } catch (err) {
+        msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--danger)';
+        btn.disabled = false; btn.textContent = 'Confirmar retiro';
+      }
+    });
+  });
 }
 
 function showError(msg) { loginError.textContent = msg; loginError.classList.remove('hidden'); }
