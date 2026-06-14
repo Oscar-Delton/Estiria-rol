@@ -4850,6 +4850,32 @@ async function ejecutarTransferencia() {
 }
 
 async function registrarTransaccion(datos) {
+  // Si hay sesión de casino activa, redirigir al historial del casino en lugar del banco
+  if (CASINO_SESSION.activa && !CASINO_SESSION.modoEspectador) {
+    var tiposCasino = [
+      'casino_tragaperras','casino_ruleta','casino_dados',
+      'casino_blackjack','casino_rasca','casino_ruleta_rusa','casino_poker'
+    ];
+    if (tiposCasino.includes(datos.tipo)) {
+      // Registrar en historial de sesión interno
+      var esGanancia = (datos.para === currentUser.uid && datos.de === 'sistema') ||
+                       (datos.para === currentUser.uid && datos.de !== currentUser.uid);
+      var monto = datos.monto || 0;
+      registrarMovimientoCasino(
+        esGanancia ? 'ganancia' : 'perdida',
+        monto,
+        datos.descripcion || datos.tipo
+      );
+      // También guardar en casino_historial de Firestore
+      await registrarTransaccionCasino(
+        esGanancia ? 'ganancia' : 'perdida',
+        monto,
+        datos.descripcion || datos.tipo
+      );
+      return; // NO escribir en transacciones del banco
+    }
+  }
+
   var fecha = new Date().toISOString();
   await addDoc(collection(db, 'transacciones'), Object.assign({ fecha: fecha, estado: 'completada' }, datos));
   await limpiarHistorialAntiguo(datos.de);
@@ -5371,17 +5397,16 @@ function renderPortalCasino() {
         '</p>' +
         '<p style="font-size:0.85rem;margin-bottom:0.5rem">Tu saldo: <strong style="color:var(--accent)">£' + (currentUser.saldo || 0).toLocaleString('es-CO') + '</strong></p>' +
         '<p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:0.4rem">¿Cuánto dinero convertir en fichas?</p>' +
-        '<input type="range" id="casino-fichas-slider" ' +
-          'min="100" ' +
-          'max="' + Math.max(100, currentUser.saldo || 0) + '" ' +
-          'step="100" ' +
-          'value="' + Math.min(1000, Math.max(100, currentUser.saldo || 0)) + '" ' +
-          'style="width:100%;margin-bottom:0.3rem">' +
-        '<div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.5rem">' +
-          '<span>Mín £100</span>' +
-          '<span id="casino-fichas-val" style="color:var(--accent);font-weight:700">£1.000 = 🎫 1.000 fichas</span>' +
-          '<span>Máx £' + (currentUser.saldo || 0).toLocaleString('es-CO') + '</span>' +
-        '</div>' +
+        '<input type="number" id="casino-fichas-slider" ' +
+  'min="100" ' +
+  'max="' + Math.max(100, currentUser.saldo || 0) + '" ' +
+  'placeholder="Mínimo £100" ' +
+  'style="width:100%;padding:0.7rem 1rem;border-radius:10px;border:1px solid var(--bg-card);' +
+  'background:var(--bg-primary);color:var(--text-primary);font-size:1rem;outline:none;' +
+  'box-sizing:border-box;margin-bottom:0.3rem;font-weight:700">' +
+'<p style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.5rem">' +
+  'Máx disponible: £' + (currentUser.saldo || 0).toLocaleString('es-CO') + ' · Conversión 1:1' +
+'</p>' +
         '<button class="btn btn-primary btn-full" id="btn-entrar-jugador-casino">🎮 Entrar como jugador</button>' +
         '<div id="portal-msg" style="font-size:0.82rem;margin-top:0.4rem;text-align:center"></div>' +
       '</div>' +
@@ -5397,15 +5422,20 @@ function renderPortalCasino() {
 
     '</div>';
 
-  // Slider
   var slider = document.getElementById('casino-fichas-slider');
-  var valEl  = document.getElementById('casino-fichas-val');
-  if (slider) {
-    slider.addEventListener('input', function() {
-      var v = parseInt(slider.value);
-      valEl.textContent = '£' + v.toLocaleString('es-CO') + ' = 🎫 ' + v.toLocaleString('es-CO') + ' fichas';
-    });
-  }
+if (slider) {
+  slider.addEventListener('input', function() {
+    var v = parseInt(slider.value) || 0;
+    var msg = document.getElementById('portal-msg');
+    if (msg) {
+      if (v > (currentUser.saldo || 0)) {
+        msg.textContent = 'No puedes convertir más de tu saldo'; msg.style.color = 'var(--danger)';
+      } else {
+        msg.textContent = '';
+      }
+    }
+  });
+}
 
   document.getElementById('btn-entrar-espectador-casino').addEventListener('click', function() {
     CASINO_SESSION.activa       = true;
@@ -12431,9 +12461,13 @@ function renderSalidaCasino() {
 
       // Acreditar comisión a la cuenta del casino
       if (comision > 0) {
-        await updateDoc(doc(db, 'casino_cuenta', 'principal'), {
-          saldo: increment(comision)
-        });
+        var cuentaRef = doc(db, 'casino_cuenta', 'principal');
+var cuentaSnap = await getDoc(cuentaRef);
+if (cuentaSnap.exists()) {
+  await updateDoc(cuentaRef, { saldo: increment(comision) });
+} else {
+  await setDoc(cuentaRef, { saldo: comision, creadoEn: new Date().toISOString() });
+}
         await addDoc(collection(db, 'casino_cuenta_historial'), {
           tipo: 'comision',
           de: currentUser.uid,
