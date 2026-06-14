@@ -4841,7 +4841,11 @@ async function ejecutarTransferencia() {
     var uidDestino = usernameSnap.data().uid;
     await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(-monto) });
     await updateDoc(doc(db, 'usuarios', uidDestino), { saldo: increment(monto) });
-    await registrarTransaccion({ tipo: 'transferencia', de: currentUser.uid, deUsername: currentUser.username, para: uidDestino, paraUsername: usuarioDestino, monto: monto, descripcion: descripcion });
+    try {
+      await registrarTransaccion({ tipo: 'transferencia', de: currentUser.uid, deUsername: currentUser.username, para: uidDestino, paraUsername: usuarioDestino, monto: monto, descripcion: descripcion });
+    } catch(e) {
+      console.warn('Error registrando transaccion:', e.message);
+    }
     document.getElementById('banco-panel').innerHTML = '<div style="text-align:center;padding:1rem"><p style="font-size:2rem">✅</p><p>Transferencia exitosa</p><p style="color:var(--text-secondary)">Enviaste £' + monto.toLocaleString('es-CO') + ' a ' + usuarioDestino + '</p></div>';
   } catch (err) {
     mostrarErr('Error: ' + err.message);
@@ -4884,19 +4888,23 @@ async function registrarTransaccion(datos) {
 
 async function limpiarHistorialAntiguo(uid) {
   if (!uid || uid === 'sistema') return;
-  var qEnvios = query(collection(db, 'transacciones'), where('de', '==', uid), orderBy('fecha', 'desc'));
-  var qRecibos = query(collection(db, 'transacciones'), where('para', '==', uid), orderBy('fecha', 'desc'));
-  var snapEnvios = await getDocs(qEnvios);
-  var snapRecibos = await getDocs(qRecibos);
-  var todos = {};
-  snapEnvios.docs.forEach(function(d) { todos[d.id] = d; });
-  snapRecibos.docs.forEach(function(d) { todos[d.id] = d; });
-  var arr = Object.values(todos).sort(function(a, b) { return new Date(b.data().fecha) - new Date(a.data().fecha); });
-  if (arr.length > 40) {
-    var aEliminar = arr.slice(40);
-    for (var i = 0; i < aEliminar.length; i++) {
-      await deleteDoc(aEliminar[i].ref);
+  try {
+    var qEnvios = query(collection(db, 'transacciones'), where('de', '==', uid), orderBy('fecha', 'desc'));
+    var qRecibos = query(collection(db, 'transacciones'), where('para', '==', uid), orderBy('fecha', 'desc'));
+    var snapEnvios = await getDocs(qEnvios).catch(function() { return { docs: [] }; });
+    var snapRecibos = await getDocs(qRecibos).catch(function() { return { docs: [] }; });
+    var todos = {};
+    snapEnvios.docs.forEach(function(d) { todos[d.id] = d; });
+    snapRecibos.docs.forEach(function(d) { todos[d.id] = d; });
+    var arr = Object.values(todos).sort(function(a, b) { return new Date(b.data().fecha) - new Date(a.data().fecha); });
+    if (arr.length > 40) {
+      var aEliminar = arr.slice(40);
+      for (var i = 0; i < aEliminar.length; i++) {
+        await deleteDoc(aEliminar[i].ref).catch(function() {});
+      }
     }
+  } catch(e) {
+    // silenciar errores de limpieza para no interrumpir el flujo principal
   }
 }
 
