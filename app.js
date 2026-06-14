@@ -11985,7 +11985,6 @@ function mostrarModalCompra(item) {
     btn.disabled = true; btn.textContent = 'Procesando...';
 
     try {
-      console.log('PASO 1: verificando saldo');
       var snapUser = await getDoc(doc(db, 'usuarios', currentUser.uid));
       var saldoReal = snapUser.data().saldo || 0;
       var total = item.precioVenta * qty;
@@ -11996,7 +11995,6 @@ function mostrarModalCompra(item) {
         return;
       }
 
-      console.log('PASO 2: verificando publicacion');
       var snapPub = await getDoc(doc(db, 'mercado_publicaciones', item.id));
       if (!snapPub.exists() || !snapPub.data().activa) {
         msg.textContent = 'Esta publicación ya no está disponible.'; msg.style.color = 'var(--danger)';
@@ -12010,14 +12008,11 @@ function mostrarModalCompra(item) {
         return;
       }
 
-      console.log('PASO 3: descontando saldo comprador');
       await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(-total) });
       currentUser.saldo = saldoReal - total;
 
-      console.log('PASO 4: sumando saldo vendedor');
       await updateDoc(doc(db, 'usuarios', item.vendedorUid), { saldo: increment(total) });
 
-      console.log('PASO 5: actualizando publicacion');
       var nuevaCantidad = pubData.cantidadDisponible - qty;
       if (nuevaCantidad <= 0) {
         await updateDoc(doc(db, 'mercado_publicaciones', item.id), { activa: false, cantidadDisponible: 0 });
@@ -12025,7 +12020,6 @@ function mostrarModalCompra(item) {
         await updateDoc(doc(db, 'mercado_publicaciones', item.id), { cantidadDisponible: nuevaCantidad });
       }
 
-      console.log('PASO 6: añadiendo al patrimonio comprador');
       await addDoc(collection(db, 'patrimonio'), {
         uid: currentUser.uid, username: currentUser.username,
         categoria: item.categoria, nombre: item.nombre,
@@ -12035,7 +12029,6 @@ function mostrarModalCompra(item) {
         creadoEn: new Date().toISOString(), creadoPor: 'mercado'
       });
 
-      console.log('PASO 7: actualizando patrimonio vendedor');
       try {
         var snapPatVendedor = await getDocs(query(
           collection(db, 'patrimonio'),
@@ -12058,10 +12051,9 @@ function mostrarModalCompra(item) {
           }
         }
       } catch(e) {
-        console.warn('Error paso 7:', e.message);
+        console.warn('Error actualizando patrimonio vendedor:', e.message);
       }
 
-      console.log('PASO 8: registrando transaccion');
       try {
         await registrarTransaccion({
           tipo: 'mercado_compra',
@@ -12071,10 +12063,9 @@ function mostrarModalCompra(item) {
           descripcion: 'Mercado: compra de ' + qty + 'x ' + item.nombre + ' a £' + item.precioVenta.toLocaleString('es-CO') + ' c/u'
         });
       } catch(e) {
-        console.warn('Error paso 8:', e.message);
+        console.warn('Error registrando transaccion mercado:', e.message);
       }
 
-      console.log('PASO 9: notificaciones');
       try {
         await crearNotificacion(item.vendedorUid, 'venta_recibida',
           '🏪 Venta realizada',
@@ -12087,17 +12078,15 @@ function mostrarModalCompra(item) {
           { vendedor: item.vendedorUsername, item: item.nombre, monto: total }
         );
       } catch(e) {
-        console.warn('Error paso 9:', e.message);
+        console.warn('Error creando notificaciones mercado:', e.message);
       }
 
-      console.log('PASO 10: completado');
       msg.textContent = '✅ ¡Compra realizada!'; msg.style.color = 'var(--success)';
       setTimeout(function() {
         document.getElementById('modal-compra-mercado').remove();
       }, 1500);
 
     } catch (err) {
-      console.error('ERROR EN PASO:', err.code, err.message, err);
       msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--danger)';
       btn.disabled = false; btn.textContent = 'Confirmar';
     }
