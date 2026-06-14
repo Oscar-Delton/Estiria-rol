@@ -4763,7 +4763,7 @@ function puedeEditarUsuario(usuarioTarget) {
 
 function renderBanco() {
   var esAdmin = isAdminBanco();
-  mainContent.innerHTML = '<div class="banco-saldo card"><p class="saldo-label">Saldo disponible</p><h2 class="saldo-monto">💷 <span id="saldo-valor">Cargando...</span></h2><p class="saldo-ciudad">' + (currentUser && currentUser.ciudad ? currentUser.ciudad : 'Sin ciudad asignada') + '</p></div><div class="banco-acciones"><button class="btn-banco" id="btn-transferir"><span>💸</span><span>Transferir</span></button><button class="btn-banco" id="btn-movimientos"><span>📋</span><span>Movimientos</span></button><button class="btn-banco" id="btn-impuestos"><span>📜</span><span>Impuestos</span></button><button class="btn-banco" id="btn-reporte"><span>🚨</span><span>Reportar</span></button></div><div id="banco-panel" class="card"></div>' + (esAdmin ? renderPanelAdmin() : '');
+  mainContent.innerHTML = '<div class="banco-saldo card"><p class="saldo-label">Saldo disponible</p><h2 class="saldo-monto">💷 <span id="saldo-valor">Cargando...</span></h2><p class="saldo-ciudad">' + (currentUser && currentUser.ciudad ? currentUser.ciudad : 'Sin ciudad asignada') + '</p></div><div class="banco-acciones"><button class="btn-banco" id="btn-transferir"><span>💸</span><span>Transferir</span></button><button class="btn-banco" id="btn-movimientos"><span>📋</span><span>Movimientos</span></button><button class="btn-banco" id="btn-impuestos"><span>📜</span><span>Impuestos</span></button><button class="btn-banco" id="btn-reporte"><span>🚨</span><span>Reportar</span></button></div><div id="banco-panel" class="card"></div>' + (esAdmin ? renderPanelAdminBanco() : '');
   cargarSaldo();
   document.getElementById('btn-transferir').addEventListener('click', mostrarTransferencia);
   document.getElementById('btn-movimientos').addEventListener('click', mostrarMovimientos);
@@ -4907,29 +4907,40 @@ function mostrarMovimientos() {
 }
 
 function cargarMovimientosUsuario(uid, contenedorId, uidActual) {
+  var lista = document.getElementById(contenedorId);
+  if (!lista) return;
+  lista.innerHTML = '<p style="color:var(--text-secondary)">Cargando...</p>';
+
   var movimientos = {};
-  function renderizar() {
-    var lista = document.getElementById(contenedorId);
+
+  Promise.all([
+    getDocs(query(collection(db, 'transacciones'), where('de', '==', uid), orderBy('fecha', 'desc'))).catch(function() { return { docs: [] }; }),
+    getDocs(query(collection(db, 'transacciones'), where('para', '==', uid), orderBy('fecha', 'desc'))).catch(function() { return { docs: [] }; })
+  ]).then(function(results) {
+    results[0].docs.forEach(function(d) { movimientos[d.id] = Object.assign({ id: d.id }, d.data()); });
+    results[1].docs.forEach(function(d) { movimientos[d.id] = Object.assign({ id: d.id }, d.data()); });
+
+    lista = document.getElementById(contenedorId);
     if (!lista) return;
+
     var arr = Object.values(movimientos);
-    if (arr.length === 0) { lista.innerHTML = '<p style="color:var(--text-secondary)">Sin movimientos aun</p>'; return; }
+    if (arr.length === 0) {
+      lista.innerHTML = '<p style="color:var(--text-secondary)">Sin movimientos aun</p>';
+      return;
+    }
+
     arr.sort(function(a, b) { return new Date(b.fecha) - new Date(a.fecha); });
+
     lista.innerHTML = arr.map(function(m) {
       var esEnvio = m.de === uidActual;
       var fecha = new Date(m.fecha).toLocaleString('es-CO');
       var signo = esEnvio ? '-' : '+';
       var color = esEnvio ? 'var(--danger)' : 'var(--success)';
-      var contraparte = m.tipo === 'ajuste_admin' ? 'Ajuste por: ' + m.deUsername : (esEnvio ? 'Para: ' + m.paraUsername : 'De: ' + m.deUsername);
+      var contraparte = m.tipo === 'ajuste_admin'
+        ? 'Ajuste por: ' + m.deUsername
+        : (esEnvio ? 'Para: ' + m.paraUsername : 'De: ' + m.deUsername);
       return '<div class="movimiento-item"><div class="movimiento-info"><p class="movimiento-desc">' + m.descripcion + '</p><p class="movimiento-meta">' + contraparte + ' · ' + fecha + '</p></div><p class="movimiento-monto" style="color:' + color + '">' + signo + '£' + m.monto.toLocaleString('es-CO') + '</p></div>';
     }).join('');
-  }
-  onSnapshot(query(collection(db, 'transacciones'), where('de', '==', uid), orderBy('fecha', 'desc')), function(snap) {
-    snap.docs.forEach(function(d) { movimientos[d.id] = Object.assign({ id: d.id }, d.data()); });
-    renderizar();
-  });
-  onSnapshot(query(collection(db, 'transacciones'), where('para', '==', uid), orderBy('fecha', 'desc')), function(snap) {
-    snap.docs.forEach(function(d) { movimientos[d.id] = Object.assign({ id: d.id }, d.data()); });
-    renderizar();
   });
 }
 
