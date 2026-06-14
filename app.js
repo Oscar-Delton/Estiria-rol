@@ -12054,25 +12054,33 @@ function mostrarModalCompra(item) {
       }
 
       // 6. Registrar transacciones
-      await registrarTransaccion({
-        tipo: 'mercado_compra',
-        de: currentUser.uid, deUsername: currentUser.username,
-        para: item.vendedorUid, paraUsername: item.vendedorUsername,
-        monto: total,
-        descripcion: 'Mercado: compra de ' + qty + 'x ' + item.nombre + ' a £' + item.precioVenta.toLocaleString('es-CO') + ' c/u'
-      });
+      try {
+        await registrarTransaccion({
+          tipo: 'mercado_compra',
+          de: currentUser.uid, deUsername: currentUser.username,
+          para: item.vendedorUid, paraUsername: item.vendedorUsername,
+          monto: total,
+          descripcion: 'Mercado: compra de ' + qty + 'x ' + item.nombre + ' a £' + item.precioVenta.toLocaleString('es-CO') + ' c/u'
+        });
+      } catch(e) {
+        console.warn('Error registrando transaccion mercado:', e.message);
+      }
 
       // 7. Notificaciones
-      await crearNotificacion(item.vendedorUid, 'venta_recibida',
-        '🏪 Venta realizada',
-        currentUser.username + ' compró ' + qty + 'x ' + item.nombre + ' por £' + total.toLocaleString('es-CO'),
-        { comprador: currentUser.username, item: item.nombre, monto: total }
-      );
-      await crearNotificacion(currentUser.uid, 'compra_realizada',
-        '🛒 Compra exitosa',
-        'Compraste ' + qty + 'x ' + item.nombre + ' a ' + item.vendedorUsername + ' por £' + total.toLocaleString('es-CO'),
-        { vendedor: item.vendedorUsername, item: item.nombre, monto: total }
-      );
+      try {
+        await crearNotificacion(item.vendedorUid, 'venta_recibida',
+          '🏪 Venta realizada',
+          currentUser.username + ' compró ' + qty + 'x ' + item.nombre + ' por £' + total.toLocaleString('es-CO'),
+          { comprador: currentUser.username, item: item.nombre, monto: total }
+        );
+        await crearNotificacion(currentUser.uid, 'compra_realizada',
+          '🛒 Compra exitosa',
+          'Compraste ' + qty + 'x ' + item.nombre + ' a ' + item.vendedorUsername + ' por £' + total.toLocaleString('es-CO'),
+          { vendedor: item.vendedorUsername, item: item.nombre, monto: total }
+        );
+      } catch(e) {
+        console.warn('Error creando notificaciones mercado:', e.message);
+      }
 
       msg.textContent = '✅ ¡Compra realizada!'; msg.style.color = 'var(--success)';
       setTimeout(function() {
