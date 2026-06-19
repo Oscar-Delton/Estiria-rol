@@ -417,12 +417,18 @@ function navigateTo(section) {
 }
 
 // ===== SISTEMA DE ROLES =====
-var JERARQUIA_ROLES = ['jugador', 'alcalde', 'admin', 'lider_suprema', 'dev'];
+var JERARQUIA_ROLES = ['jugador', 'moderador', 'alcalde', 'admin', 'lider_suprema', 'dev'];
 
 function nivelRol(rol) {
   var r = (rol || 'jugador').toLowerCase();
   var idx = JERARQUIA_ROLES.indexOf(r);
   return idx >= 0 ? idx : 0;
+}
+
+function esModeradorOSuperior() {
+  if (!currentUser) return false;
+  var r = (currentUser.rol || '').toLowerCase();
+  return r === 'dev' || r === 'lider_suprema' || r === 'moderador';
 }
 
 function puedeAccederPanelAdmin() {
@@ -4951,6 +4957,15 @@ async function ejecutarTransferencia() {
     } catch(e) {
       console.warn('Error registrando transaccion:', e.message);
     }
+    try {
+      await crearNotificacion(uidDestino, 'transferencia_recibida',
+        '💷 Transferencia recibida',
+        currentUser.username + ' te envió £' + monto.toLocaleString('es-CO'),
+        { de: currentUser.username, monto: monto, descripcion: descripcion }
+      );
+    } catch(e) {
+      console.warn('Error creando notificacion de transferencia:', e.message);
+    }
     document.getElementById('banco-panel').innerHTML = '<div style="text-align:center;padding:1rem"><p style="font-size:2rem">✅</p><p>Transferencia exitosa</p><p style="color:var(--text-secondary)">Enviaste £' + monto.toLocaleString('es-CO') + ' a ' + usuarioDestino + '</p></div>';
   } catch (err) {
     mostrarErr('Error: ' + err.message);
@@ -5264,6 +5279,16 @@ function renderPerfil() {
       '<button class="btn btn-primary btn-full" id="btn-abrir-editar-perfil" style="margin-top:1rem">✏️ Editar perfil</button>' +
       '<button class="btn btn-secondary btn-full" id="btn-inventario-rapido" style="margin-top:0.5rem">📦 Ver inventario completo</button>' +
     '</div>' +
+
+    '<div class="card" style="margin-top:0.75rem">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">' +
+        '<h3 style="font-size:0.95rem">🏆 Logros</h3>' +
+        '<button class="btn btn-secondary" id="btn-colocar-logro" style="padding:0.35rem 0.7rem;font-size:0.78rem">+ Colocar logro</button>' +
+      '</div>' +
+      '<div id="logros-lista"><p style="color:var(--text-secondary);font-size:0.82rem;text-align:center;padding:0.5rem">Cargando...</p></div>' +
+      '<div id="logro-form-wrap"></div>' +
+    '</div>' +
+
     '<button class="btn btn-secondary btn-full" id="logout-btn" style="margin-top:0.5rem">Cerrar sesion</button>' +
 
     '<div id="modal-editar-perfil" class="modal-overlay hidden">' +
@@ -5556,6 +5581,123 @@ function renderPerfil() {
     renderInventarioRapido();
   });
   document.getElementById('logout-btn').addEventListener('click', function() { signOut(auth); });
+
+  document.getElementById('btn-colocar-logro').addEventListener('click', function() {
+    mostrarFormLogro(currentUser.uid, currentUser.username);
+  });
+
+  cargarLogrosPerfil(currentUser.uid);
+}
+
+function cargarLogrosPerfil(uid) {
+  var lista = document.getElementById('logros-lista');
+  if (!lista) return;
+  onSnapshot(
+    query(collection(db, 'logros'), where('uid', '==', uid), orderBy('creadoEn', 'desc')),
+    function(snap) {
+      lista = document.getElementById('logros-lista');
+      if (!lista) return;
+      if (snap.empty) {
+        lista.innerHTML = '<p style="color:var(--text-secondary);font-size:0.82rem;text-align:center;padding:0.5rem">Sin logros aún.</p>';
+        return;
+      }
+      var esMod = esModeradorOSuperior();
+      lista.innerHTML = snap.docs.map(function(d) {
+        var l = d.data();
+        var esPendiente = l.estado === 'pendiente';
+        var esRechazado = l.estado === 'rechazado';
+        var color = esPendiente ? '#ff9800' : esRechazado ? 'var(--danger)' : 'gold';
+        var etiqueta = esPendiente ? '⏳ Pendiente' : esRechazado ? '❌ Rechazado' : '🏆 Aprobado';
+        return '<div style="border-left:3px solid ' + color + ';padding:0.5rem 0.6rem;margin-bottom:0.4rem;background:var(--bg-card);border-radius:8px">' +
+          '<div style="display:flex;justify-content:space-between;align-items:start">' +
+            '<div style="flex:1">' +
+              '<p style="font-weight:700;font-size:0.85rem">' + l.nombre + ' <span style="font-size:0.68rem;color:' + color + '">' + etiqueta + '</span></p>' +
+              '<p style="font-size:0.78rem;color:var(--text-secondary);margin-top:0.2rem">' + l.descripcion + '</p>' +
+              (l.otorgadoPor ? '<p style="font-size:0.68rem;color:var(--text-secondary);margin-top:0.2rem">Otorgado por ' + l.otorgadoPor + '</p>' : '') +
+            '</div>' +
+            (esMod && esPendiente
+              ? '<div style="display:flex;gap:0.3rem;flex-shrink:0">' +
+                  '<button class="btn-logro-aprobar" data-id="' + d.id + '" style="background:none;border:none;color:var(--success);font-size:1rem;cursor:pointer">✅</button>' +
+                  '<button class="btn-logro-rechazar" data-id="' + d.id + '" style="background:none;border:none;color:var(--danger);font-size:1rem;cursor:pointer">❌</button>' +
+                '</div>'
+              : '') +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      lista.querySelectorAll('.btn-logro-aprobar').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (!confirm('¿Aprobar este logro?')) return;
+          var snapL = await getDoc(doc(db, 'logros', btn.dataset.id));
+          var lData = snapL.exists() ? snapL.data() : {};
+          await updateDoc(doc(db, 'logros', btn.dataset.id), {
+            estado: 'aprobado', aprobadoPor: currentUser.username, aprobadoEn: new Date().toISOString()
+          });
+          await crearNotificacion(lData.uid, 'objeto_recibido',
+            '🏆 Logro aprobado',
+            'Tu logro "' + (lData.nombre || '') + '" fue aprobado.',
+            { logro: lData.nombre || '' }
+          );
+        });
+      });
+
+      lista.querySelectorAll('.btn-logro-rechazar').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (!confirm('¿Rechazar este logro?')) return;
+          var snapL2 = await getDoc(doc(db, 'logros', btn.dataset.id));
+          var lData2 = snapL2.exists() ? snapL2.data() : {};
+          await updateDoc(doc(db, 'logros', btn.dataset.id), {
+            estado: 'rechazado', rechazadoPor: currentUser.username, rechazadoEn: new Date().toISOString()
+          });
+          await crearNotificacion(lData2.uid, 'mision_rechazada',
+            '❌ Logro rechazado',
+            'Tu logro "' + (lData2.nombre || '') + '" no fue aprobado.',
+            { logro: lData2.nombre || '' }
+          );
+        });
+      });
+    }
+  );
+}
+
+function mostrarFormLogro(uid, username) {
+  var wrap = document.getElementById('logro-form-wrap');
+  if (!wrap) return;
+  wrap.innerHTML =
+    '<div class="card" style="margin-top:0.75rem;border-color:var(--accent)">' +
+      '<h3 style="margin-bottom:0.5rem;font-size:0.9rem">+ Colocar logro</h3>' +
+      '<input type="text" id="logro-nombre" placeholder="Nombre del logro" maxlength="60" style="width:100%;padding:0.7rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.88rem;outline:none;box-sizing:border-box;margin-bottom:0.5rem" />' +
+      '<textarea id="logro-descripcion" placeholder="¿Cómo lo conseguiste? ¿Tiene algún efecto especial?" style="width:100%;padding:0.7rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.88rem;outline:none;box-sizing:border-box;min-height:90px;resize:vertical;margin-bottom:0.5rem"></textarea>' +
+      '<button class="btn btn-primary btn-full" id="btn-enviar-logro">Enviar para revisión</button>' +
+      '<button class="btn btn-secondary btn-full" id="btn-cancelar-logro" style="margin-top:0.4rem">Cancelar</button>' +
+      '<div id="logro-form-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+    '</div>';
+
+  document.getElementById('btn-cancelar-logro').addEventListener('click', function() { wrap.innerHTML = ''; });
+
+  document.getElementById('btn-enviar-logro').addEventListener('click', async function() {
+    var nombre = document.getElementById('logro-nombre').value.trim();
+    var descripcion = document.getElementById('logro-descripcion').value.trim();
+    var msg = document.getElementById('logro-form-msg');
+    if (!nombre) { msg.textContent = 'El nombre es obligatorio'; msg.style.color = 'var(--danger)'; return; }
+    if (!descripcion) { msg.textContent = 'La descripción es obligatoria'; msg.style.color = 'var(--danger)'; return; }
+
+    var btn = this; btn.disabled = true; btn.textContent = 'Enviando...';
+    try {
+      await addDoc(collection(db, 'logros'), {
+        uid: uid, username: username,
+        nombre: nombre, descripcion: descripcion,
+        estado: 'pendiente',
+        creadoEn: new Date().toISOString(),
+        creadoPor: currentUser.username
+      });
+      msg.textContent = '✓ Logro enviado para revisión'; msg.style.color = 'var(--success)';
+      setTimeout(function() { wrap.innerHTML = ''; }, 1200);
+    } catch(err) {
+      msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--danger)';
+      btn.disabled = false; btn.textContent = 'Enviar para revisión';
+    }
+  });
 }
 
 // ===== PORTAL DE ENTRADA AL CASINO =====
@@ -11101,6 +11243,15 @@ async function padmVerUsuario(uid) {
           '<div id="padm-saldo-msg" style="font-size:0.78rem;margin-top:0.3rem"></div>' +
         '</div>' +
 
+        // Otorgar logro directo
+        '<div style="margin-bottom:0.75rem">' +
+          '<p style="font-size:0.8rem;font-weight:700;margin-bottom:0.4rem">🏆 Otorgar logro directo</p>' +
+          '<input type="text" id="padm-logro-nombre" placeholder="Nombre del logro" style="width:100%;padding:0.5rem 0.6rem;border-radius:8px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none;box-sizing:border-box;margin-bottom:0.4rem"/>' +
+          '<textarea id="padm-logro-desc" placeholder="Descripción del logro" style="width:100%;padding:0.5rem 0.6rem;border-radius:8px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none;box-sizing:border-box;min-height:60px;resize:vertical;margin-bottom:0.4rem"></textarea>' +
+          '<button class="btn btn-primary btn-full" id="padm-otorgar-logro" style="font-size:0.82rem;padding:0.5rem">Otorgar logro</button>' +
+          '<div id="padm-logro-msg" style="font-size:0.78rem;margin-top:0.3rem"></div>' +
+        '</div>' +
+
         // Borrar historial
         '<button class="btn btn-secondary btn-full" id="padm-borrar-historial" style="font-size:0.82rem;border-color:var(--danger);color:var(--danger);margin-bottom:0.5rem">🗑️ Borrar historial de transacciones</button>' +
         '<div id="padm-historial-msg" style="font-size:0.78rem"></div>'
@@ -11228,6 +11379,39 @@ async function padmVerUsuario(uid) {
     document.getElementById('padm-historial-msg').style.color = 'var(--success)';
     btn.disabled = false; btn.textContent = '🗑️ Borrar historial de transacciones';
   });
+
+  var btnOtorgarLogro = document.getElementById('padm-otorgar-logro');
+  if (btnOtorgarLogro) {
+    btnOtorgarLogro.addEventListener('click', async function() {
+      var nombreLogro = document.getElementById('padm-logro-nombre').value.trim();
+      var descLogro = document.getElementById('padm-logro-desc').value.trim();
+      var msg = document.getElementById('padm-logro-msg');
+      if (!nombreLogro) { msg.textContent = 'El nombre es obligatorio'; msg.style.color = 'var(--danger)'; return; }
+      if (!descLogro) { msg.textContent = 'La descripción es obligatoria'; msg.style.color = 'var(--danger)'; return; }
+      var btn = this; btn.disabled = true; btn.textContent = 'Otorgando...';
+      try {
+        await addDoc(collection(db, 'logros'), {
+          uid: uid, username: u.username,
+          nombre: nombreLogro, descripcion: descLogro,
+          estado: 'aprobado',
+          otorgadoPor: currentUser.username,
+          aprobadoPor: currentUser.username, aprobadoEn: new Date().toISOString(),
+          creadoEn: new Date().toISOString(), creadoPor: currentUser.username
+        });
+        await crearNotificacion(uid, 'objeto_recibido',
+          '🏆 Logro otorgado',
+          'Se te otorgó el logro "' + nombreLogro + '" por ' + currentUser.username,
+          { logro: nombreLogro }
+        );
+        msg.textContent = '✓ Logro otorgado'; msg.style.color = 'var(--success)';
+        document.getElementById('padm-logro-nombre').value = '';
+        document.getElementById('padm-logro-desc').value = '';
+      } catch(err) {
+        msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--danger)';
+      }
+      btn.disabled = false; btn.textContent = 'Otorgar logro';
+    });
+  }
 }
 
 // ── Saldos globales ───────────────────────────────────────────────────────────
