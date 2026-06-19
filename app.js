@@ -4438,8 +4438,13 @@ function renderCategoriaPatrimonio(categoriaKey, categoriaObj, uid, username, es
 
 function cargarItemsPatrimonio(uid, username, categoriaKey, categoriaObj, esAdmin, esModoAdmin) {
   var lista = document.getElementById('items-patrimonio');
+  var esVerificador = currentUser && (
+    (currentUser.rol || '').toLowerCase() === 'dev' ||
+    (currentUser.rol || '').toLowerCase() === 'lider_suprema' ||
+    (currentUser.rol || '').toLowerCase() === 'verificador'
+  );
   onSnapshot(
-    query(collection(db, 'patrimonio'), where('uid', '==', uid), where('categoria', '==', categoriaKey), where('activo', '==', true), orderBy('creadoEn', 'desc')),
+    query(collection(db, 'patrimonio'), where('uid', '==', uid), where('categoria', '==', categoriaKey), orderBy('creadoEn', 'desc')),
     function(snap) {
       if (!lista) return;
       if (snap.empty) {
@@ -4448,20 +4453,31 @@ function cargarItemsPatrimonio(uid, username, categoriaKey, categoriaObj, esAdmi
       }
       lista.innerHTML = snap.docs.map(function(d) {
         var item = d.data();
-        return '<div class="patrimonio-item">' +
+        var esPendiente = item.pendiente === true && item.activo !== true;
+        if (!esPendiente && !item.activo) return '';
+        var etiquetaPendiente = esPendiente
+          ? '<span style="font-size:0.68rem;background:rgba(255,152,0,0.2);color:#ff9800;padding:0.15rem 0.4rem;border-radius:6px;margin-left:0.3rem">⏳ Pendiente</span>'
+          : '';
+        return '<div class="patrimonio-item" style="border-left:3px solid ' + (esPendiente ? '#ff9800' : 'transparent') + '">' +
           (item.imagen ? '<img src="' + item.imagen + '" class="patrimonio-img" onerror="this.style.display=\'none\'" />' : '') +
           '<div class="patrimonio-info">' +
-            '<p class="patrimonio-nombre">' + item.nombre + (item.cantidad > 1 ? ' ×' + item.cantidad : '') + '</p>' +
+            '<p class="patrimonio-nombre">' + item.nombre + (item.cantidad > 1 ? ' ×' + item.cantidad : '') + etiquetaPendiente + '</p>' +
             (item.descripcion ? '<p class="patrimonio-desc">' + item.descripcion + '</p>' : '') +
             '<p class="patrimonio-meta">Compra: £' + (item.precioCompra || 0).toLocaleString('es-CO') + ' · Mercado: £' + (item.precioMercado || 0).toLocaleString('es-CO') + '</p>' +
             '<p class="patrimonio-meta" style="font-size:0.72rem">' + new Date(item.creadoEn).toLocaleString('es-CO') + '</p>' +
           '</div>' +
           '<div class="patrimonio-acciones">' +
-            '<button class="btn-pat-editar" data-id="' + d.id + '">✏️</button>' +
-            '<button class="btn-pat-borrar" data-id="' + d.id + '">🗑️</button>' +
+            (esVerificador && esPendiente
+              ? '<button class="btn-pat-aprobar" data-id="' + d.id + '" style="background:none;border:none;color:var(--success);font-size:1.1rem;cursor:pointer;padding:0.2rem" title="Aprobar">✅</button>' +
+                '<button class="btn-pat-rechazar" data-id="' + d.id + '" style="background:none;border:none;color:var(--danger);font-size:1.1rem;cursor:pointer;padding:0.2rem" title="Rechazar">❌</button>'
+              : '') +
+            (!esPendiente
+              ? '<button class="btn-pat-editar" data-id="' + d.id + '">✏️</button>' +
+                '<button class="btn-pat-borrar" data-id="' + d.id + '">🗑️</button>'
+              : '') +
           '</div>' +
         '</div>';
-      }).join('');
+      }).filter(function(h) { return h !== ''; }).join('');
 
       lista.querySelectorAll('.btn-pat-editar').forEach(function(btn) {
         btn.addEventListener('click', async function() {
@@ -4473,6 +4489,40 @@ function cargarItemsPatrimonio(uid, username, categoriaKey, categoriaObj, esAdmi
       lista.querySelectorAll('.btn-pat-borrar').forEach(function(btn) {
         btn.addEventListener('click', function() {
           mostrarFormBorrarItem(btn.dataset.id, uid, username, categoriaKey, categoriaObj, esAdmin, esModoAdmin);
+        });
+      });
+
+      lista.querySelectorAll('.btn-pat-aprobar').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (!confirm('¿Confirmar que este objeto existe y aprobarlo?')) return;
+          await updateDoc(doc(db, 'patrimonio', btn.dataset.id), {
+            activo: true, pendiente: false,
+            aprobadoPor: currentUser.username,
+            aprobadoEn: new Date().toISOString()
+          });
+          await addDoc(collection(db, 'patrimonio_historial'), {
+            uid: uid, username: username, tipo: 'aprobado',
+            itemNombre: '(objeto)', categoria: categoriaKey,
+            descripcion: 'Aprobado por ' + currentUser.username,
+            fecha: new Date().toISOString()
+          });
+        });
+      });
+
+      lista.querySelectorAll('.btn-pat-rechazar').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (!confirm('¿Rechazar y eliminar este objeto pendiente?')) return;
+          await updateDoc(doc(db, 'patrimonio', btn.dataset.id), {
+            activo: false, pendiente: false,
+            rechazadoPor: currentUser.username,
+            rechazadoEn: new Date().toISOString()
+          });
+          await addDoc(collection(db, 'patrimonio_historial'), {
+            uid: uid, username: username, tipo: 'rechazado',
+            itemNombre: '(objeto)', categoria: categoriaKey,
+            descripcion: 'Rechazado por ' + currentUser.username,
+            fecha: new Date().toISOString()
+          });
         });
       });
     }
@@ -4536,12 +4586,22 @@ function mostrarFormAgregarItem(uid, username, categoriaKey, categoriaObj, esAdm
           descripcion: descripcionHistorial, fecha: ahora
         });
       } else {
-        await addDoc(collection(db, 'patrimonio'), {
-          uid: uid, username: username, categoria: categoriaKey,
-          nombre: nombre, cantidad: cantidad, descripcion: desc,
-          precioCompra: precioCompra, precioMercado: precioMercado,
-          imagen: imagen, activo: true, creadoEn: ahora,
-          creadoPor: currentUser.username
+        var esAdmin = currentUser && (
+        (currentUser.rol || '').toLowerCase() === 'dev' ||
+        (currentUser.rol || '').toLowerCase() === 'lider_suprema' ||
+        (currentUser.rol || '').toLowerCase() === 'verificador'
+      );
+      var esModoAdminAgregando = esModoAdmin && esAdmin;
+      await addDoc(collection(db, 'patrimonio'), {
+        uid: uid, username: username, categoria: categoriaKey,
+        nombre: nombre, cantidad: cantidad, descripcion: desc,
+        precioCompra: precioCompra, precioMercado: precioMercado,
+        imagen: imagen,
+        activo: esModoAdminAgregando ? true : false,
+        pendiente: esModoAdminAgregando ? false : true,
+        creadoEn: ahora,
+        creadoPor: currentUser.username
+      });
         });
         await addDoc(collection(db, 'patrimonio_historial'), {
           uid: uid, username: username, tipo: 'añadido',
