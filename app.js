@@ -11243,6 +11243,12 @@ async function padmVerUsuario(uid) {
           '<div id="padm-saldo-msg" style="font-size:0.78rem;margin-top:0.3rem"></div>' +
         '</div>' +
 
+        // Logros existentes del usuario
+        '<div style="margin-bottom:0.75rem">' +
+          '<p style="font-size:0.8rem;font-weight:700;margin-bottom:0.4rem">🏆 Logros de ' + u.username + '</p>' +
+          '<div id="padm-logros-lista"><p style="color:var(--text-secondary);font-size:0.78rem">Cargando...</p></div>' +
+        '</div>' +
+
         // Otorgar logro directo
         '<div style="margin-bottom:0.75rem">' +
           '<p style="font-size:0.8rem;font-weight:700;margin-bottom:0.4rem">🏆 Otorgar logro directo</p>' +
@@ -11379,6 +11385,69 @@ async function padmVerUsuario(uid) {
     document.getElementById('padm-historial-msg').style.color = 'var(--success)';
     btn.disabled = false; btn.textContent = '🗑️ Borrar historial de transacciones';
   });
+
+  onSnapshot(
+    query(collection(db, 'logros'), where('uid', '==', uid), orderBy('creadoEn', 'desc')),
+    function(snap) {
+      var listaLogros = document.getElementById('padm-logros-lista');
+      if (!listaLogros) return;
+      if (snap.empty) {
+        listaLogros.innerHTML = '<p style="color:var(--text-secondary);font-size:0.78rem">Sin logros registrados.</p>';
+        return;
+      }
+      listaLogros.innerHTML = snap.docs.map(function(d) {
+        var l = d.data();
+        var esPendiente = l.estado === 'pendiente';
+        var esRechazado = l.estado === 'rechazado';
+        var color = esPendiente ? '#ff9800' : esRechazado ? 'var(--danger)' : 'gold';
+        var etiqueta = esPendiente ? '⏳ Pendiente' : esRechazado ? '❌ Rechazado' : '🏆 Aprobado';
+        return '<div style="border-left:3px solid ' + color + ';padding:0.5rem 0.6rem;margin-bottom:0.4rem;background:var(--bg-primary);border-radius:8px">' +
+          '<div style="display:flex;justify-content:space-between;align-items:start">' +
+            '<div style="flex:1">' +
+              '<p style="font-weight:700;font-size:0.82rem">' + l.nombre + ' <span style="font-size:0.65rem;color:' + color + '">' + etiqueta + '</span></p>' +
+              '<p style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.2rem">' + l.descripcion + '</p>' +
+            '</div>' +
+            (esPendiente
+              ? '<div style="display:flex;gap:0.3rem;flex-shrink:0">' +
+                  '<button class="padm-btn-logro-aprobar" data-id="' + d.id + '" style="background:none;border:none;color:var(--success);font-size:1rem;cursor:pointer">✅</button>' +
+                  '<button class="padm-btn-logro-rechazar" data-id="' + d.id + '" style="background:none;border:none;color:var(--danger);font-size:1rem;cursor:pointer">❌</button>' +
+                '</div>'
+              : '') +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      listaLogros.querySelectorAll('.padm-btn-logro-aprobar').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (!confirm('¿Aprobar este logro?')) return;
+          await updateDoc(doc(db, 'logros', btn.dataset.id), {
+            estado: 'aprobado', aprobadoPor: currentUser.username, aprobadoEn: new Date().toISOString()
+          });
+          await crearNotificacion(uid, 'objeto_recibido',
+            '🏆 Logro aprobado',
+            'Tu logro fue aprobado por ' + currentUser.username,
+            {}
+          );
+        });
+      });
+
+      listaLogros.querySelectorAll('.padm-btn-logro-rechazar').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (!confirm('¿Rechazar este logro?')) return;
+          await updateDoc(doc(db, 'logros', btn.dataset.id), {
+            estado: 'rechazado', rechazadoPor: currentUser.username, rechazadoEn: new Date().toISOString()
+          });
+          await crearNotificacion(uid, 'mision_rechazada',
+            '❌ Logro rechazado',
+            'Tu logro no fue aprobado por ' + currentUser.username,
+            {}
+          );
+        });
+      });
+    }
+  );
+
+  var btnOtorgarLogro = document.getElementById('padm-otorgar-logro');
 
   var btnOtorgarLogro = document.getElementById('padm-otorgar-logro');
   if (btnOtorgarLogro) {
