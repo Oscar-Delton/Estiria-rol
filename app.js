@@ -242,7 +242,8 @@ var NOTIF_ICONOS = {
 var SONIDO_NOTIF_DEFAULT = 'https://files.catbox.moe/ojih36.mp3'; // ← placeholder, cambiar por URL real
 
 var notifAudioEl = null;
-var ultimoConteoNotif = 0;
+var idsNotifVistas = {};
+var primeraCargaNotif = true;
 
 function reproducirSonidoNotificacion() {
   if (!currentUser) return;
@@ -11866,7 +11867,8 @@ var notifListener = null;
 function iniciarListenerNotificaciones() {
   if (notifListener) { notifListener(); notifListener = null; }
   if (!currentUser) return;
-  ultimoConteoNotif = 0;
+  idsNotifVistas = {};
+  primeraCargaNotif = true;
 
   notifListener = onSnapshot(
     query(
@@ -11879,11 +11881,19 @@ function iniciarListenerNotificaciones() {
     function(snap) {
       var badge = document.getElementById('notif-badge');
       var count = snap.size;
+      var hayNuevas = false;
 
-      if (count > ultimoConteoNotif) {
+      snap.docs.forEach(function(d) {
+        if (!idsNotifVistas[d.id]) {
+          idsNotifVistas[d.id] = true;
+          if (!primeraCargaNotif) hayNuevas = true;
+        }
+      });
+
+      if (hayNuevas) {
         reproducirSonidoNotificacion();
       }
-      ultimoConteoNotif = count;
+      primeraCargaNotif = false;
 
       if (!badge) return;
       if (count > 0) {
