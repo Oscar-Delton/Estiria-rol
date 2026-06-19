@@ -4602,7 +4602,6 @@ function mostrarFormAgregarItem(uid, username, categoriaKey, categoriaObj, esAdm
         creadoEn: ahora,
         creadoPor: currentUser.username
       });
-        });
         await addDoc(collection(db, 'patrimonio_historial'), {
           uid: uid, username: username, tipo: 'añadido',
           itemNombre: nombre, categoria: categoriaKey,
