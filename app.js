@@ -239,6 +239,38 @@ var NOTIF_ICONOS = {
   'sistema':                '🔔'
 };
 
+var SONIDO_NOTIF_DEFAULT = 'https://files.catbox.moe/ojih36.mp3'; // ← placeholder, cambiar por URL real
+
+var notifAudioEl = null;
+var ultimoConteoNotif = 0;
+
+function reproducirSonidoNotificacion() {
+  if (!currentUser) return;
+  var pref = currentUser.sonidoNotificacion;
+  if (pref === 'silenciado') return;
+
+  var url = (!pref || pref === 'default') ? SONIDO_NOTIF_DEFAULT : pref;
+  if (!url) return;
+
+  try {
+    if (notifAudioEl) {
+      notifAudioEl.pause();
+      notifAudioEl.currentTime = 0;
+    }
+    notifAudioEl = new Audio(url);
+    notifAudioEl.volume = 0.8;
+    notifAudioEl.play().catch(function() {});
+    setTimeout(function() {
+      if (notifAudioEl) {
+        notifAudioEl.pause();
+        notifAudioEl.currentTime = 0;
+      }
+    }, 5000);
+  } catch(e) {
+    console.warn('Error reproduciendo sonido de notificación:', e.message);
+  }
+}
+
 async function crearNotificacion(uid, tipo, titulo, cuerpo, extra) {
   if (!uid || uid === 'sistema') return;
   try {
@@ -4495,6 +4527,8 @@ function cargarItemsPatrimonio(uid, username, categoriaKey, categoriaObj, esAdmi
       lista.querySelectorAll('.btn-pat-aprobar').forEach(function(btn) {
         btn.addEventListener('click', async function() {
           if (!confirm('¿Confirmar que este objeto existe y aprobarlo?')) return;
+          var snapItem = await getDoc(doc(db, 'patrimonio', btn.dataset.id));
+          var itemData = snapItem.exists() ? snapItem.data() : {};
           await updateDoc(doc(db, 'patrimonio', btn.dataset.id), {
             activo: true, pendiente: false,
             aprobadoPor: currentUser.username,
@@ -4502,16 +4536,23 @@ function cargarItemsPatrimonio(uid, username, categoriaKey, categoriaObj, esAdmi
           });
           await addDoc(collection(db, 'patrimonio_historial'), {
             uid: uid, username: username, tipo: 'aprobado',
-            itemNombre: '(objeto)', categoria: categoriaKey,
+            itemNombre: itemData.nombre || '(objeto)', categoria: categoriaKey,
             descripcion: 'Aprobado por ' + currentUser.username,
             fecha: new Date().toISOString()
           });
+          await crearNotificacion(uid, 'objeto_recibido',
+            '🎁 Objeto verificado',
+            'Tu objeto "' + (itemData.nombre || 'objeto') + '" fue confirmado en tu patrimonio.',
+            { item: itemData.nombre || '', categoria: categoriaKey }
+          );
         });
       });
 
       lista.querySelectorAll('.btn-pat-rechazar').forEach(function(btn) {
         btn.addEventListener('click', async function() {
           if (!confirm('¿Rechazar y eliminar este objeto pendiente?')) return;
+          var snapItem2 = await getDoc(doc(db, 'patrimonio', btn.dataset.id));
+          var itemData2 = snapItem2.exists() ? snapItem2.data() : {};
           await updateDoc(doc(db, 'patrimonio', btn.dataset.id), {
             activo: false, pendiente: false,
             rechazadoPor: currentUser.username,
@@ -4519,10 +4560,15 @@ function cargarItemsPatrimonio(uid, username, categoriaKey, categoriaObj, esAdmi
           });
           await addDoc(collection(db, 'patrimonio_historial'), {
             uid: uid, username: username, tipo: 'rechazado',
-            itemNombre: '(objeto)', categoria: categoriaKey,
+            itemNombre: itemData2.nombre || '(objeto)', categoria: categoriaKey,
             descripcion: 'Rechazado por ' + currentUser.username,
             fecha: new Date().toISOString()
           });
+          await crearNotificacion(uid, 'mision_rechazada',
+            '❌ Objeto rechazado',
+            'Tu objeto "' + (itemData2.nombre || 'objeto') + '" no fue confirmado en tu patrimonio.',
+            { item: itemData2.nombre || '', categoria: categoriaKey }
+          );
         });
       });
     }
@@ -5246,6 +5292,29 @@ function renderPerfil() {
 
           '<hr class="edit-divider" />' +
 
+          '<div class="edit-section">' +
+            '<p class="edit-section-title">🔔 Sonido de notificación</p>' +
+            '<div class="citas-opciones" id="sonido-notif-opciones">' +
+              '<button class="citas-opcion' + ((!currentUser.sonidoNotificacion || currentUser.sonidoNotificacion === 'default') ? ' selected' : '') + '" data-val="default">🔔 Por defecto</button>' +
+              '<button class="citas-opcion' + (currentUser.sonidoNotificacion === 'personalizado' || (currentUser.sonidoNotificacion && currentUser.sonidoNotificacion !== 'default' && currentUser.sonidoNotificacion !== 'silenciado') ? ' selected' : '') + '" data-val="personalizado">🎵 Personalizado</button>' +
+              '<button class="citas-opcion' + (currentUser.sonidoNotificacion === 'silenciado' ? ' selected' : '') + '" data-val="silenciado">🔇 Silenciar</button>' +
+            '</div>' +
+            '<div id="sonido-url-wrap" class="' + ((currentUser.sonidoNotificacion && currentUser.sonidoNotificacion !== 'default' && currentUser.sonidoNotificacion !== 'silenciado') ? '' : 'hidden') + '" style="margin-top:0.5rem">' +
+              '<input type="url" id="sonido-notif-url" placeholder="URL directa del audio (.mp3, .ogg, .wav)" value="' + ((currentUser.sonidoNotificacion && currentUser.sonidoNotificacion !== 'default' && currentUser.sonidoNotificacion !== 'silenciado') ? currentUser.sonidoNotificacion : '') + '" />' +
+              '<button class="btn btn-secondary btn-full" id="btn-probar-sonido" style="margin-top:0.4rem">▶️ Probar sonido</button>' +
+              '<div style="background:var(--bg-primary);border-radius:8px;padding:0.6rem;margin-top:0.5rem;font-size:0.75rem;color:var(--text-secondary)">' +
+                '<p style="font-weight:700;margin-bottom:0.3rem;color:var(--text-primary)">📖 Cómo poner tu propio sonido</p>' +
+                '<p>1. Sube tu archivo de audio a un servicio que permita enlaces directos (ej. Google Drive con acceso público, Dropbox, GitHub).</p>' +
+                '<p style="margin-top:0.2rem">2. Copia el enlace directo al archivo (debe terminar en .mp3, .ogg o .wav, o ser un link de descarga directa).</p>' +
+                '<p style="margin-top:0.2rem">3. Pégalo arriba. Solo se reproducirán los primeros 5 segundos del audio.</p>' +
+              '</div>' +
+            '</div>' +
+            '<button class="btn btn-primary btn-full" id="btn-guardar-sonido" style="margin-top:0.6rem">Guardar preferencia</button>' +
+            '<div id="sonido-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+          '</div>' +
+
+          '<hr class="edit-divider" />' +
+
           (!esRegidor
             ? '<div class="edit-section">' +
                 '<p class="edit-section-title">🏙️ Ciudad</p>' +
@@ -5353,6 +5422,59 @@ function renderPerfil() {
       msg.textContent = 'Error al guardar'; msg.style.color = 'var(--danger)';
     }
     btn.disabled = false; btn.textContent = 'Guardar foto';
+  });
+
+  var sonidoSeleccion = (!currentUser.sonidoNotificacion || currentUser.sonidoNotificacion === 'default') ? 'default'
+    : currentUser.sonidoNotificacion === 'silenciado' ? 'silenciado' : 'personalizado';
+
+  document.getElementById('sonido-notif-opciones').querySelectorAll('.citas-opcion').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.getElementById('sonido-notif-opciones').querySelectorAll('.citas-opcion').forEach(function(b) { b.classList.remove('selected'); });
+      btn.classList.add('selected');
+      sonidoSeleccion = btn.dataset.val;
+      var wrap = document.getElementById('sonido-url-wrap');
+      if (sonidoSeleccion === 'personalizado') wrap.classList.remove('hidden');
+      else wrap.classList.add('hidden');
+    });
+  });
+
+  document.getElementById('btn-probar-sonido').addEventListener('click', function() {
+    var url = document.getElementById('sonido-notif-url').value.trim();
+    if (!url) { return; }
+    try {
+      var testAudio = new Audio(url);
+      testAudio.volume = 0.8;
+      testAudio.play().catch(function() {
+        document.getElementById('sonido-msg').textContent = 'No se pudo reproducir esa URL';
+        document.getElementById('sonido-msg').style.color = 'var(--danger)';
+      });
+      setTimeout(function() { testAudio.pause(); testAudio.currentTime = 0; }, 5000);
+    } catch(e) {}
+  });
+
+  document.getElementById('btn-guardar-sonido').addEventListener('click', async function() {
+    var msg = document.getElementById('sonido-msg');
+    var valorGuardar = 'default';
+
+    if (sonidoSeleccion === 'silenciado') {
+      valorGuardar = 'silenciado';
+    } else if (sonidoSeleccion === 'personalizado') {
+      var urlPersonalizada = document.getElementById('sonido-notif-url').value.trim();
+      if (!urlPersonalizada) { msg.textContent = 'Ingresa una URL de audio'; msg.style.color = 'var(--danger)'; return; }
+      valorGuardar = urlPersonalizada;
+    } else {
+      valorGuardar = 'default';
+    }
+
+    var btn = this; btn.disabled = true; btn.textContent = 'Guardando...';
+    try {
+      await updateDoc(doc(db, 'usuarios', currentUser.uid), { sonidoNotificacion: valorGuardar });
+      currentUser.sonidoNotificacion = valorGuardar;
+      msg.textContent = '✓ Preferencia guardada'; msg.style.color = 'var(--success)';
+    } catch(err) {
+      msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--danger)';
+    }
+    btn.disabled = false; btn.textContent = 'Guardar preferencia';
   });
 
   if (!esRegidor) {
@@ -11491,6 +11613,7 @@ var notifListener = null;
 function iniciarListenerNotificaciones() {
   if (notifListener) { notifListener(); notifListener = null; }
   if (!currentUser) return;
+  ultimoConteoNotif = 0;
 
   notifListener = onSnapshot(
     query(
@@ -11502,8 +11625,14 @@ function iniciarListenerNotificaciones() {
     ),
     function(snap) {
       var badge = document.getElementById('notif-badge');
-      if (!badge) return;
       var count = snap.size;
+
+      if (count > ultimoConteoNotif) {
+        reproducirSonidoNotificacion();
+      }
+      ultimoConteoNotif = count;
+
+      if (!badge) return;
       if (count > 0) {
         badge.style.display = 'flex';
         badge.textContent = count > 9 ? '9+' : count;
