@@ -13030,8 +13030,10 @@ async function renderCuentaCasino() {
 
     '<div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">' +
       '<button class="btn btn-secondary" id="btn-retirar-casino" style="flex:1;border-color:gold;color:gold">💸 Retirar fondos</button>' +
+      (isDev() ? '<button class="btn btn-secondary" id="btn-inyectar-casino" style="flex:1;border-color:#4fc3f7;color:#4fc3f7">💰 Inyectar capital</button>' : '') +
     '</div>' +
     '<div id="retiro-casino-form"></div>' +
+    '<div id="inyectar-casino-form"></div>' +
 
     '<p style="font-size:0.82rem;font-weight:700;margin-bottom:0.5rem">📋 Últimas comisiones</p>' +
     (snapHistorial.empty
@@ -13093,6 +13095,62 @@ async function renderCuentaCasino() {
       }
     });
   });
+
+  var btnInyectar = document.getElementById('btn-inyectar-casino');
+  if (btnInyectar) {
+    btnInyectar.addEventListener('click', function() {
+      var form = document.getElementById('inyectar-casino-form');
+      form.innerHTML =
+        '<div class="card" style="margin-bottom:0.75rem;border-color:#4fc3f7">' +
+          '<p style="font-size:0.85rem;font-weight:700;margin-bottom:0.5rem">💰 Inyectar capital al casino</p>' +
+          '<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.5rem">Tu saldo: £' + (currentUser.saldo || 0).toLocaleString('es-CO') + '</p>' +
+          '<input type="number" id="inyectar-monto" placeholder="Monto a inyectar £" min="1" max="' + (currentUser.saldo || 0) + '" ' +
+            'style="width:100%;padding:0.6rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;box-sizing:border-box;margin-bottom:0.5rem"/>' +
+          '<button class="btn btn-primary btn-full" id="btn-confirmar-inyeccion">Confirmar inyección</button>' +
+          '<div id="inyectar-msg" style="font-size:0.82rem;margin-top:0.4rem;text-align:center"></div>' +
+        '</div>';
+
+      document.getElementById('btn-confirmar-inyeccion').addEventListener('click', async function() {
+        var monto = parseInt(document.getElementById('inyectar-monto').value);
+        var msg = document.getElementById('inyectar-msg');
+        if (!monto || monto < 1) { msg.textContent = 'Ingresa un monto válido'; msg.style.color = 'var(--danger)'; return; }
+        if (monto > (currentUser.saldo || 0)) { msg.textContent = 'Saldo insuficiente'; msg.style.color = 'var(--danger)'; return; }
+
+        var btn = this; btn.disabled = true; btn.textContent = 'Procesando...';
+        try {
+          var cuentaRef = doc(db, 'casino_cuenta', 'principal');
+          try {
+            await updateDoc(cuentaRef, { saldo: increment(monto) });
+          } catch(e) {
+            await setDoc(cuentaRef, { saldo: monto, creadoEn: new Date().toISOString() }, { merge: true });
+          }
+          await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(-monto) });
+          currentUser.saldo = (currentUser.saldo || 0) - monto;
+
+          await addDoc(collection(db, 'casino_cuenta_historial'), {
+            tipo: 'inyeccion_capital',
+            de: currentUser.uid,
+            deUsername: currentUser.username,
+            monto: monto,
+            fecha: new Date().toISOString()
+          });
+
+          await registrarTransaccion({
+            tipo: 'casino_inyeccion',
+            de: currentUser.uid, deUsername: currentUser.username,
+            para: 'casino', paraUsername: 'Casino Estiria',
+            monto: monto, descripcion: 'Inyección de capital al casino'
+          });
+
+          msg.textContent = '✅ Capital inyectado correctamente'; msg.style.color = 'var(--success)';
+          setTimeout(function() { renderCuentaCasino(); }, 1200);
+        } catch(err) {
+          msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--danger)';
+          btn.disabled = false; btn.textContent = 'Confirmar inyección';
+        }
+      });
+    });
+  }
 }
 
 function showError(msg) { loginError.textContent = msg; loginError.classList.remove('hidden'); }
