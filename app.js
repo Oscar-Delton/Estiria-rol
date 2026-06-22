@@ -7823,7 +7823,9 @@ async function ejecutarGiroRuleta(salaId, sala) {
     });
   });
 
-  // Aplicar cambios de saldo en Firebase
+  // Aplicar cambios de fichas del pozo del casino
+  var totalPerdidoRonda = 0;
+  var totalGanadoRonda = 0;
   for (var i = 0; i < jugadoresActualizados.length; i++) {
     var jActual = jugadoresActualizados[i];
     var jOriginal = (salaActual.jugadores || []).find(function(j) { return j.uid === jActual.uid; });
@@ -7835,19 +7837,30 @@ async function ejecutarGiroRuleta(salaId, sala) {
     var diferenciaPerdido = (jActual.perdido || 0) - (jOriginal.perdido || 0);
     var cambioSaldo = diferenciaGanado - diferenciaPerdido;
 
+    if (cambioSaldo < 0) totalPerdidoRonda += Math.abs(cambioSaldo);
+    else if (cambioSaldo > 0) totalGanadoRonda += cambioSaldo;
+
     try {
-      await updateDoc(doc(db, 'usuarios', jActual.uid), { saldo: increment(cambioSaldo) });
-      if (jActual.uid === currentUser.uid) currentUser.saldo = (currentUser.saldo || 0) + cambioSaldo;
-      await registrarTransaccion({
-        tipo: 'casino_ruleta',
-        de: cambioSaldo < 0 ? jActual.uid : 'sistema',
-        deUsername: cambioSaldo < 0 ? jActual.username : 'Casino Ruleta',
-        para: cambioSaldo >= 0 ? jActual.uid : 'sistema',
-        paraUsername: cambioSaldo >= 0 ? jActual.username : 'Casino Ruleta',
-        monto: Math.abs(cambioSaldo),
-        descripcion: 'Ruleta: salió ' + numeroGanador + ' — ' + apuesta.descripcion + (cambioSaldo >= 0 ? ' — Ganó' : ' — Perdió')
-      });
+      // Si es el jugador actual usando fichas de sesión
+      if (jActual.uid === currentUser.uid && CASINO_SESSION.activa && !CASINO_SESSION.modoEspectador) {
+        registrarMovimientoCasino(cambioSaldo >= 0 ? 'ganancia' : 'perdida', Math.abs(cambioSaldo), 'Ruleta: salió ' + numeroGanador + ' — ' + apuesta.descripcion);
+      } else {
+        await updateDoc(doc(db, 'usuarios', jActual.uid), { saldo: increment(cambioSaldo) });
+      }
+      await registrarTransaccionCasino(cambioSaldo >= 0 ? 'ganancia' : 'perdida', Math.abs(cambioSaldo), 'Ruleta: salió ' + numeroGanador + ' — ' + apuesta.descripcion);
     } catch(err) { console.log('Error saldo ruleta:', err.message); }
+  }
+
+  // Conectar al pozo de fichas del casino
+  try {
+    var netoCasa = totalPerdidoRonda - totalGanadoRonda;
+    if (netoCasa !== 0) {
+      await updateDoc(doc(db, 'casino_cuenta', 'principal'), { fichas: increment(netoCasa) });
+    }
+  } catch(err) {
+    try {
+      await setDoc(doc(db, 'casino_cuenta', 'principal'), { fichas: totalPerdidoRonda - totalGanadoRonda, saldo: 0, creadoEn: new Date().toISOString() }, { merge: true });
+    } catch(e) { console.warn('Error inicializando pozo casino:', e.message); }
   }
 
   // Verificar si hay jugadores con tiros restantes
@@ -13038,9 +13051,14 @@ async function renderCuentaCasino() {
       '<button class="btn btn-secondary" id="btn-retirar-casino" style="flex:1;border-color:gold;color:gold">💸 Retirar fondos</button>' +
       (isDev() ? '<button class="btn btn-secondary" id="btn-inyectar-casino" style="flex:1;border-color:#4fc3f7;color:#4fc3f7">💰 Inyectar capital</button>' : '') +
     '</div>' +
-    (fichasCasino > 0
-      ? '<button class="btn btn-secondary btn-full" id="btn-convertir-fichas-casino" style="margin-bottom:0.75rem;border-color:#81c784;color:#81c784">🔄 Convertir ' + fichasCasino.toLocaleString('es-CO') + ' fichas a dinero</button>'
-      : '') +
+    '<div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">' +
+      (fichasCasino > 0
+        ? '<button class="btn btn-secondary" id="btn-convertir-fichas-casino" style="flex:1;border-color:#81c784;color:#81c784">🔄 Fichas → Dinero</button>'
+        : '') +
+      (saldoCasino > 0
+        ? '<button class="btn btn-secondary" id="btn-convertir-dinero-casino" style="flex:1;border-color:#4fc3f7;color:#4fc3f7">🔄 Dinero → Fichas</button>'
+        : '') +
+    '</div>' +
     '<div id="retiro-casino-form"></div>' +
     '<div id="inyectar-casino-form"></div>' +
     '<div id="convertir-fichas-form"></div>' +
@@ -13185,6 +13203,50 @@ async function renderCuentaCasino() {
         alert('Error: ' + err.message);
         btn.disabled = false; btn.textContent = '🔄 Convertir fichas a dinero';
       }
+    });
+  }
+
+  var btnConvertirDinero = document.getElementById('btn-convertir-dinero-casino');
+  if (btnConvertirDinero) {
+    btnConvertirDinero.addEventListener('click', function() {
+      var form = document.getElementById('convertir-fichas-form');
+      form.innerHTML =
+        '<div class="card" style="margin-bottom:0.75rem;border-color:#4fc3f7">' +
+          '<p style="font-size:0.85rem;font-weight:700;margin-bottom:0.5rem">🔄 Convertir dinero a fichas del casino</p>' +
+          '<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.5rem">Saldo disponible: £' + saldoCasino.toLocaleString('es-CO') + '</p>' +
+          '<input type="number" id="convertir-monto" placeholder="Monto a convertir £" min="1" max="' + saldoCasino + '" ' +
+            'style="width:100%;padding:0.6rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;box-sizing:border-box;margin-bottom:0.5rem"/>' +
+          '<button class="btn btn-primary btn-full" id="btn-confirmar-conversion-dinero">Confirmar conversión</button>' +
+          '<div id="convertir-dinero-msg" style="font-size:0.82rem;margin-top:0.4rem;text-align:center"></div>' +
+        '</div>';
+
+      document.getElementById('btn-confirmar-conversion-dinero').addEventListener('click', async function() {
+        var monto = parseInt(document.getElementById('convertir-monto').value);
+        var msg = document.getElementById('convertir-dinero-msg');
+        if (!monto || monto < 1) { msg.textContent = 'Ingresa un monto válido'; msg.style.color = 'var(--danger)'; return; }
+        if (monto > saldoCasino) { msg.textContent = 'Saldo insuficiente en el casino'; msg.style.color = 'var(--danger)'; return; }
+
+        var btn = this; btn.disabled = true; btn.textContent = 'Convirtiendo...';
+        try {
+          var cuentaRef = doc(db, 'casino_cuenta', 'principal');
+          await updateDoc(cuentaRef, {
+            saldo: increment(-monto),
+            fichas: increment(monto)
+          });
+          await addDoc(collection(db, 'casino_cuenta_historial'), {
+            tipo: 'conversion_dinero',
+            de: currentUser.uid,
+            deUsername: currentUser.username,
+            monto: monto,
+            fecha: new Date().toISOString()
+          });
+          msg.textContent = '✅ Convertido correctamente'; msg.style.color = 'var(--success)';
+          setTimeout(function() { renderCuentaCasino(); }, 1000);
+        } catch(err) {
+          msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--danger)';
+          btn.disabled = false; btn.textContent = 'Confirmar conversión';
+        }
+      });
     });
   }
 }
