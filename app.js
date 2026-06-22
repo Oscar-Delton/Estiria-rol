@@ -5850,10 +5850,19 @@ function registrarMovimientoCasino(tipo, monto, juego) {
     if (CASINO_SESSION.fichas < 0) CASINO_SESSION.fichas = 0;
   }
 
+  actualizarPanelFichasCasino();
+
   // Si se quedó sin fichas, cerrar sesión automáticamente
   if (CASINO_SESSION.fichas <= 0) {
     cerrarSesionCasinoSinFichas();
   }
+}
+
+function actualizarPanelFichasCasino() {
+  var elementos = document.querySelectorAll('[data-fichas-casino-display]');
+  elementos.forEach(function(el) {
+    el.textContent = CASINO_SESSION.fichas.toLocaleString('es-CO');
+  });
 }
 
 async function cerrarSesionCasinoSinFichas() {
@@ -5883,7 +5892,7 @@ function renderCasino() {
         '">' +
           '<div>' +
             '<p style="font-size:0.68rem;color:#90ee90;margin-bottom:0.1rem">🎫 TUS FICHAS</p>' +
-            '<p style="font-size:1.3rem;font-weight:900;color:#90ee90">' + fichas.toLocaleString('es-CO') + '</p>' +
+            '<p style="font-size:1.3rem;font-weight:900;color:#90ee90" data-fichas-casino-display>' + fichas.toLocaleString('es-CO') + '</p>' +
           '</div>' +
           '<div style="display:flex;gap:0.4rem">' +
             '<button class="btn btn-secondary" id="btn-casino-historial" style="font-size:0.75rem;padding:0.4rem 0.6rem;border-color:#90ee90;color:#90ee90">📋 Historial</button>' +
@@ -6754,6 +6763,24 @@ function renderEstadoTerminado(container, sala, salaId, yoJugador) {
 
 function renderTragaperras() {
   var panel = document.getElementById('casino-panel');
+
+  if (!CASINO_SESSION.activa || CASINO_SESSION.modoEspectador) {
+    panel.innerHTML =
+      '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+        '<button class="btn-back" id="back-casino-tragaperras-bloq">← Casino</button>' +
+        '<h3>🎰 Tragaperras</h3>' +
+      '</div>' +
+      '<div class="card" style="text-align:center;padding:1.5rem">' +
+        '<p style="font-size:2rem;margin-bottom:0.5rem">🎫</p>' +
+        '<p style="color:var(--text-secondary);font-size:0.88rem">Este juego usa fichas. Debes entrar al casino como jugador para poder jugar.</p>' +
+      '</div>';
+    document.getElementById('back-casino-tragaperras-bloq').addEventListener('click', function() {
+      panel.innerHTML = '';
+      renderCasino();
+    });
+    return;
+  }
+
   panel.innerHTML =
     '<div class="tienda-seccion-header" style="margin-top:1rem">' +
       '<button class="btn-back" id="back-casino-tragaperras">← Casino</button>' +
@@ -6761,7 +6788,7 @@ function renderTragaperras() {
     '</div>' +
 
     '<div class="card" style="text-align:center;border-color:var(--accent)">' +
-      '<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.75rem">Saldo: £<span id="tragaperras-saldo">' + (currentUser.saldo || 0).toLocaleString('es-CO') + '</span></p>' +
+      '<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.75rem">🎫 Fichas: <span id="tragaperras-saldo">' + CASINO_SESSION.fichas.toLocaleString('es-CO') + '</span></p>' +
 
       '<div id="tragaperras-pantalla" style="display:flex;justify-content:center;gap:0.5rem;margin-bottom:1rem">' +
         '<div class="carrete-box" id="carrete-0">🎰</div>' +
@@ -6914,22 +6941,15 @@ function renderTragaperras() {
 
     var girosInput2  = document.getElementById('tp-giros');
     var numGiros     = Math.max(1, Math.min(10, parseInt(girosInput2 ? girosInput2.value : 1) || 1));
-    var saldoActual  = currentUser.saldo || 0;
     var costoTotal   = apuesta * numGiros;
     var resultadoEl  = document.getElementById('tragaperras-resultado');
 
-    // Verificar saldo desde Firestore
-    var snapSaldo = await getDoc(doc(db, 'usuarios', currentUser.uid));
-    var saldoReal = snapSaldo.exists() ? (snapSaldo.data().saldo || 0) : 0;
-    currentUser.saldo = saldoReal;
-    document.getElementById('tragaperras-saldo').textContent = saldoReal.toLocaleString('es-CO');
-
-    if (costoTotal > saldoReal) {
-      resultadoEl.innerHTML = '<p style="color:var(--danger);font-size:0.9rem">Saldo insuficiente para ' + numGiros + ' giro(s) (necesitas £' + costoTotal.toLocaleString('es-CO') + ')</p>';
+    if (costoTotal > CASINO_SESSION.fichas) {
+      resultadoEl.innerHTML = '<p style="color:var(--danger);font-size:0.9rem">Fichas insuficientes para ' + numGiros + ' giro(s) (necesitas 🎫' + costoTotal.toLocaleString('es-CO') + ')</p>';
       return;
     }
     if (apuesta < 100) {
-      resultadoEl.innerHTML = '<p style="color:var(--danger);font-size:0.9rem">Apuesta mínima: £100</p>';
+      resultadoEl.innerHTML = '<p style="color:var(--danger);font-size:0.9rem">Apuesta mínima: 🎫100</p>';
       return;
     }
 
@@ -6943,13 +6963,6 @@ function renderTragaperras() {
     document.getElementById('tp-plus').disabled    = true;
     if (girosInput2) girosInput2.disabled          = true;
     document.querySelectorAll('.btn-apuesta-rapida').forEach(function(b) { b.disabled = true; });
-
-    // Descontar el costo total de una vez
-    await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(-costoTotal) });
-    currentUser.saldo = saldoReal - costoTotal;
-    document.getElementById('tragaperras-saldo').textContent = currentUser.saldo.toLocaleString('es-CO');
-
-    if (numGiros === 1) {
       // ── Giro único: animación normal ────────────────────────────────────
       ejecutarUnGiro(apuesta, function(resultado, multiplicador, ganancia) {
         var frames    = ['🍋', '🍇', '🔔', '⭐', '7️⃣', '💎'];
@@ -7009,25 +7022,38 @@ function renderTragaperras() {
         })(g);
       }
 
-      // Acreditar ganancias
-      if (gananciaTotal > 0) {
-        await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(gananciaTotal) });
-        currentUser.saldo = currentUser.saldo + gananciaTotal;
-        await registrarTransaccion({
-          tipo: 'casino_tragaperras',
-          de: 'sistema', deUsername: 'Casino Tragaperras',
-          para: currentUser.uid, paraUsername: currentUser.username,
-          monto: gananciaTotal,
-          descripcion: 'Tragaperras x' + numGiros + ': ' + girosGanadores + ' ganadores — total £' + gananciaTotal.toLocaleString('es-CO')
-        });
-      }
-      await registrarTransaccion({
-        tipo: 'casino_tragaperras',
-        de: currentUser.uid, deUsername: currentUser.username,
-        para: 'sistema', paraUsername: 'Casino Tragaperras',
-        monto: costoTotal,
-        descripcion: 'Tragaperras: ' + numGiros + ' giros de £' + apuesta.toLocaleString('es-CO')
+      // Descontar costo total de fichas y acreditar ganancia total
+      CASINO_SESSION.fichas -= costoTotal;
+      if (CASINO_SESSION.fichas < 0) CASINO_SESSION.fichas = 0;
+      CASINO_SESSION.fichas += gananciaTotal;
+
+      CASINO_SESSION.historial.unshift({
+        tipo: gananciaTotal >= costoTotal ? 'ganancia' : 'perdida',
+        monto: Math.abs(gananciaTotal - costoTotal),
+        juego: 'Tragaperras x' + numGiros,
+        fecha: new Date().toISOString()
       });
+      if (CASINO_SESSION.historial.length > 75) CASINO_SESSION.historial.pop();
+
+      actualizarPanelFichasCasino();
+
+      // Conectar al pozo del casino: lo que pierde el jugador neto, lo gana la casa (y viceversa)
+      var netoCasaMultiple = costoTotal - gananciaTotal;
+      try {
+        if (netoCasaMultiple > 0) {
+          await updateDoc(doc(db, 'casino_cuenta', 'principal'), { fichas: increment(netoCasaMultiple) });
+        } else if (netoCasaMultiple < 0) {
+          await updateDoc(doc(db, 'casino_cuenta', 'principal'), { fichas: increment(netoCasaMultiple) });
+        }
+      } catch(e) {
+        try { await setDoc(doc(db, 'casino_cuenta', 'principal'), { fichas: -netoCasaMultiple, saldo: 0, creadoEn: new Date().toISOString() }, { merge: true }); } catch(e2) {}
+      }
+
+      await registrarTransaccionCasino(netoCasaMultiple <= 0 ? 'ganancia' : 'perdida', Math.abs(netoCasaMultiple) || costoTotal, 'Tragaperras: ' + numGiros + ' giros, ' + girosGanadores + ' ganadores');
+
+      if (CASINO_SESSION.fichas <= 0) {
+        cerrarSesionCasinoSinFichas();
+      }
 
       // Mostrar último resultado en los carretes
       var ultimo = resultados[numGiros - 1];
@@ -7036,7 +7062,7 @@ function renderTragaperras() {
       }
 
       var neto = gananciaTotal - costoTotal;
-      document.getElementById('tragaperras-saldo').textContent = currentUser.saldo.toLocaleString('es-CO');
+      document.getElementById('tragaperras-saldo').textContent = CASINO_SESSION.fichas.toLocaleString('es-CO');
 
       resultadoEl.innerHTML =
         '<div style="padding:0.75rem;border-radius:12px;background:var(--bg-secondary);border:1px solid var(--bg-card)">' +
@@ -7112,24 +7138,24 @@ function calcularMultiplicador(resultado) {
 async function mostrarResultadoTragaperras(resultado, multiplicador, ganancia, apuesta) {
   var resultadoEl = document.getElementById('tragaperras-resultado');
 
-  if (ganancia > 0) {
-    try {
-      await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(ganancia) });
-      currentUser.saldo = (currentUser.saldo || 0) + ganancia;
-      document.getElementById('tragaperras-saldo').textContent = currentUser.saldo.toLocaleString('es-CO');
+  // Descontar la apuesta de las fichas de la sesión primero
+  CASINO_SESSION.fichas -= apuesta;
+  if (CASINO_SESSION.fichas < 0) CASINO_SESSION.fichas = 0;
 
-      await registrarTransaccion({
-        tipo: 'casino_tragaperras',
-        de: 'sistema',
-        deUsername: 'Casino Tragaperras',
-        para: currentUser.uid,
-        paraUsername: currentUser.username,
-        monto: ganancia - apuesta,
-        descripcion: 'Tragaperras: ' + resultado.join('') + ' — Ganó £' + ganancia.toLocaleString('es-CO') + ' (apuesta £' + apuesta.toLocaleString('es-CO') + ')'
-      });
+  if (ganancia > 0) {
+    CASINO_SESSION.fichas += ganancia;
+    CASINO_SESSION.historial.unshift({ tipo: 'ganancia', monto: ganancia - apuesta >= 0 ? ganancia - apuesta : ganancia, juego: 'Tragaperras: ' + resultado.join(''), fecha: new Date().toISOString() });
+    if (CASINO_SESSION.historial.length > 75) CASINO_SESSION.historial.pop();
+    actualizarPanelFichasCasino();
+    document.getElementById('tragaperras-saldo').textContent = CASINO_SESSION.fichas.toLocaleString('es-CO');
+
+    var netoCasaUnico = apuesta - ganancia;
+    try {
+      await updateDoc(doc(db, 'casino_cuenta', 'principal'), { fichas: increment(netoCasaUnico) });
     } catch(err) {
-      console.log('Error al acreditar:', err.message);
+      try { await setDoc(doc(db, 'casino_cuenta', 'principal'), { fichas: -netoCasaUnico, saldo: 0, creadoEn: new Date().toISOString() }, { merge: true }); } catch(e2) {}
     }
+    await registrarTransaccionCasino(netoCasaUnico <= 0 ? 'ganancia' : 'perdida', Math.abs(netoCasaUnico) || apuesta, 'Tragaperras: ' + resultado.join('') + ' (×' + multiplicador + ')');
 
     var esJackpot = multiplicador === 500;
     var esGranPremio = multiplicador >= 25;
@@ -7137,36 +7163,35 @@ async function mostrarResultadoTragaperras(resultado, multiplicador, ganancia, a
     resultadoEl.innerHTML =
       '<div style="padding:0.75rem;border-radius:12px;background:' + (esJackpot ? 'rgba(255,215,0,0.15)' : 'rgba(76,175,80,0.12)') + ';border:2px solid ' + (esJackpot ? 'gold' : 'var(--success)') + '">' +
         (esJackpot ? '<p style="font-size:1.5rem;margin-bottom:0.3rem">🎊 JACKPOT 🎊</p>' : esGranPremio ? '<p style="font-size:1.2rem;margin-bottom:0.3rem">🎉 ¡GRAN PREMIO!</p>' : '') +
-        '<p style="color:var(--success);font-size:1rem;font-weight:700">+£' + ganancia.toLocaleString('es-CO') + '</p>' +
+        '<p style="color:var(--success);font-size:1rem;font-weight:700">+🎫' + ganancia.toLocaleString('es-CO') + '</p>' +
         '<p style="color:var(--text-secondary);font-size:0.75rem">×' + multiplicador + ' tu apuesta</p>' +
       '</div>';
   } else {
+    CASINO_SESSION.historial.unshift({ tipo: 'perdida', monto: apuesta, juego: 'Tragaperras: ' + resultado.join(''), fecha: new Date().toISOString() });
+    if (CASINO_SESSION.historial.length > 75) CASINO_SESSION.historial.pop();
+    actualizarPanelFichasCasino();
+    document.getElementById('tragaperras-saldo').textContent = CASINO_SESSION.fichas.toLocaleString('es-CO');
+
     try {
-      await registrarTransaccion({
-        tipo: 'casino_tragaperras',
-        de: currentUser.uid,
-        deUsername: currentUser.username,
-        para: 'sistema',
-        paraUsername: 'Casino Tragaperras',
-        monto: apuesta,
-        descripcion: 'Tragaperras: ' + resultado.join('') + ' — Sin premio'
-      });
+      await updateDoc(doc(db, 'casino_cuenta', 'principal'), { fichas: increment(apuesta) });
     } catch(err) {
-      console.log('Error al registrar pérdida:', err.message);
+      try { await setDoc(doc(db, 'casino_cuenta', 'principal'), { fichas: apuesta, saldo: 0, creadoEn: new Date().toISOString() }, { merge: true }); } catch(e2) {}
     }
+    await registrarTransaccionCasino('perdida', apuesta, 'Tragaperras: ' + resultado.join('') + ' — Sin premio');
 
     resultadoEl.innerHTML =
       '<p style="color:var(--text-secondary);font-size:0.88rem">Sin suerte esta vez 😔</p>';
   }
 
-  console.log('Llegué al final de mostrarResultadoTragaperras');
   girando = false;
   var btn = document.getElementById('btn-girar');
-  console.log('btn-girar encontrado:', btn);
   if (btn) {
     btn.disabled = false;
     btn.textContent = '🎰 GIRAR';
-    console.log('Botón rehabilitado');
+  }
+
+  if (CASINO_SESSION.fichas <= 0) {
+    cerrarSesionCasinoSinFichas();
   }
 }
 
