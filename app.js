@@ -13009,6 +13009,7 @@ async function renderCuentaCasino() {
     await setDoc(cuentaRef, { saldo: 0, creadoEn: new Date().toISOString() });
   }
   var saldoCasino = snapCuenta.exists() ? (snapCuenta.data().saldo || 0) : 0;
+  var fichasCasino = snapCuenta.exists() ? (snapCuenta.data().fichas || 0) : 0;
 
   var snapHistorial = await getDocs(query(
     collection(db, 'casino_cuenta_historial'),
@@ -13025,15 +13026,24 @@ async function renderCuentaCasino() {
     '<div style="background:linear-gradient(135deg,#1a1a0d,#2d2d00);border-radius:12px;padding:1rem;margin-bottom:0.75rem;text-align:center;border:1px solid gold">' +
       '<p style="font-size:0.75rem;color:gold;margin-bottom:0.25rem">SALDO DE LA CASA</p>' +
       '<p style="font-size:2rem;font-weight:900;color:gold">£' + saldoCasino.toLocaleString('es-CO') + '</p>' +
-      '<p style="font-size:0.72rem;color:rgba(255,215,0,0.6)">Comisiones acumuladas (3% de fichas convertidas)</p>' +
+      '<p style="font-size:0.72rem;color:rgba(255,215,0,0.6)">Comisiones, inyecciones y conversiones</p>' +
+    '</div>' +
+    '<div style="background:linear-gradient(135deg,#0d2d2d,#003030);border-radius:12px;padding:0.85rem;margin-bottom:0.75rem;text-align:center;border:1px solid #4fc3f7">' +
+      '<p style="font-size:0.72rem;color:#4fc3f7;margin-bottom:0.25rem">🎫 FICHAS DEL CASINO</p>' +
+      '<p style="font-size:1.6rem;font-weight:900;color:#4fc3f7">' + fichasCasino.toLocaleString('es-CO') + '</p>' +
+      '<p style="font-size:0.68rem;color:rgba(79,195,247,0.7)">Fichas perdidas por jugadores en juegos contra la casa</p>' +
     '</div>' +
 
     '<div style="display:flex;gap:0.5rem;margin-bottom:0.75rem">' +
       '<button class="btn btn-secondary" id="btn-retirar-casino" style="flex:1;border-color:gold;color:gold">💸 Retirar fondos</button>' +
       (isDev() ? '<button class="btn btn-secondary" id="btn-inyectar-casino" style="flex:1;border-color:#4fc3f7;color:#4fc3f7">💰 Inyectar capital</button>' : '') +
     '</div>' +
+    (fichasCasino > 0
+      ? '<button class="btn btn-secondary btn-full" id="btn-convertir-fichas-casino" style="margin-bottom:0.75rem;border-color:#81c784;color:#81c784">🔄 Convertir ' + fichasCasino.toLocaleString('es-CO') + ' fichas a dinero</button>'
+      : '') +
     '<div id="retiro-casino-form"></div>' +
     '<div id="inyectar-casino-form"></div>' +
+    '<div id="convertir-fichas-form"></div>' +
 
     '<p style="font-size:0.82rem;font-weight:700;margin-bottom:0.5rem">📋 Últimas comisiones</p>' +
     (snapHistorial.empty
@@ -13149,6 +13159,32 @@ async function renderCuentaCasino() {
           btn.disabled = false; btn.textContent = 'Confirmar inyección';
         }
       });
+    });
+  }
+
+  var btnConvertirFichas = document.getElementById('btn-convertir-fichas-casino');
+  if (btnConvertirFichas) {
+    btnConvertirFichas.addEventListener('click', async function() {
+      if (!confirm('¿Convertir ' + fichasCasino.toLocaleString('es-CO') + ' fichas del casino a £' + fichasCasino.toLocaleString('es-CO') + ' de saldo?')) return;
+      var btn = this; btn.disabled = true; btn.textContent = 'Convirtiendo...';
+      try {
+        var cuentaRef = doc(db, 'casino_cuenta', 'principal');
+        await updateDoc(cuentaRef, {
+          fichas: increment(-fichasCasino),
+          saldo: increment(fichasCasino)
+        });
+        await addDoc(collection(db, 'casino_cuenta_historial'), {
+          tipo: 'conversion_fichas',
+          de: currentUser.uid,
+          deUsername: currentUser.username,
+          monto: fichasCasino,
+          fecha: new Date().toISOString()
+        });
+        renderCuentaCasino();
+      } catch(err) {
+        alert('Error: ' + err.message);
+        btn.disabled = false; btn.textContent = '🔄 Convertir fichas a dinero';
+      }
     });
   }
 }
