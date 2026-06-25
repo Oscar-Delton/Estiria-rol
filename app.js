@@ -3286,8 +3286,9 @@ function renderFormularioCitas(panel, datosExistentes) {
 
 function renderMenuCitas(panel, miPerfil) {
   panel.innerHTML =
-    '<div class="citas-menu-btns">' +
+    '<div class="citas-menu-btns" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem">' +
       '<button class="btn-citas-menu" id="btn-explorar-citas"><span>🃏</span><span>Explorar</span></button>' +
+      '<button class="btn-citas-menu" id="btn-buscar-citas"><span>🔍</span><span>Buscar</span></button>' +
       '<button class="btn-citas-menu" id="btn-mis-matches"><span>💞</span><span>Mis Matches</span></button>' +
     '</div>' +
     '<div class="citas-menu-secundario">' +
@@ -3299,6 +3300,9 @@ function renderMenuCitas(panel, miPerfil) {
   document.getElementById('btn-explorar-citas').addEventListener('click', function() {
     renderExplorarCitas(miPerfil);
   });
+  document.getElementById('btn-buscar-citas').addEventListener('click', function() {
+    renderBuscarCitas(miPerfil);
+  });
   document.getElementById('btn-mis-matches').addEventListener('click', function() {
     renderMisMatches();
   });
@@ -3309,6 +3313,204 @@ function renderMenuCitas(panel, miPerfil) {
     if (!confirm('¿Eliminar tu perfil de citas? Perderás tus matches.')) return;
     await deleteDoc(doc(db, 'citas_perfiles', currentUser.uid));
     verificarPerfilCitas();
+  });
+}
+
+function renderBuscarCitas(miPerfil) {
+  var contenido = document.getElementById('citas-contenido');
+  contenido.innerHTML =
+    '<div class="tienda-seccion-header" style="margin-top:1rem">' +
+      '<h3>🔍 Buscar perfiles</h3>' +
+      '<button class="btn-filtrar-citas" id="btn-filtrar-busqueda-citas">⚙️ Filtrar</button>' +
+    '</div>' +
+    '<input type="text" id="buscar-citas-input" placeholder="Buscar por nombre de usuario..." autocomplete="off" style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block;margin-bottom:0.75rem" />' +
+    '<div id="filtros-busqueda-citas" class="hidden card" style="margin-bottom:0.75rem">' +
+      '<p class="edit-section-title">Género</p>' +
+      '<div class="citas-opciones" id="filtro-busqueda-genero">' +
+        ['Todos', 'Masculino', 'Femenino', 'Otro'].map(function(g) {
+          return '<button class="citas-opcion' + (g === 'Todos' ? ' selected' : '') + '" data-val="' + g + '">' + g + '</button>';
+        }).join('') +
+      '</div>' +
+      '<p class="edit-section-title" style="margin-top:0.75rem">Orientación</p>' +
+      '<div class="citas-opciones" id="filtro-busqueda-orientacion">' +
+        ['Todos', 'Heterosexual', 'Homosexual', 'Bisexual', 'Pansexual', 'Otro'].map(function(o) {
+          return '<button class="citas-opcion' + (o === 'Todos' ? ' selected' : '') + '" data-val="' + o + '">' + o + '</button>';
+        }).join('') +
+      '</div>' +
+      '<p class="edit-section-title" style="margin-top:0.75rem">Estado civil</p>' +
+      '<div class="citas-opciones" id="filtro-busqueda-estado">' +
+        ['Todos', 'Soltero/a', 'Viudo/a', 'Relación polígama'].map(function(e) {
+          return '<button class="citas-opcion' + (e === 'Todos' ? ' selected' : '') + '" data-val="' + e + '">' + e + '</button>';
+        }).join('') +
+      '</div>' +
+      '<p class="edit-section-title" style="margin-top:0.75rem">Ciudad</p>' +
+      '<div class="citas-opciones" id="filtro-busqueda-ciudad">' +
+        ['Todas', 'Ryazan', 'Ryla', 'Kemerov', 'Navarra', 'Gresit', 'Odrekao', 'Irkustk'].map(function(c) {
+          return '<button class="citas-opcion' + (c === 'Todas' ? ' selected' : '') + '" data-val="' + c + '">' + c + '</button>';
+        }).join('') +
+      '</div>' +
+      '<button class="btn btn-primary btn-full" id="btn-aplicar-filtros-busqueda" style="margin-top:0.75rem">Aplicar filtros</button>' +
+    '</div>' +
+    '<div id="lista-busqueda-citas"><p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p></div>';
+
+  document.getElementById('btn-filtrar-busqueda-citas').addEventListener('click', function() {
+    document.getElementById('filtros-busqueda-citas').classList.toggle('hidden');
+  });
+
+  ['filtro-busqueda-genero', 'filtro-busqueda-orientacion', 'filtro-busqueda-estado', 'filtro-busqueda-ciudad'].forEach(function(grupoId) {
+    document.getElementById(grupoId).querySelectorAll('.citas-opcion').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.getElementById(grupoId).querySelectorAll('.citas-opcion').forEach(function(b) { b.classList.remove('selected'); });
+        btn.classList.add('selected');
+      });
+    });
+  });
+
+  document.getElementById('btn-aplicar-filtros-busqueda').addEventListener('click', function() {
+    document.getElementById('filtros-busqueda-citas').classList.add('hidden');
+    cargarListaBusquedaCitas();
+  });
+
+  var buscarTimeoutCitas = null;
+  document.getElementById('buscar-citas-input').addEventListener('input', function() {
+    clearTimeout(buscarTimeoutCitas);
+    buscarTimeoutCitas = setTimeout(function() { cargarListaBusquedaCitas(); }, 350);
+  });
+
+  cargarListaBusquedaCitas();
+}
+
+async function cargarListaBusquedaCitas() {
+  var lista = document.getElementById('lista-busqueda-citas');
+  if (!lista) return;
+  lista.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Buscando...</p>';
+
+  var texto = document.getElementById('buscar-citas-input').value.trim().toLowerCase();
+  var filtroGenero = document.querySelector('#filtro-busqueda-genero .citas-opcion.selected');
+  var filtroOrientacion = document.querySelector('#filtro-busqueda-orientacion .citas-opcion.selected');
+  var filtroEstado = document.querySelector('#filtro-busqueda-estado .citas-opcion.selected');
+  var filtroCiudad = document.querySelector('#filtro-busqueda-ciudad .citas-opcion.selected');
+
+  var snap = await getDocs(query(collection(db, 'citas_perfiles'), where('activo', '==', true)));
+  var perfiles = snap.docs
+    .map(function(d) { return Object.assign({ id: d.id }, d.data()); })
+    .filter(function(p) { return p.uid !== currentUser.uid; });
+
+  if (filtroGenero && filtroGenero.dataset.val !== 'Todos') {
+    perfiles = perfiles.filter(function(p) { return p.genero === filtroGenero.dataset.val; });
+  }
+  if (filtroOrientacion && filtroOrientacion.dataset.val !== 'Todos') {
+    perfiles = perfiles.filter(function(p) { return p.orientacion === filtroOrientacion.dataset.val; });
+  }
+  if (filtroEstado && filtroEstado.dataset.val !== 'Todos') {
+    perfiles = perfiles.filter(function(p) { return p.estadoCivil === filtroEstado.dataset.val; });
+  }
+
+  perfiles = await Promise.all(perfiles.map(async function(p) {
+    var uSnap = await getDoc(doc(db, 'usuarios', p.uid));
+    var uData = uSnap.exists() ? uSnap.data() : {};
+    return Object.assign({}, p, {
+      fotoPerfil: uData.fotoPerfil || '',
+      ciudad: uData.ciudad || '',
+      nivel: uData.nivel || '?',
+      raza: uData.raza || '?',
+      edad: uData.edad || '',
+      whatsapp: uData.whatsapp || '',
+      datoCurioso: uData.datoCurioso || ''
+    });
+  }));
+
+  if (filtroCiudad && filtroCiudad.dataset.val !== 'Todas') {
+    perfiles = perfiles.filter(function(p) { return p.ciudad === filtroCiudad.dataset.val; });
+  }
+
+  if (texto) {
+    perfiles = perfiles.filter(function(p) { return (p.username || '').toLowerCase().includes(texto); });
+  }
+
+  var likesSnap = await getDocs(query(collection(db, 'citas_likes'), where('de', '==', currentUser.uid)));
+  var yaLike = {};
+  likesSnap.docs.forEach(function(d) { yaLike[d.data().para] = true; });
+
+  lista = document.getElementById('lista-busqueda-citas');
+  if (!lista) return;
+
+  if (perfiles.length === 0) {
+    lista.innerHTML = '<div style="text-align:center;padding:2rem"><p style="font-size:1.5rem">🔍</p><p style="color:var(--text-secondary)">No se encontraron perfiles.</p></div>';
+    return;
+  }
+
+  perfiles.sort(function(a, b) { return (a.username || '').localeCompare(b.username || ''); });
+
+  lista.innerHTML = perfiles.map(function(p) {
+    return '<div class="citas-lista-item" style="display:flex;gap:0.6rem;align-items:flex-start;background:var(--bg-card);border-radius:12px;padding:0.6rem;margin-bottom:0.5rem">' +
+      (p.fotoPerfil
+        ? '<img src="' + p.fotoPerfil + '" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0" onerror="this.style.display=\'none\'" />'
+        : '<div style="width:48px;height:48px;border-radius:50%;background:var(--bg-primary);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">👤</div>') +
+      '<div style="flex:1;min-width:0">' +
+        '<p style="font-weight:700;font-size:0.88rem">' + p.username + '</p>' +
+        '<p style="font-size:0.75rem;color:var(--text-secondary)">' + (p.ciudad || 'Sin ciudad') + ' · Nv.' + p.nivel + ' · ' + p.raza + '</p>' +
+        (p.frase ? '<p style="font-size:0.78rem;color:var(--text-secondary);font-style:italic;margin-top:0.2rem">"' + p.frase + '"</p>' : '') +
+        '<button class="btn-citas-lista-vermas" data-uid="' + p.uid + '" style="background:none;border:none;color:var(--accent);font-size:0.75rem;padding:0.2rem 0;cursor:pointer">Ver perfil completo ▼</button>' +
+        '<div id="citas-lista-detalle-' + p.uid + '" class="hidden" style="margin-top:0.3rem">' +
+          '<div class="citas-dato-row"><span>🎭 Género</span><span>' + p.genero + '</span></div>' +
+          '<div class="citas-dato-row"><span>💫 Orientación</span><span>' + (p.orientacion === 'Otro' ? p.orientacionCustom : p.orientacion) + '</span></div>' +
+          '<div class="citas-dato-row"><span>💍 Estado civil</span><span>' + p.estadoCivil + '</span></div>' +
+          '<div class="citas-dato-row"><span>🎂 Edad</span><span>' + (p.edad || 'No indicada') + '</span></div>' +
+          '<p style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-secondary)">🔍 Busca:</p>' +
+          '<p style="font-size:0.85rem">' + p.queBusca + '</p>' +
+          '<p style="margin-top:0.4rem;font-size:0.8rem;color:var(--text-secondary)">📝 Sobre mí:</p>' +
+          '<p style="font-size:0.85rem">' + p.descripcion + '</p>' +
+        '</div>' +
+      '</div>' +
+      (yaLike[p.uid]
+        ? '<span style="font-size:0.75rem;color:var(--success);flex-shrink:0;align-self:center">♥ Ya</span>'
+        : '<button class="btn-citas-lista-like" data-uid="' + p.uid + '" data-username="' + p.username + '" style="background:none;border:none;color:var(--danger);font-size:1.4rem;cursor:pointer;flex-shrink:0;align-self:center">♥</button>') +
+    '</div>';
+  }).join('');
+
+  lista.querySelectorAll('.btn-citas-lista-vermas').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var det = document.getElementById('citas-lista-detalle-' + btn.dataset.uid);
+      det.classList.toggle('hidden');
+      btn.textContent = det.classList.contains('hidden') ? 'Ver perfil completo ▼' : 'Ocultar ▲';
+    });
+  });
+
+  lista.querySelectorAll('.btn-citas-lista-like').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      var para = btn.dataset.uid;
+      var paraUsername = btn.dataset.username;
+      btn.disabled = true;
+
+      await setDoc(doc(db, 'citas_likes', currentUser.uid + '_' + para), {
+        de: currentUser.uid, para: para,
+        deUsername: currentUser.username, paraUsername: paraUsername,
+        fecha: new Date().toISOString()
+      });
+
+      var likeReverso = await getDoc(doc(db, 'citas_likes', para + '_' + currentUser.uid));
+      if (likeReverso.exists()) {
+        await setDoc(doc(db, 'citas_matches', currentUser.uid + '_' + para), {
+          usuarios: [currentUser.uid, para],
+          usernames: [currentUser.username, paraUsername],
+          fecha: new Date().toISOString()
+        });
+        await setDoc(doc(db, 'citas_matches', para + '_' + currentUser.uid), {
+          usuarios: [para, currentUser.uid],
+          usernames: [paraUsername, currentUser.username],
+          fecha: new Date().toISOString()
+        });
+        await crearNotificacion(para, 'match_nuevo',
+          '💞 ¡Nuevo match!',
+          currentUser.username + ' también te dio like. ¡Es un match!',
+          { con: currentUser.username }
+        );
+        alert('💞 ¡Es un match con ' + paraUsername + '!');
+      }
+
+      btn.outerHTML = '<span style="font-size:0.75rem;color:var(--success);flex-shrink:0;align-self:center">♥ Ya</span>';
+    });
   });
 }
 
