@@ -485,7 +485,7 @@ function renderInicio() {
 '<button class="inicio-card" id="inicio-mercado"><span class="inicio-icon">🏪</span><span class="inicio-label">Mercado</span></button>' +
     '</div>' +
     '<div class="card" id="inicio-anuncios-card"><h3>📢 Anuncios</h3><p style="color:var(--text-secondary);font-size:0.82rem">Cargando...</p></div>' +
-    '<div class="card"><h3>📅 Eventos</h3><p>Proximamente...</p></div>';
+    '<div class="card" id="inicio-eventos-card"><h3>📅 Eventos</h3><p style="color:var(--text-secondary);font-size:0.82rem">Cargando...</p></div>';
 
   document.getElementById('inicio-tienda').addEventListener('click', function() { navigateTo('tienda'); });
   document.getElementById('inicio-casino').addEventListener('click', function() { navigateTo('casino'); });
@@ -520,6 +520,40 @@ document.getElementById('inicio-mercado').addEventListener('click', function() {
             '<p style="font-size:0.68rem;color:var(--text-secondary);margin-top:0.2rem">' + new Date(a.creadoEn).toLocaleDateString('es-CO') + ' · ' + a.autorUsername + '</p>' +
           '</div>';
         }).join('');
+    }
+  );
+
+  // Cargar eventos reales
+  onSnapshot(
+    query(collection(db, 'eventos'), where('activo', '==', true), orderBy('fechaInicio', 'asc'), limit(10)),
+    function(snap) {
+      var card = document.getElementById('inicio-eventos-card');
+      if (!card) return;
+      var visibles = snap.docs
+        .map(function(d) { return d.data(); })
+        .filter(function(e) { return e.ciudad === 'Todas' || e.ciudad === (currentUser.ciudad || ''); })
+        .filter(function(e) { return calcularEstadoEvento(e) !== 'finalizado'; })
+        .slice(0, 3);
+
+      var btnVerTodosHtml = '<button class="btn btn-secondary btn-full" id="btn-ver-todos-eventos" style="margin-top:0.5rem;font-size:0.8rem">Ver todos los eventos</button>';
+      var estadoLabel = { proximo: '🔵 Próximo', curso: '🟢 En curso' };
+
+      if (visibles.length === 0) {
+        card.innerHTML = '<h3>📅 Eventos</h3><p style="color:var(--text-secondary);font-size:0.82rem">Sin eventos próximos.</p>' + btnVerTodosHtml;
+      } else {
+        card.innerHTML = '<h3 style="margin-bottom:0.5rem">📅 Eventos</h3>' +
+          visibles.map(function(e) {
+            var estado = calcularEstadoEvento(e);
+            return '<div style="border-left:3px solid var(--accent);padding-left:0.6rem;margin-bottom:0.5rem">' +
+              '<p style="font-size:0.85rem;font-weight:700">' + e.titulo + ' <span style="font-size:0.68rem;color:var(--text-secondary)">' + (estadoLabel[estado]||'') + '</span></p>' +
+              '<p style="font-size:0.78rem;color:var(--text-primary)">' + e.descripcion + '</p>' +
+              '<p style="font-size:0.68rem;color:var(--text-secondary);margin-top:0.2rem">' + new Date(e.fechaInicio).toLocaleString('es-CO') + ' · ' + (e.ciudad === 'Todas' ? 'Estiria' : e.ciudad) + '</p>' +
+            '</div>';
+          }).join('') + btnVerTodosHtml;
+      }
+
+      var btnVerTodos = document.getElementById('btn-ver-todos-eventos');
+      if (btnVerTodos) btnVerTodos.addEventListener('click', function() { renderEventos(); });
     }
   );
 }
@@ -4594,6 +4628,227 @@ function renderAdminCompletadas() {
       });
     }
   );
+}
+
+// ===== EVENTOS =====
+
+function esEventoAdmin() {
+  if (!currentUser) return false;
+  var r = (currentUser.rol || '').toLowerCase();
+  return r === 'dev' || r === 'lider_suprema' || r === 'alcalde';
+}
+
+function puedeEditarEvento(evento) {
+  if (!currentUser) return false;
+  var r = (currentUser.rol || '').toLowerCase();
+  if (r === 'dev' || r === 'lider_suprema') return true;
+  if (r === 'alcalde') return evento.autorUid === currentUser.uid;
+  return false;
+}
+
+function calcularEstadoEvento(evento) {
+  var ahora = new Date();
+  var inicio = new Date(evento.fechaInicio);
+  var fin = evento.fechaFin ? new Date(evento.fechaFin) : null;
+  if (!fin) {
+    fin = new Date(inicio);
+    fin.setHours(23, 59, 59, 999);
+  }
+  if (ahora < inicio) return 'proximo';
+  if (ahora <= fin) return 'curso';
+  return 'finalizado';
+}
+
+function renderEventos() {
+  var esAdmin = esEventoAdmin();
+  var ciudades = ['Ryazan', 'Ryla', 'Kemerov', 'Navarra', 'Gresit', 'Odrekao', 'Irkustk'];
+
+  mainContent.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-eventos-inicio">← Inicio</button>' +
+      '<h3>📅 Eventos</h3>' +
+    '</div>' +
+    '<label class="form-label">Filtrar por ciudad</label>' +
+    '<select id="eventos-filtro-ciudad" class="tienda-select" style="margin-bottom:0.75rem">' +
+      '<option value="">Todas (incluye globales)</option>' +
+      ciudades.map(function(c) { return '<option value="' + c + '">' + c + '</option>'; }).join('') +
+    '</select>' +
+    (esAdmin ? '<button class="btn btn-primary btn-full" id="btn-crear-evento" style="margin-bottom:0.75rem">+ Crear evento</button>' : '') +
+    '<div id="eventos-form"></div>' +
+    '<div id="eventos-lista"><p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p></div>';
+
+  document.getElementById('back-eventos-inicio').addEventListener('click', function() {
+    navigateTo('inicio');
+  });
+
+  document.getElementById('eventos-filtro-ciudad').addEventListener('change', function() {
+    cargarListaEventos();
+  });
+
+  if (esAdmin) {
+    document.getElementById('btn-crear-evento').addEventListener('click', function() {
+      renderFormCrearEvento(null);
+    });
+  }
+
+  cargarListaEventos();
+}
+
+function cargarListaEventos() {
+  var lista = document.getElementById('eventos-lista');
+  if (!lista) return;
+  var esAdmin = esEventoAdmin();
+
+  onSnapshot(
+    query(collection(db, 'eventos'), where('activo', '==', true), orderBy('fechaInicio', 'asc')),
+    function(snap) {
+      lista = document.getElementById('eventos-lista');
+      if (!lista) return;
+      var filtroCiudad = document.getElementById('eventos-filtro-ciudad') ? document.getElementById('eventos-filtro-ciudad').value : '';
+
+      var eventos = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+
+      eventos = eventos.filter(function(e) {
+        if (e.ciudad !== 'Todas' && e.ciudad !== (currentUser.ciudad || '') && !esAdmin) return false;
+        if (filtroCiudad && e.ciudad !== filtroCiudad && e.ciudad !== 'Todas') return false;
+        return true;
+      });
+
+      eventos = eventos.filter(function(e) { return calcularEstadoEvento(e) !== 'finalizado'; });
+
+      if (eventos.length === 0) {
+        lista.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">No hay eventos para mostrar.</p>';
+        return;
+      }
+
+      var estadoLabel = { proximo: '🔵 Próximo', curso: '🟢 En curso' };
+      var estadoColor = { proximo: 'var(--accent)', curso: 'var(--success)' };
+
+      lista.innerHTML = eventos.map(function(e) {
+        var estado = calcularEstadoEvento(e);
+        var puedeEditar = puedeEditarEvento(e);
+        return '<div class="card" style="border-left:3px solid ' + estadoColor[estado] + ';margin-bottom:0.5rem">' +
+          (e.imagen ? '<img src="' + e.imagen + '" style="width:100%;max-height:140px;object-fit:cover;border-radius:8px;margin-bottom:0.5rem" onerror="this.style.display=\'none\'" />' : '') +
+          '<div style="display:flex;justify-content:space-between;align-items:start">' +
+            '<p style="font-weight:700;font-size:0.95rem">' + e.titulo + '</p>' +
+            '<span style="font-size:0.68rem;color:' + estadoColor[estado] + '">' + estadoLabel[estado] + '</span>' +
+          '</div>' +
+          '<p style="font-size:0.85rem;color:var(--text-primary);margin:0.3rem 0">' + e.descripcion + '</p>' +
+          '<p style="font-size:0.72rem;color:var(--text-secondary)">🏙️ ' + (e.ciudad === 'Todas' ? 'Estiria (Todas las naciones)' : e.ciudad) + '</p>' +
+          '<p style="font-size:0.72rem;color:var(--text-secondary)">🕐 Inicio: ' + new Date(e.fechaInicio).toLocaleString('es-CO') + (e.fechaFin ? ' · Fin: ' + new Date(e.fechaFin).toLocaleString('es-CO') : '') + '</p>' +
+          '<p style="font-size:0.68rem;color:var(--text-secondary);margin-top:0.2rem">Por ' + e.autorUsername + '</p>' +
+          (puedeEditar
+            ? '<div style="display:flex;gap:0.5rem;margin-top:0.5rem">' +
+                '<button class="btn btn-secondary btn-editar-evento" data-id="' + e.id + '" style="flex:1;font-size:0.78rem;padding:0.4rem">✏️ Editar</button>' +
+                '<button class="btn btn-secondary btn-borrar-evento" data-id="' + e.id + '" style="flex:1;font-size:0.78rem;padding:0.4rem;border-color:var(--danger);color:var(--danger)">🗑️ Eliminar</button>' +
+              '</div>'
+            : '') +
+        '</div>';
+      }).join('');
+
+      lista.querySelectorAll('.btn-editar-evento').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var evento = eventos.find(function(e) { return e.id === btn.dataset.id; });
+          if (evento) renderFormCrearEvento(evento);
+        });
+      });
+
+      lista.querySelectorAll('.btn-borrar-evento').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (!confirm('¿Eliminar este evento?')) return;
+          await updateDoc(doc(db, 'eventos', btn.dataset.id), { activo: false });
+        });
+      });
+    }
+  );
+}
+
+function renderFormCrearEvento(eventoExistente) {
+  var form = document.getElementById('eventos-form');
+  var esEdicion = eventoExistente !== null;
+  var r = (currentUser.rol || '').toLowerCase();
+  var esAlcalde = r === 'alcalde';
+  var ciudades = ['Ryazan', 'Ryla', 'Kemerov', 'Navarra', 'Gresit', 'Odrekao', 'Irkustk'];
+
+  function aInputDatetime(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    var pad = function(n) { return String(n).padStart(2, '0'); };
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  form.innerHTML =
+    '<div class="card" style="margin-bottom:0.75rem;border-color:var(--accent)">' +
+      '<h3 style="margin-bottom:0.75rem">' + (esEdicion ? '✏️ Editar evento' : '+ Nuevo evento') + '</h3>' +
+      '<input type="text" id="evento-titulo" placeholder="Título del evento" value="' + (eventoExistente ? eventoExistente.titulo : '') + '" style="width:100%;padding:0.7rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.88rem;outline:none;box-sizing:border-box;margin-bottom:0.5rem" />' +
+      '<textarea id="evento-descripcion" placeholder="Descripción del evento..." style="width:100%;padding:0.7rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.88rem;outline:none;box-sizing:border-box;min-height:80px;resize:vertical;margin-bottom:0.5rem">' + (eventoExistente ? eventoExistente.descripcion : '') + '</textarea>' +
+      '<label class="form-label">Fecha y hora de inicio</label>' +
+      '<input type="datetime-local" id="evento-inicio" value="' + aInputDatetime(eventoExistente ? eventoExistente.fechaInicio : '') + '" style="width:100%;padding:0.6rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none;box-sizing:border-box;margin-bottom:0.5rem" />' +
+      '<label class="form-label">Fecha y hora de fin (opcional)</label>' +
+      '<input type="datetime-local" id="evento-fin" value="' + aInputDatetime(eventoExistente ? eventoExistente.fechaFin : '') + '" style="width:100%;padding:0.6rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none;box-sizing:border-box;margin-bottom:0.5rem" />' +
+      '<input type="url" id="evento-imagen" placeholder="URL de imagen (opcional)" value="' + (eventoExistente ? (eventoExistente.imagen || '') : '') + '" style="width:100%;padding:0.7rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.88rem;outline:none;box-sizing:border-box;margin-bottom:0.5rem" />' +
+      (esAlcalde
+        ? '<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.5rem">🏙️ Ciudad: <strong>' + currentUser.ciudad + '</strong> (los alcaldes solo crean eventos para su ciudad)</p>'
+        : '<label class="form-label">Ciudad</label>' +
+          '<select id="evento-ciudad" class="tienda-select" style="margin-bottom:0.5rem">' +
+            '<option value="Todas"' + (eventoExistente && eventoExistente.ciudad === 'Todas' ? ' selected' : '') + '>Todas (evento global)</option>' +
+            ciudades.map(function(c) {
+              return '<option value="' + c + '"' + (eventoExistente && eventoExistente.ciudad === c ? ' selected' : '') + '>' + c + '</option>';
+            }).join('') +
+          '</select>'
+      ) +
+      '<button class="btn btn-primary btn-full" id="btn-guardar-evento">' + (esEdicion ? '💾 Guardar cambios' : '📤 Publicar evento') + '</button>' +
+      '<button class="btn btn-secondary btn-full" id="btn-cancelar-evento" style="margin-top:0.4rem">Cancelar</button>' +
+      '<div id="evento-form-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>' +
+    '</div>';
+
+  document.getElementById('btn-cancelar-evento').addEventListener('click', function() { form.innerHTML = ''; });
+
+  document.getElementById('btn-guardar-evento').addEventListener('click', async function() {
+    var titulo = document.getElementById('evento-titulo').value.trim();
+    var descripcion = document.getElementById('evento-descripcion').value.trim();
+    var inicioVal = document.getElementById('evento-inicio').value;
+    var finVal = document.getElementById('evento-fin').value;
+    var imagen = document.getElementById('evento-imagen').value.trim();
+    var ciudad = esAlcalde ? currentUser.ciudad : document.getElementById('evento-ciudad').value;
+    var msg = document.getElementById('evento-form-msg');
+
+    if (!titulo) { msg.textContent = 'El título es obligatorio'; msg.style.color = 'var(--danger)'; return; }
+    if (!descripcion) { msg.textContent = 'La descripción es obligatoria'; msg.style.color = 'var(--danger)'; return; }
+    if (!inicioVal) { msg.textContent = 'La fecha de inicio es obligatoria'; msg.style.color = 'var(--danger)'; return; }
+
+    var btn = document.getElementById('btn-guardar-evento');
+    btn.disabled = true; btn.textContent = 'Guardando...';
+
+    var datos = {
+      titulo: titulo,
+      descripcion: descripcion,
+      fechaInicio: new Date(inicioVal).toISOString(),
+      fechaFin: finVal ? new Date(finVal).toISOString() : '',
+      imagen: imagen,
+      ciudad: ciudad || 'Todas',
+      activo: true
+    };
+
+    try {
+      if (esEdicion) {
+        await updateDoc(doc(db, 'eventos', eventoExistente.id), datos);
+      } else {
+        datos.autorUid = currentUser.uid;
+        datos.autorUsername = currentUser.username;
+        datos.creadoEn = new Date().toISOString();
+        await addDoc(collection(db, 'eventos'), datos);
+      }
+      msg.textContent = '✓ ' + (esEdicion ? 'Evento actualizado' : 'Evento publicado');
+      msg.style.color = 'var(--success)';
+      setTimeout(function() { form.innerHTML = ''; }, 1000);
+    } catch (err) {
+      msg.textContent = 'Error: ' + err.message;
+      msg.style.color = 'var(--danger)';
+      btn.disabled = false;
+      btn.textContent = esEdicion ? '💾 Guardar cambios' : '📤 Publicar evento';
+    }
+  });
 }
 
 function renderPatrimonio() {
