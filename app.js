@@ -6963,6 +6963,8 @@ function renderTragaperras() {
     document.getElementById('tp-plus').disabled    = true;
     if (girosInput2) girosInput2.disabled          = true;
     document.querySelectorAll('.btn-apuesta-rapida').forEach(function(b) { b.disabled = true; });
+
+    if (numGiros === 1) {
       // ── Giro único: animación normal ────────────────────────────────────
       ejecutarUnGiro(apuesta, function(resultado, multiplicador, ganancia) {
         var frames    = ['🍋', '🍇', '🔔', '⭐', '7️⃣', '💎'];
