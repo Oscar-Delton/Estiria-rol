@@ -9300,19 +9300,19 @@ async function resolverRondaBJ(salaId) {
     var ganadores  = clasif.filter(function(c) { return c.resultado === 'ganador' || c.resultado === 'blackjack'; });
     // empatados: cambio queda en 0 (correcto)
 
-    perdedores.forEach(function(c) { cambios[c.j.uid] = -apuesta; });
+    if (perdedores.length > 0) {
+      perdedores.forEach(function(c) { cambios[c.j.uid] = -apuesta; });
 
-    if (ganadores.length > 0 && perdedores.length > 0) {
-      var pozoTotal     = perdedores.length * apuesta;
-      var pozoJugadores = pozoTotal; 
-      var partePorGanador = Math.floor(pozoJugadores / ganadores.length);
-      ganadores.forEach(function(c) { cambios[c.j.uid] = partePorGanador; });
-    } else if (ganadores.length > 0 && perdedores.length === 0) {
-      // Todos ganaron (ej: casino se pasó, o casino BJ vs todos BJ)
-      // El casino paga la apuesta a cada ganador directamente
-      ganadores.forEach(function(c) { cambios[c.j.uid] = apuesta; });
+      if (ganadores.length > 0) {
+        // El bote sale de lo que perdieron los jugadores, no del casino
+        var pozoTotal       = perdedores.length * apuesta;
+        var partePorGanador = Math.floor(pozoTotal / ganadores.length);
+        ganadores.forEach(function(c) { cambios[c.j.uid] = partePorGanador; });
+      }
     }
-    // Si ganadores.length === 0 → todos perdedores o empatados, cambios ya asignados
+    // Si perdedores.length === 0 → no hay bote de dónde pagar (nadie le dio dinero a nadie).
+    // Aunque algún jugador haya "ganado" técnicamente contra la casa, sin un perdedor
+    // que financie ese pago, el resultado es push para todos: nadie gana ni pierde.
   }
 
   // ── 3. Construir jugadores con estado final ──────────────────────────────
@@ -9352,6 +9352,21 @@ async function resolverRondaBJ(salaId) {
           + ' £' + Math.abs(cambio).toLocaleString('es-CO')
       });
     } catch(err) { console.log('Error saldo BJ:', err.message); }
+  }
+
+  // ── Conectar al pozo de fichas del casino ────────────────────────────────
+  var netoCasaBJ = 0;
+  jugadoresActualizados.forEach(function(jj) {
+    netoCasaBJ -= (cambios[jj.uid] || 0);
+  });
+  if (netoCasaBJ !== 0) {
+    try {
+      await updateDoc(doc(db, 'casino_cuenta', 'principal'), { fichas: increment(netoCasaBJ) });
+    } catch(err) {
+      try {
+        await setDoc(doc(db, 'casino_cuenta', 'principal'), { fichas: netoCasaBJ, saldo: 0, creadoEn: new Date().toISOString() }, { merge: true });
+      } catch(e2) { console.warn('Error inicializando pozo casino (BJ):', e2.message); }
+    }
   }
 
   // ── 5. Guardar resultado y liberar el lock ───────────────────────────────
@@ -9802,6 +9817,16 @@ async function comprarMultiplesBoletos(precio, cantidad) {
     descripcion: 'Rasca y Gana: compra de ' + cantidad + ' boletos de £' + precio.toLocaleString('es-CO')
   });
 
+  // Conectar al pozo de fichas del casino (total cobrado - total pagado)
+  var netoCasaRygMultiple = totalCosto - gananciaTotal;
+  try {
+    await updateDoc(doc(db, 'casino_cuenta', 'principal'), { fichas: increment(netoCasaRygMultiple) });
+  } catch(err) {
+    try {
+      await setDoc(doc(db, 'casino_cuenta', 'principal'), { fichas: netoCasaRygMultiple, saldo: 0, creadoEn: new Date().toISOString() }, { merge: true });
+    } catch(e2) { console.warn('Error inicializando pozo casino (RyG multi):', e2.message); }
+  }
+
   // Mostrar resumen
   area.innerHTML =
     '<div class="card" style="margin-top:0.75rem;border-color:var(--accent)">' +
@@ -9984,6 +10009,16 @@ async function resolverRyg() {
   var res    = calcularPremio(estado.simbolos, estado.precio);
   var saldo  = currentUser.saldo || 0;
   var textoEl = document.getElementById('ryg-resultado-texto');
+
+  // Conectar al pozo de fichas del casino (precio cobrado - premio pagado)
+  var netoCasaRyg = estado.precio - res.ganancia;
+  try {
+    await updateDoc(doc(db, 'casino_cuenta', 'principal'), { fichas: increment(netoCasaRyg) });
+  } catch(err) {
+    try {
+      await setDoc(doc(db, 'casino_cuenta', 'principal'), { fichas: netoCasaRyg, saldo: 0, creadoEn: new Date().toISOString() }, { merge: true });
+    } catch(e2) { console.warn('Error inicializando pozo casino (RyG):', e2.message); }
+  }
 
   if (res.ganancia > 0) {
     // Acreditar
