@@ -5330,6 +5330,12 @@ function isAdminBanco() {
   return currentUser.rol === 'dev' || currentUser.rol === 'admin_banco' || currentUser.rol === 'regidor';
 }
 
+function puedeGestionarImpuestos() {
+  if (!currentUser) return false;
+  var r = (currentUser.rol || '').toLowerCase();
+  return r === 'dev' || r === 'admin_banco' || r === 'lider_suprema';
+}
+
 function isDev() {
   return currentUser && currentUser.rol === 'dev';
 }
@@ -5347,7 +5353,8 @@ function puedeEditarUsuario(usuarioTarget) {
 
 function renderBanco() {
   var esAdmin = isAdminBanco();
-  mainContent.innerHTML = '<div class="banco-saldo card"><p class="saldo-label">Saldo disponible</p><h2 class="saldo-monto">💷 <span id="saldo-valor">Cargando...</span></h2><p class="saldo-ciudad">' + (currentUser && currentUser.ciudad ? currentUser.ciudad : 'Sin ciudad asignada') + '</p></div><div class="banco-acciones"><button class="btn-banco" id="btn-transferir"><span>💸</span><span>Transferir</span></button><button class="btn-banco" id="btn-movimientos"><span>📋</span><span>Movimientos</span></button><button class="btn-banco" id="btn-impuestos"><span>📜</span><span>Impuestos</span></button><button class="btn-banco" id="btn-reporte"><span>🚨</span><span>Reportar</span></button></div><div id="banco-panel" class="card"></div>' + (esAdmin ? renderPanelAdminBanco() : '');
+  var esGestorImpuestos = puedeGestionarImpuestos();
+  mainContent.innerHTML = '<div class="banco-saldo card"><p class="saldo-label">Saldo disponible</p><h2 class="saldo-monto">💷 <span id="saldo-valor">Cargando...</span></h2><p class="saldo-ciudad">' + (currentUser && currentUser.ciudad ? currentUser.ciudad : 'Sin ciudad asignada') + '</p></div><div class="banco-acciones"><button class="btn-banco" id="btn-transferir"><span>💸</span><span>Transferir</span></button><button class="btn-banco" id="btn-movimientos"><span>📋</span><span>Movimientos</span></button><button class="btn-banco" id="btn-impuestos"><span>📜</span><span>Impuestos</span></button><button class="btn-banco" id="btn-reporte"><span>🚨</span><span>Reportar</span></button></div><div id="banco-panel" class="card"></div>' + (esAdmin ? renderPanelAdminBanco() : '') + (esGestorImpuestos ? '<div class="card" style="border-color:#ff9800;margin-top:0.75rem"><h3>📜 Gestión de Impuestos</h3><button class="btn btn-secondary btn-full" id="btn-gestionar-impuestos" style="margin-top:0.5rem;border-color:#ff9800;color:#ff9800">📜 Asignar / Ver impuestos</button></div>' : '');
   cargarSaldo();
   document.getElementById('btn-transferir').addEventListener('click', mostrarTransferencia);
   document.getElementById('btn-movimientos').addEventListener('click', mostrarMovimientos);
@@ -5358,6 +5365,9 @@ function renderBanco() {
     document.getElementById('btn-admin-editar').addEventListener('click', mostrarEditarSaldo);
     document.getElementById('btn-admin-sumar').addEventListener('click', function() { mostrarSumarRestar('sumar'); });
     document.getElementById('btn-admin-restar').addEventListener('click', function() { mostrarSumarRestar('restar'); });
+  }
+  if (esGestorImpuestos) {
+    document.getElementById('btn-gestionar-impuestos').addEventListener('click', mostrarGestionImpuestos);
   }
 }
 
@@ -5552,9 +5562,24 @@ function mostrarImpuestos() {
     var lista = document.getElementById('lista-impuestos');
     if (!lista) return;
     if (snap.empty) { lista.innerHTML = '<p style="color:var(--success)">Sin impuestos pendientes</p>'; return; }
+
+    var ahora = new Date();
+    snap.docs.forEach(function(d) {
+      var m = d.data();
+      if (!m.pagado && m.fechaLimite && !m.multaAplicada && ahora > new Date(m.fechaLimite)) {
+        var nuevoMonto = Math.round(m.monto * 1.2);
+        updateDoc(doc(db, 'impuestos', d.id), { monto: nuevoMonto, multaAplicada: true }).catch(function(e) {
+          console.warn('Error aplicando multa por impuesto vencido:', e.message);
+        });
+      }
+    });
+
     lista.innerHTML = snap.docs.map(function(d) {
-      var m = d.data(); var fecha = new Date(m.fecha).toLocaleString('es-CO');
-      return '<div class="movimiento-item"><div class="movimiento-info"><p class="movimiento-desc">' + m.concepto + '</p><p class="movimiento-meta">' + fecha + '</p></div><div style="text-align:right"><p class="movimiento-monto" style="color:var(--danger)">£' + m.monto.toLocaleString('es-CO') + '</p>' + (!m.pagado ? '<button class="btn btn-primary" style="font-size:0.75rem;padding:0.3rem 0.6rem;margin-top:0.3rem" data-id="' + d.id + '" data-monto="' + m.monto + '">Pagar</button>' : '<p style="color:var(--success);font-size:0.8rem">Pagado</p>') + '</div></div>';
+      var m = d.data();
+      var fecha = new Date(m.fecha).toLocaleString('es-CO');
+      var fechaLimiteStr = m.fechaLimite ? new Date(m.fechaLimite).toLocaleDateString('es-CO') : '';
+      var vencido = !m.pagado && m.fechaLimite && new Date() > new Date(m.fechaLimite);
+      return '<div class="movimiento-item"><div class="movimiento-info"><p class="movimiento-desc">' + m.concepto + (m.multaAplicada ? ' <span style="color:var(--danger);font-size:0.7rem">(+20% multa)</span>' : '') + '</p><p class="movimiento-meta">' + fecha + (fechaLimiteStr ? ' · Límite: ' + fechaLimiteStr : '') + '</p>' + (vencido ? '<p style="color:var(--danger);font-size:0.72rem;font-weight:700;margin-top:0.15rem">⚠️ Vencido</p>' : '') + '</div><div style="text-align:right"><p class="movimiento-monto" style="color:var(--danger)">£' + m.monto.toLocaleString('es-CO') + '</p>' + (!m.pagado ? '<button class="btn btn-primary" style="font-size:0.75rem;padding:0.3rem 0.6rem;margin-top:0.3rem" data-id="' + d.id + '" data-monto="' + m.monto + '">Pagar</button>' : '<p style="color:var(--success);font-size:0.8rem">Pagado</p>') + '</div></div>';
     }).join('');
     lista.querySelectorAll('button[data-id]').forEach(function(btn) {
       btn.addEventListener('click', async function() {
@@ -5564,6 +5589,105 @@ function mostrarImpuestos() {
         await updateDoc(doc(db, 'impuestos', id), { pagado: true });
         await updateDoc(doc(db, 'usuarios', currentUser.uid), { saldo: increment(-monto) });
         await registrarTransaccion({ tipo: 'impuesto', de: currentUser.uid, deUsername: currentUser.username, para: 'sistema', paraUsername: 'Estiria', monto: monto, descripcion: 'Pago de impuesto' });
+      });
+    });
+  });
+}
+
+function mostrarGestionImpuestos() {
+  var panel = document.getElementById('banco-panel');
+  panel.innerHTML =
+    '<h3>📜 Gestión de Impuestos</h3>' +
+    '<div style="position:relative">' +
+      '<input type="text" id="imp-usuario-input" placeholder="Buscar usuario..." autocomplete="off"/>' +
+      '<div id="imp-usuario-lista" class="usuarios-lista"></div>' +
+    '</div>' +
+    '<input type="text" id="imp-concepto" placeholder="Concepto del impuesto" style="margin-top:0.5rem"/>' +
+    '<input type="number" id="imp-monto" placeholder="Monto en £" min="1" style="margin-top:0.5rem"/>' +
+    '<label class="form-label" style="margin-top:0.5rem">Fecha límite de pago</label>' +
+    '<input type="date" id="imp-fecha-limite" style="margin-top:0.3rem"/>' +
+    '<p style="font-size:0.72rem;color:var(--text-secondary);margin-top:0.3rem">Si no se paga antes de esta fecha, se aplicará automáticamente una multa del 20% sobre el monto.</p>' +
+    '<button class="btn btn-primary btn-full" id="btn-asignar-impuesto" style="margin-top:0.6rem">Asignar impuesto</button>' +
+    '<div id="imp-asignar-msg" class="hidden" style="margin-top:0.5rem"></div>' +
+    '<h4 style="margin:1rem 0 0.5rem">📋 Impuestos pendientes (todos los usuarios)</h4>' +
+    '<div id="imp-lista-pendientes"><p style="color:var(--text-secondary)">Cargando...</p></div>';
+
+  crearBuscadorUsuarios('imp-usuario-input', 'imp-usuario-lista', null, false);
+
+  document.getElementById('btn-asignar-impuesto').addEventListener('click', async function() {
+    var username = document.getElementById('imp-usuario-input').value.trim().toLowerCase();
+    var concepto = document.getElementById('imp-concepto').value.trim();
+    var monto = parseInt(document.getElementById('imp-monto').value);
+    var fechaLimiteVal = document.getElementById('imp-fecha-limite').value;
+    var msgEl = document.getElementById('imp-asignar-msg');
+    function mostrarErr(msg) { msgEl.textContent = msg; msgEl.style.color = 'var(--danger)'; msgEl.classList.remove('hidden'); }
+
+    if (!username) return mostrarErr('Ingresa el usuario');
+    if (!concepto) return mostrarErr('Ingresa el concepto del impuesto');
+    if (!monto || monto <= 0) return mostrarErr('Ingresa un monto válido');
+    if (!fechaLimiteVal) return mostrarErr('Selecciona una fecha límite');
+
+    var btn = document.getElementById('btn-asignar-impuesto');
+    btn.disabled = true; btn.textContent = 'Asignando...';
+
+    try {
+      var usernameSnap = await getDoc(doc(db, 'usernames', username));
+      if (!usernameSnap.exists()) { mostrarErr('Usuario no encontrado'); btn.disabled = false; btn.textContent = 'Asignar impuesto'; return; }
+      var uidDestino = usernameSnap.data().uid;
+      var fechaLimiteISO = new Date(fechaLimiteVal + 'T23:59:59').toISOString();
+
+      await addDoc(collection(db, 'impuestos'), {
+        uid: uidDestino,
+        username: username,
+        concepto: concepto,
+        monto: monto,
+        montoOriginal: monto,
+        fecha: new Date().toISOString(),
+        fechaLimite: fechaLimiteISO,
+        pagado: false,
+        multaAplicada: false,
+        asignadoPor: currentUser.username
+      });
+
+      await crearNotificacion(uidDestino, 'impuesto_nuevo',
+        '📜 Nuevo impuesto asignado',
+        'Se te asignó el impuesto "' + concepto + '" por £' + monto.toLocaleString('es-CO') + '. Fecha límite: ' + new Date(fechaLimiteISO).toLocaleDateString('es-CO'),
+        { concepto: concepto, monto: monto }
+      );
+
+      msgEl.textContent = '✓ Impuesto asignado a ' + username; msgEl.style.color = 'var(--success)'; msgEl.classList.remove('hidden');
+      document.getElementById('imp-concepto').value = '';
+      document.getElementById('imp-monto').value = '';
+      document.getElementById('imp-fecha-limite').value = '';
+      document.getElementById('imp-usuario-input').value = '';
+      btn.disabled = false; btn.textContent = 'Asignar impuesto';
+      cargarListaImpuestosPendientes();
+    } catch (err) {
+      mostrarErr('Error: ' + err.message);
+      btn.disabled = false; btn.textContent = 'Asignar impuesto';
+    }
+  });
+
+  cargarListaImpuestosPendientes();
+}
+
+function cargarListaImpuestosPendientes() {
+  var lista = document.getElementById('imp-lista-pendientes');
+  if (!lista) return;
+  onSnapshot(query(collection(db, 'impuestos'), where('pagado', '==', false), orderBy('fecha', 'desc'), limit(50)), function(snap) {
+    lista = document.getElementById('imp-lista-pendientes');
+    if (!lista) return;
+    if (snap.empty) { lista.innerHTML = '<p style="color:var(--text-secondary)">No hay impuestos pendientes.</p>'; return; }
+    lista.innerHTML = snap.docs.map(function(d) {
+      var m = d.data();
+      var vencido = m.fechaLimite && new Date() > new Date(m.fechaLimite);
+      var fechaLimiteStr = m.fechaLimite ? new Date(m.fechaLimite).toLocaleDateString('es-CO') : '—';
+      return '<div class="movimiento-item"><div class="movimiento-info"><p class="movimiento-desc">' + (m.username || '—') + ' — ' + m.concepto + (m.multaAplicada ? ' <span style="color:var(--danger);font-size:0.7rem">(+20% multa)</span>' : '') + '</p><p class="movimiento-meta">Límite: ' + fechaLimiteStr + (vencido ? ' · ⚠️ Vencido' : '') + ' · Asignado por ' + (m.asignadoPor || '—') + '</p></div><div style="text-align:right"><p class="movimiento-monto" style="color:var(--danger)">£' + m.monto.toLocaleString('es-CO') + '</p><button class="btn btn-secondary btn-cancelar-impuesto" data-id="' + d.id + '" style="font-size:0.72rem;padding:0.25rem 0.5rem;margin-top:0.3rem;border-color:var(--danger);color:var(--danger)">Cancelar</button></div></div>';
+    }).join('');
+    lista.querySelectorAll('.btn-cancelar-impuesto').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        if (!confirm('¿Cancelar este impuesto?')) return;
+        await deleteDoc(doc(db, 'impuestos', btn.dataset.id));
       });
     });
   });
