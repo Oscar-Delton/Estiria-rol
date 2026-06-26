@@ -477,6 +477,12 @@ function renderInicio() {
     (puedeAccederPanelAdmin()
       ? '<button class="btn btn-secondary btn-full" id="btn-panel-admin-inicio" style="margin-bottom:0.75rem;border-color:' + getRolColor(currentUser.rol) + ';color:' + getRolColor(currentUser.rol) + '">' + getRolEmoji(currentUser.rol) + ' Panel de Administración</button>'
       : '') +
+    (esModeradorOSuperior()
+      ? '<button class="btn btn-secondary btn-full" id="btn-panel-moderacion-inicio" style="margin-bottom:0.75rem;border-color:#4fc3f7;color:#4fc3f7">🛡️ Panel de Moderación</button>'
+      : '') +
+    '<div class="inicio-grid">' +
+      ? '<button class="btn btn-secondary btn-full" id="btn-panel-moderacion-inicio" style="margin-bottom:0.75rem;border-color:#4fc3f7;color:#4fc3f7">🛡️ Panel de Moderación</button>'
+      : '') +
     '<div class="inicio-grid">' +
       '<button class="inicio-card" id="inicio-tienda"><span class="inicio-icon">🛒</span><span class="inicio-label">Tienda</span></button>' +
       '<button class="inicio-card" id="inicio-casino"><span class="inicio-icon">🎰</span><span class="inicio-label">Casino</span></button>' +
@@ -496,6 +502,18 @@ document.getElementById('inicio-mercado').addEventListener('click', function() {
   if (puedeAccederPanelAdmin()) {
     document.getElementById('btn-panel-admin-inicio').addEventListener('click', function() {
       renderPanelAdmin();
+    });
+  }
+
+  if (esModeradorOSuperior()) {
+    document.getElementById('btn-panel-moderacion-inicio').addEventListener('click', function() {
+      renderPanelModeracion();
+    });
+  }
+
+  if (esModeradorOSuperior()) {
+    document.getElementById('btn-panel-moderacion-inicio').addEventListener('click', function() {
+      renderPanelModeracion();
     });
   }
 
@@ -5984,27 +6002,21 @@ function renderPerfil() {
     var nivel = parseInt(document.getElementById('perfil-nivel').value);
     var msg = document.getElementById('nivel-msg');
     if (!nivel || nivel < 1) { msg.textContent = 'Ingresa un nivel válido'; msg.style.color = 'var(--danger)'; return; }
-    await updateDoc(doc(db, 'usuarios', currentUser.uid), { nivel: nivel });
-    currentUser.nivel = nivel;
-    msg.textContent = 'Nivel actualizado'; msg.style.color = 'var(--success)';
+    await enviarCambioPerfil('nivel', nivel, currentUser.nivel, msg, 'Nivel actualizado');
   });
 
   document.getElementById('btn-guardar-raza').addEventListener('click', async function() {
     var raza = document.getElementById('perfil-raza').value.trim();
     var msg = document.getElementById('raza-msg');
     if (!raza) { msg.textContent = 'Ingresa una raza'; msg.style.color = 'var(--danger)'; return; }
-    await updateDoc(doc(db, 'usuarios', currentUser.uid), { raza: raza });
-    currentUser.raza = raza;
-    msg.textContent = 'Raza actualizada'; msg.style.color = 'var(--success)';
+    await enviarCambioPerfil('raza', raza, currentUser.raza, msg, 'Raza actualizada');
   });
 
   document.getElementById('btn-guardar-edad').addEventListener('click', async function() {
     var edad = parseInt(document.getElementById('perfil-edad').value);
     var msg = document.getElementById('edad-msg');
     if (!edad || edad < 1) { msg.textContent = 'Ingresa una edad válida'; msg.style.color = 'var(--danger)'; return; }
-    await updateDoc(doc(db, 'usuarios', currentUser.uid), { edad: edad });
-    currentUser.edad = edad;
-    msg.textContent = 'Edad actualizada'; msg.style.color = 'var(--success)';
+    await enviarCambioPerfil('edad', edad, currentUser.edad, msg, 'Edad actualizada');
   });
 
   document.getElementById('btn-guardar-dato').addEventListener('click', async function() {
@@ -6045,6 +6057,7 @@ function renderPerfil() {
   });
 
   cargarLogrosPerfil(currentUser.uid);
+  cargarIndicadoresPendientesPerfil();
 }
 
 function cargarLogrosPerfil(uid) {
@@ -11554,6 +11567,254 @@ async function convertirEspectadorAJugadorPoker(salaId, sala, yoEsp) {
   } else {
     await updateDoc(doc(db,'poker_salas',salaId),{ espectadores:nuevosEsp });
   }
+}
+
+// ===== PANEL DE MODERACIÓN =====
+
+function renderPanelModeracion() {
+  mainContent.innerHTML =
+    '<div class="card" style="border-color:#4fc3f7;margin-bottom:0.75rem">' +
+      '<div style="display:flex;align-items:center;gap:0.75rem">' +
+        '<span style="font-size:2rem">🛡️</span>' +
+        '<div>' +
+          '<h3 style="color:#4fc3f7">Panel de Moderación</h3>' +
+          '<p style="font-size:0.8rem;color:var(--text-secondary)">Gestión de perfiles de usuarios</p>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="categorias-grid" style="grid-template-columns:1fr 1fr">' +
+      '<button class="categoria-btn" id="modr-buscar-usuario"><span>🔍</span><span>Buscar usuario</span></button>' +
+      '<button class="categoria-btn" id="modr-solicitudes"><span>📋</span><span>Solicitudes</span></button>' +
+    '</div>' +
+    '<div id="modr-contenido" style="margin-top:0.75rem"></div>';
+
+  document.getElementById('modr-buscar-usuario').addEventListener('click', function() { modrRenderBuscarUsuario(); });
+  document.getElementById('modr-solicitudes').addEventListener('click', function() { modrRenderSolicitudes(); });
+}
+
+function modrRenderBuscarUsuario() {
+  var contenido = document.getElementById('modr-contenido');
+  contenido.innerHTML =
+    '<div style="position:relative">' +
+      '<input type="text" id="modr-input-usuario" placeholder="Buscar usuario..." autocomplete="off" style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block" />' +
+      '<div id="modr-usuario-lista" class="usuarios-lista"></div>' +
+    '</div>' +
+    '<button class="btn btn-primary btn-full" id="modr-btn-buscar" style="margin-top:0.5rem">Buscar</button>' +
+    '<div id="modr-resultado"></div>';
+
+  crearBuscadorUsuarios('modr-input-usuario', 'modr-usuario-lista', null, false);
+
+  document.getElementById('modr-btn-buscar').addEventListener('click', async function() {
+    var username = document.getElementById('modr-input-usuario').value.trim().toLowerCase();
+    var resultado = document.getElementById('modr-resultado');
+    if (!username) return;
+    var usernameSnap = await getDoc(doc(db, 'usernames', username));
+    if (!usernameSnap.exists()) { resultado.innerHTML = '<p style="color:var(--danger);margin-top:0.5rem">Usuario no encontrado</p>'; return; }
+    modrMostrarFichaUsuario(usernameSnap.data().uid);
+  });
+}
+
+async function modrMostrarFichaUsuario(uid) {
+  var resultado = document.getElementById('modr-resultado');
+  resultado.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p>';
+  var snap = await getDoc(doc(db, 'usuarios', uid));
+  if (!snap.exists()) { resultado.innerHTML = '<p style="color:var(--danger)">Usuario no encontrado</p>'; return; }
+  var u = snap.data();
+
+  resultado.innerHTML =
+    '<div class="card" style="margin-top:0.75rem">' +
+      '<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">' +
+        (u.fotoPerfil
+          ? '<img src="' + u.fotoPerfil + '" style="width:56px;height:56px;border-radius:50%;object-fit:cover" onerror="this.style.display=\'none\'"/>'
+          : '<div style="width:56px;height:56px;border-radius:50%;background:var(--bg-card);display:flex;align-items:center;justify-content:center;font-size:1.5rem">👤</div>') +
+        '<div>' +
+          '<p style="font-weight:700">' + getRolEmoji(u.rol) + ' ' + u.username + '</p>' +
+          '<p style="font-size:0.78rem;color:var(--text-secondary)">' + (u.ciudad || 'Sin ciudad') + ' · ' + (u.rol || 'jugador') + '</p>' +
+        '</div>' +
+      '</div>' +
+
+      (u.fotoPerfil
+        ? '<button class="btn btn-secondary btn-full" id="modr-btn-quitar-foto" style="margin-bottom:0.75rem;border-color:var(--danger);color:var(--danger)">🗑️ Quitar foto de perfil</button>' +
+          '<div id="modr-foto-msg" style="font-size:0.78rem;margin-bottom:0.5rem"></div>'
+        : '<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.75rem">Este usuario no tiene foto de perfil.</p>') +
+
+      '<label class="form-label">Nivel</label>' +
+      '<input type="number" id="modr-nivel" value="' + (u.nivel || '') + '" min="1" style="width:100%;padding:0.6rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none;box-sizing:border-box;margin-bottom:0.5rem" />' +
+
+      '<label class="form-label">Raza</label>' +
+      '<input type="text" id="modr-raza" value="' + (u.raza || '') + '" style="width:100%;padding:0.6rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none;box-sizing:border-box;margin-bottom:0.5rem" />' +
+
+      '<label class="form-label">Edad</label>' +
+      '<input type="number" id="modr-edad" value="' + (u.edad || '') + '" min="1" style="width:100%;padding:0.6rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none;box-sizing:border-box;margin-bottom:0.75rem" />' +
+
+      '<button class="btn btn-primary btn-full" id="modr-btn-guardar-stats">💾 Guardar nivel / raza / edad</button>' +
+      '<div id="modr-stats-msg" style="font-size:0.78rem;margin-top:0.4rem"></div>' +
+    '</div>';
+
+  var btnQuitarFoto = document.getElementById('modr-btn-quitar-foto');
+  if (btnQuitarFoto) {
+    btnQuitarFoto.addEventListener('click', async function() {
+      if (!confirm('¿Quitar la foto de perfil de ' + u.username + '?')) return;
+      btnQuitarFoto.disabled = true; btnQuitarFoto.textContent = 'Quitando...';
+      try {
+        await updateDoc(doc(db, 'usuarios', uid), { fotoPerfil: '' });
+        await crearNotificacion(uid, 'ajuste_admin',
+          '🛡️ Foto de perfil eliminada',
+          'Un moderador eliminó tu foto de perfil por no ser apropiada.',
+          {}
+        );
+        modrMostrarFichaUsuario(uid);
+      } catch(err) {
+        document.getElementById('modr-foto-msg').textContent = 'Error: ' + err.message;
+        document.getElementById('modr-foto-msg').style.color = 'var(--danger)';
+        btnQuitarFoto.disabled = false; btnQuitarFoto.textContent = '🗑️ Quitar foto de perfil';
+      }
+    });
+  }
+
+  document.getElementById('modr-btn-guardar-stats').addEventListener('click', async function() {
+    var nivel = parseInt(document.getElementById('modr-nivel').value) || null;
+    var raza = document.getElementById('modr-raza').value.trim();
+    var edad = parseInt(document.getElementById('modr-edad').value) || null;
+    var msg = document.getElementById('modr-stats-msg');
+    var btn = this;
+    btn.disabled = true; btn.textContent = 'Guardando...';
+    try {
+      var datos = {};
+      if (nivel) datos.nivel = nivel;
+      if (raza) datos.raza = raza;
+      if (edad) datos.edad = edad;
+      await updateDoc(doc(db, 'usuarios', uid), datos);
+      await crearNotificacion(uid, 'ajuste_admin',
+        '🛡️ Perfil modificado',
+        'Un moderador actualizó tu nivel, raza y/o edad.',
+        {}
+      );
+      msg.textContent = '✓ Datos actualizados'; msg.style.color = 'var(--success)';
+    } catch(err) {
+      msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--danger)';
+    }
+    btn.disabled = false; btn.textContent = '💾 Guardar nivel / raza / edad';
+  });
+}
+
+function modrRenderSolicitudes() {
+  var contenido = document.getElementById('modr-contenido');
+  contenido.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p>';
+
+  onSnapshot(
+    query(collection(db, 'cambios_perfil_pendientes'), where('estado', '==', 'pendiente'), orderBy('creadoEn', 'desc')),
+    function(snap) {
+      contenido = document.getElementById('modr-contenido');
+      if (!contenido) return;
+      if (snap.empty) {
+        contenido.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">No hay solicitudes pendientes.</p>';
+        return;
+      }
+      var tipoLabel = { nivel: '⚔️ Nivel', raza: '🧬 Raza', edad: '🎂 Edad' };
+      contenido.innerHTML = '<p style="font-size:0.85rem;font-weight:700;margin-bottom:0.5rem">📋 Solicitudes pendientes (' + snap.docs.length + ')</p>' +
+        snap.docs.map(function(d) {
+          var s = d.data();
+          return '<div class="card" style="margin-bottom:0.5rem">' +
+            '<p style="font-weight:700;font-size:0.85rem">' + s.username + ' — ' + (tipoLabel[s.tipo]||s.tipo) + '</p>' +
+            '<p style="font-size:0.82rem;color:var(--text-secondary)">' + (s.valorAnterior || '—') + ' → <strong style="color:var(--text-primary)">' + s.valorNuevo + '</strong></p>' +
+            '<p style="font-size:0.7rem;color:var(--text-secondary)">' + new Date(s.creadoEn).toLocaleString('es-CO') + '</p>' +
+            '<div style="display:flex;gap:0.5rem;margin-top:0.5rem">' +
+              '<button class="btn btn-primary modr-aprobar-solicitud" data-id="' + d.id + '" style="flex:1;font-size:0.8rem;padding:0.45rem">✅ Aprobar</button>' +
+              '<button class="btn btn-secondary modr-rechazar-solicitud" data-id="' + d.id + '" style="flex:1;font-size:0.8rem;padding:0.45rem;border-color:var(--danger);color:var(--danger)">❌ Rechazar</button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+
+      contenido.querySelectorAll('.modr-aprobar-solicitud').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (!confirm('¿Aprobar este cambio?')) return;
+          btn.disabled = true;
+          var snap2 = await getDoc(doc(db, 'cambios_perfil_pendientes', btn.dataset.id));
+          var s = snap2.data();
+          var valorFinal = (s.tipo === 'raza') ? s.valorNuevo : parseInt(s.valorNuevo);
+          var datos = {}; datos[s.tipo] = valorFinal;
+          await updateDoc(doc(db, 'usuarios', s.uid), datos);
+          await updateDoc(doc(db, 'cambios_perfil_pendientes', btn.dataset.id), {
+            estado: 'aprobado', revisadoPor: currentUser.username, revisadoEn: new Date().toISOString()
+          });
+          await crearNotificacion(s.uid, 'ajuste_admin',
+            '✅ Cambio aprobado',
+            'Tu solicitud de cambio de ' + (tipoLabel[s.tipo]||s.tipo) + ' fue aprobada.',
+            {}
+          );
+        });
+      });
+
+      contenido.querySelectorAll('.modr-rechazar-solicitud').forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (!confirm('¿Rechazar esta solicitud?')) return;
+          btn.disabled = true;
+          var snap2 = await getDoc(doc(db, 'cambios_perfil_pendientes', btn.dataset.id));
+          var s = snap2.data();
+          await updateDoc(doc(db, 'cambios_perfil_pendientes', btn.dataset.id), {
+            estado: 'rechazado', revisadoPor: currentUser.username, revisadoEn: new Date().toISOString()
+          });
+          await crearNotificacion(s.uid, 'mision_rechazada',
+            '❌ Cambio rechazado',
+            'Tu solicitud de cambio de ' + (tipoLabel[s.tipo]||s.tipo) + ' fue rechazada.',
+            {}
+          );
+        });
+      });
+    }
+  );
+}
+
+async function enviarCambioPerfil(tipo, valorNuevo, valorAnterior, msgEl, textoExito) {
+  var esConfiable = nivelRol(currentUser.rol) > 0; // moderador o superior se autoaprueba
+
+  if (esConfiable) {
+    var datos = {}; datos[tipo] = valorNuevo;
+    await updateDoc(doc(db, 'usuarios', currentUser.uid), datos);
+    currentUser[tipo] = valorNuevo;
+    msgEl.textContent = textoExito; msgEl.style.color = 'var(--success)';
+    return;
+  }
+
+  var pendSnap = await getDocs(query(
+    collection(db, 'cambios_perfil_pendientes'),
+    where('uid', '==', currentUser.uid),
+    where('tipo', '==', tipo),
+    where('estado', '==', 'pendiente')
+  ));
+  if (!pendSnap.empty) {
+    msgEl.textContent = 'Ya tienes una solicitud pendiente para este campo.';
+    msgEl.style.color = 'var(--danger)';
+    return;
+  }
+
+  await addDoc(collection(db, 'cambios_perfil_pendientes'), {
+    uid: currentUser.uid, username: currentUser.username,
+    tipo: tipo, valorAnterior: valorAnterior || '', valorNuevo: valorNuevo,
+    estado: 'pendiente', creadoEn: new Date().toISOString()
+  });
+  msgEl.textContent = '⏳ Solicitud enviada, pendiente de aprobación por un moderador.';
+  msgEl.style.color = '#ff9800';
+}
+
+async function cargarIndicadoresPendientesPerfil() {
+  if (nivelRol(currentUser.rol) > 0) return;
+  try {
+    var snap = await getDocs(query(
+      collection(db, 'cambios_perfil_pendientes'),
+      where('uid', '==', currentUser.uid),
+      where('estado', '==', 'pendiente')
+    ));
+    snap.docs.forEach(function(d) {
+      var s = d.data();
+      var msgEl = document.getElementById(s.tipo + '-msg');
+      if (msgEl) {
+        msgEl.textContent = '⏳ Cambio de ' + s.tipo + ' pendiente de revisión (nuevo valor: ' + s.valorNuevo + ')';
+        msgEl.style.color = '#ff9800';
+      }
+    });
+  } catch(e) { console.warn('Error cargando pendientes perfil:', e.message); }
 }
 
 // ===== PANEL DE ADMINISTRACIÓN =====
