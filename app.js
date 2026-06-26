@@ -289,6 +289,74 @@ async function crearNotificacion(uid, tipo, titulo, cuerpo, extra) {
   }
 }
 
+function spanUsuarioClicable(uid, username, extraStyle) {
+  if (!uid || !username) return username || '—';
+  return '<span class="username-clicable" data-uid="' + uid + '" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:var(--text-secondary);' + (extraStyle || '') + '">' + username + '</span>';
+}
+
+document.addEventListener('click', function(e) {
+  var el = e.target && e.target.closest ? e.target.closest('.username-clicable') : null;
+  if (el && el.dataset.uid) {
+    e.stopPropagation();
+    mostrarPerfilPublico(el.dataset.uid);
+  }
+});
+
+async function mostrarPerfilPublico(uid) {
+  if (!uid) return;
+  var existente = document.getElementById('modal-perfil-publico');
+  if (existente) existente.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'modal-perfil-publico';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:2500;display:flex;align-items:center;justify-content:center;padding:1rem';
+  overlay.innerHTML = '<div style="background:var(--bg-secondary);border-radius:16px;padding:1.5rem;width:100%;max-width:360px;max-height:85vh;overflow-y:auto"><p style="text-align:center;color:var(--text-secondary)">Cargando perfil...</p></div>';
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+  try {
+    var snap = await getDoc(doc(db, 'usuarios', uid));
+    if (!snap.exists()) {
+      overlay.querySelector('div').innerHTML = '<p style="text-align:center;color:var(--danger)">Usuario no encontrado</p>';
+      return;
+    }
+    var u = snap.data();
+
+    var logrosSnap = await getDocs(query(collection(db, 'logros'), where('uid', '==', uid), where('estado', '==', 'aprobado')));
+    var logros = logrosSnap.docs.map(function(d) { return d.data(); });
+
+    var box = document.querySelector('#modal-perfil-publico > div');
+    if (!box) return;
+    box.innerHTML =
+      '<div style="display:flex;justify-content:flex-end"><button id="btn-cerrar-perfil-publico" style="background:none;border:none;color:var(--text-primary);font-size:1.3rem;cursor:pointer">✕</button></div>' +
+      '<div style="text-align:center;margin-bottom:0.75rem">' +
+        (u.fotoPerfil
+          ? '<img src="' + u.fotoPerfil + '" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:2px solid ' + getRolColor(u.rol) + '" onerror="this.style.display=\'none\'"/>'
+          : '<div style="width:80px;height:80px;border-radius:50%;background:var(--bg-card);display:flex;align-items:center;justify-content:center;font-size:2rem;margin:0 auto">👤</div>') +
+        '<h3 style="margin-top:0.5rem;color:' + getRolColor(u.rol) + '">' + getRolEmoji(u.rol) + ' ' + u.username + '</h3>' +
+        '<p style="font-size:0.78rem;color:var(--text-secondary)">' + (u.ciudad || 'Sin ciudad') + '</p>' +
+      '</div>' +
+      '<div class="perfil-info-lista">' +
+        '<div class="perfil-info-item"><span class="perfil-info-label">⚔️ Nivel</span><span class="perfil-info-valor">' + (u.nivel || 'No definido') + '</span></div>' +
+        '<div class="perfil-info-item"><span class="perfil-info-label">🧬 Raza</span><span class="perfil-info-valor">' + (u.raza || 'No definida') + '</span></div>' +
+        '<div class="perfil-info-item"><span class="perfil-info-label">🎂 Edad</span><span class="perfil-info-valor">' + (u.edad || 'No definida') + '</span></div>' +
+        '<div class="perfil-info-item"><span class="perfil-info-label">✨ Dato curioso</span><span class="perfil-info-valor">' + (u.datoCurioso || 'No definido') + '</span></div>' +
+      '</div>' +
+      (logros.length > 0
+        ? '<p style="font-size:0.82rem;font-weight:700;margin:0.75rem 0 0.4rem">🏆 Logros</p>' +
+          logros.map(function(l) {
+            return '<div style="background:var(--bg-card);border-radius:8px;padding:0.5rem 0.6rem;margin-bottom:0.3rem"><p style="font-size:0.8rem;font-weight:700">' + l.nombre + '</p><p style="font-size:0.72rem;color:var(--text-secondary)">' + l.descripcion + '</p></div>';
+          }).join('')
+        : '');
+
+    var btnCerrar = document.getElementById('btn-cerrar-perfil-publico');
+    if (btnCerrar) btnCerrar.addEventListener('click', function() { overlay.remove(); });
+  } catch(err) {
+    var boxErr = document.querySelector('#modal-perfil-publico > div');
+    if (boxErr) boxErr.innerHTML = '<p style="text-align:center;color:var(--danger)">Error: ' + err.message + '</p>';
+  }
+}
+
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = await loadUserProfile(user);
@@ -432,6 +500,12 @@ function esModeradorOSuperior() {
   return r === 'dev' || r === 'lider_suprema' || r === 'moderador';
 }
 
+function puedeGestionarRanking() {
+  if (!currentUser) return false;
+  var r = (currentUser.rol || '').toLowerCase();
+  return r === 'dev' || r === 'lider_suprema' || r === 'rankeador';
+}
+
 function puedeAccederPanelAdmin() {
   if (!currentUser) return false;
   var r = (currentUser.rol || '').toLowerCase();
@@ -486,6 +560,8 @@ function renderInicio() {
       '<button class="inicio-card" id="inicio-citas"><span class="inicio-icon">💘</span><span class="inicio-label">Citas</span></button>' +
       '<button class="inicio-card" id="inicio-misiones"><span class="inicio-icon">⚔️</span><span class="inicio-label">Misiones</span></button>' +
 '<button class="inicio-card" id="inicio-mercado"><span class="inicio-icon">🏪</span><span class="inicio-label">Mercado</span></button>' +
+      '<button class="inicio-card" id="inicio-directorio"><span class="inicio-icon">👥</span><span class="inicio-label">Directorio</span></button>' +
+      '<button class="inicio-card" id="inicio-ranking"><span class="inicio-icon">🏆</span><span class="inicio-label">Ranking</span></button>' +
     '</div>' +
     '<div class="card" id="inicio-anuncios-card"><h3>📢 Anuncios</h3><p style="color:var(--text-secondary);font-size:0.82rem">Cargando...</p></div>' +
     '<div class="card" id="inicio-eventos-card"><h3>📅 Eventos</h3><p style="color:var(--text-secondary);font-size:0.82rem">Cargando...</p></div>';
@@ -495,6 +571,8 @@ function renderInicio() {
   document.getElementById('inicio-citas').addEventListener('click', function() { navigateTo('citas'); });
   document.getElementById('inicio-misiones').addEventListener('click', function() { navigateTo('misiones'); });
 document.getElementById('inicio-mercado').addEventListener('click', function() { navigateTo('mercado'); });
+document.getElementById('inicio-directorio').addEventListener('click', function() { renderDirectorioJugadores(); });
+document.getElementById('inicio-ranking').addEventListener('click', function() { renderRankingPoder(); });
 
   if (puedeAccederPanelAdmin()) {
     document.getElementById('btn-panel-admin-inicio').addEventListener('click', function() {
@@ -4864,6 +4942,201 @@ function renderFormCrearEvento(eventoExistente) {
       btn.textContent = esEdicion ? '💾 Guardar cambios' : '📤 Publicar evento';
     }
   });
+}
+
+// ===== DIRECTORIO DE JUGADORES =====
+
+function renderDirectorioJugadores() {
+  mainContent.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-directorio-inicio">← Inicio</button>' +
+      '<h3>👥 Directorio de jugadores</h3>' +
+    '</div>' +
+    '<input type="text" id="directorio-buscar" placeholder="Buscar por nombre de usuario..." autocomplete="off" style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block;margin-bottom:0.75rem" />' +
+    '<div id="directorio-lista"><p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p></div>';
+
+  document.getElementById('back-directorio-inicio').addEventListener('click', function() { navigateTo('inicio'); });
+
+  var timeoutDirectorio = null;
+  document.getElementById('directorio-buscar').addEventListener('input', function() {
+    clearTimeout(timeoutDirectorio);
+    timeoutDirectorio = setTimeout(function() { cargarDirectorioJugadores(); }, 350);
+  });
+
+  cargarDirectorioJugadores();
+}
+
+async function cargarDirectorioJugadores() {
+  var lista = document.getElementById('directorio-lista');
+  if (!lista) return;
+  lista.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Buscando...</p>';
+
+  var texto = document.getElementById('directorio-buscar') ? document.getElementById('directorio-buscar').value.trim().toLowerCase() : '';
+
+  try {
+    var snap = await getDocs(collection(db, 'usuarios'));
+    var usuarios = snap.docs.map(function(d) { return d.data(); }).filter(function(u) { return u.uid !== currentUser.uid; });
+
+    if (texto) {
+      usuarios = usuarios.filter(function(u) { return (u.username || '').toLowerCase().includes(texto); });
+    }
+
+    usuarios.sort(function(a, b) { return (a.username || '').localeCompare(b.username || ''); });
+
+    lista = document.getElementById('directorio-lista');
+    if (!lista) return;
+
+    if (usuarios.length === 0) {
+      lista.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:2rem">No se encontraron jugadores.</p>';
+      return;
+    }
+
+    lista.innerHTML = usuarios.map(function(u) {
+      return '<div class="username-clicable" data-uid="' + u.uid + '" style="display:flex;gap:0.6rem;align-items:center;background:var(--bg-card);border-radius:12px;padding:0.6rem;margin-bottom:0.4rem;cursor:pointer">' +
+        (u.fotoPerfil
+          ? '<img src="' + u.fotoPerfil + '" style="width:42px;height:42px;border-radius:50%;object-fit:cover;flex-shrink:0" onerror="this.style.display=\'none\'"/>'
+          : '<div style="width:42px;height:42px;border-radius:50%;background:var(--bg-primary);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0">👤</div>') +
+        '<div style="flex:1;min-width:0">' +
+          '<p style="font-weight:700;font-size:0.86rem;color:' + getRolColor(u.rol) + '">' + getRolEmoji(u.rol) + ' ' + u.username + '</p>' +
+          '<p style="font-size:0.72rem;color:var(--text-secondary)">' + (u.ciudad || 'Sin ciudad') + (u.nivel ? ' · Nv.' + u.nivel : '') + (u.raza ? ' · ' + u.raza : '') + '</p>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } catch(err) {
+    lista.innerHTML = '<p style="color:var(--danger);text-align:center;padding:1rem">Error: ' + err.message + '</p>';
+  }
+}
+
+// ===== RANKING DE PODER (TOP 15) =====
+
+async function renderRankingPoder() {
+  mainContent.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-ranking-inicio">← Inicio</button>' +
+      '<h3>🏆 Top 15 más poderosos</h3>' +
+    '</div>' +
+    (puedeGestionarRanking() ? '<button class="btn btn-secondary btn-full" id="btn-editar-ranking" style="margin-bottom:0.75rem;border-color:gold;color:gold">✏️ Editar ranking</button>' : '') +
+    '<div id="ranking-lista"><p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p></div>';
+
+  document.getElementById('back-ranking-inicio').addEventListener('click', function() { navigateTo('inicio'); });
+
+  var btnEditarRanking = document.getElementById('btn-editar-ranking');
+  if (btnEditarRanking) btnEditarRanking.addEventListener('click', function() { renderEditarRankingPoder(); });
+
+  cargarRankingPoder();
+}
+
+async function cargarRankingPoder() {
+  var lista = document.getElementById('ranking-lista');
+  if (!lista) return;
+  try {
+    var snap = await getDoc(doc(db, 'ranking_poder', 'global'));
+    if (!snap.exists() || !snap.data().entradas || snap.data().entradas.length === 0) {
+      lista.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:2rem">El ranking aún no ha sido configurado.</p>';
+      return;
+    }
+    var entradas = snap.data().entradas.slice().sort(function(a, b) { return a.posicion - b.posicion; });
+    var medallas = { 1: '🥇', 2: '🥈', 3: '🥉' };
+
+    lista.innerHTML = entradas.map(function(e) {
+      return '<div style="display:flex;align-items:center;gap:0.6rem;background:var(--bg-card);border-radius:12px;padding:0.6rem 0.75rem;margin-bottom:0.4rem;' + (e.posicion <= 3 ? 'border:1px solid gold' : '') + '">' +
+        '<span style="font-size:1.1rem;font-weight:900;min-width:32px">' + (medallas[e.posicion] || ('#' + e.posicion)) + '</span>' +
+        '<div style="flex:1;min-width:0">' +
+          '<p style="font-weight:700;font-size:0.9rem">' + spanUsuarioClicable(e.uid, e.username) + '</p>' +
+          (e.titulo ? '<p style="font-size:0.74rem;color:var(--text-secondary);font-style:italic">' + e.titulo + '</p>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } catch (err) {
+    lista.innerHTML = '<p style="color:var(--danger);text-align:center;padding:1rem">Error: ' + err.message + '</p>';
+  }
+}
+
+function renderEditarRankingPoder() {
+  mainContent.innerHTML =
+    '<div class="tienda-seccion-header">' +
+      '<button class="btn-back" id="back-editar-ranking">← Ranking</button>' +
+      '<h3>✏️ Editar Top 15</h3>' +
+    '</div>' +
+    '<p style="color:var(--text-secondary);font-size:0.82rem;margin-bottom:0.75rem">Asigna un usuario a cada posición. Deja vacío para no mostrar esa posición. El título es opcional (ej: "El Inquebrantable").</p>' +
+    '<div id="ranking-slots"></div>' +
+    '<button class="btn btn-primary btn-full" id="btn-guardar-ranking" style="margin-top:0.75rem">💾 Guardar ranking</button>' +
+    '<div id="ranking-guardar-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>';
+
+  document.getElementById('back-editar-ranking').addEventListener('click', function() { renderRankingPoder(); });
+  document.getElementById('btn-guardar-ranking').addEventListener('click', guardarRankingPoder);
+
+  cargarSlotsEdicionRanking();
+}
+
+async function cargarSlotsEdicionRanking() {
+  var cont = document.getElementById('ranking-slots');
+  cont.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:1rem">Cargando...</p>';
+  var existentes = {};
+  try {
+    var snap = await getDoc(doc(db, 'ranking_poder', 'global'));
+    if (snap.exists() && snap.data().entradas) {
+      snap.data().entradas.forEach(function(e) { existentes[e.posicion] = e; });
+    }
+  } catch(e) { console.warn('Error cargando ranking existente:', e.message); }
+
+  cont = document.getElementById('ranking-slots');
+  if (!cont) return;
+  var html = '';
+  for (var i = 1; i <= 15; i++) {
+    var ex = existentes[i] || {};
+    html +=
+      '<div class="card" style="margin-bottom:0.5rem;padding:0.6rem">' +
+        '<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.3rem">Posición #' + i + '</p>' +
+        '<div style="position:relative">' +
+          '<input type="text" id="rank-slot-' + i + '-usuario" placeholder="Usuario..." autocomplete="off" value="' + (ex.username || '') + '" style="width:100%;padding:0.6rem;border-radius:8px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none;box-sizing:border-box" />' +
+          '<div id="rank-slot-' + i + '-lista" class="usuarios-lista"></div>' +
+        '</div>' +
+        '<input type="text" id="rank-slot-' + i + '-titulo" placeholder="Título (opcional)" value="' + (ex.titulo || '') + '" style="width:100%;padding:0.5rem;border-radius:8px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.8rem;outline:none;box-sizing:border-box;margin-top:0.4rem" />' +
+      '</div>';
+  }
+  cont.innerHTML = html;
+
+  for (var j = 1; j <= 15; j++) {
+    crearBuscadorUsuarios('rank-slot-' + j + '-usuario', 'rank-slot-' + j + '-lista', null, false);
+  }
+}
+
+async function guardarRankingPoder() {
+  var msg = document.getElementById('ranking-guardar-msg');
+  var btn = document.getElementById('btn-guardar-ranking');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+
+  try {
+    var entradas = [];
+    for (var i = 1; i <= 15; i++) {
+      var inputUsuario = document.getElementById('rank-slot-' + i + '-usuario');
+      var inputTitulo = document.getElementById('rank-slot-' + i + '-titulo');
+      var username = inputUsuario ? inputUsuario.value.trim().toLowerCase() : '';
+      var titulo = inputTitulo ? inputTitulo.value.trim() : '';
+      if (!username) continue;
+      var usernameSnap = await getDoc(doc(db, 'usernames', username));
+      if (!usernameSnap.exists()) {
+        msg.textContent = 'Usuario "' + username + '" (posición ' + i + ') no existe, se omitió.';
+        msg.style.color = '#ff9800';
+        continue;
+      }
+      entradas.push({ posicion: i, uid: usernameSnap.data().uid, username: username, titulo: titulo });
+    }
+
+    await setDoc(doc(db, 'ranking_poder', 'global'), {
+      entradas: entradas,
+      actualizadoPor: currentUser.username,
+      actualizadoEn: new Date().toISOString()
+    });
+
+    msg.textContent = '✓ Ranking guardado'; msg.style.color = 'var(--success)';
+    btn.disabled = false; btn.textContent = '💾 Guardar ranking';
+    setTimeout(function() { renderRankingPoder(); }, 1000);
+  } catch (err) {
+    msg.textContent = 'Error: ' + err.message; msg.style.color = 'var(--danger)';
+    btn.disabled = false; btn.textContent = '💾 Guardar ranking';
+  }
 }
 
 function renderPatrimonio() {
