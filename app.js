@@ -481,9 +481,6 @@ function renderInicio() {
       ? '<button class="btn btn-secondary btn-full" id="btn-panel-moderacion-inicio" style="margin-bottom:0.75rem;border-color:#4fc3f7;color:#4fc3f7">🛡️ Panel de Moderación</button>'
       : '') +
     '<div class="inicio-grid">' +
-      ? '<button class="btn btn-secondary btn-full" id="btn-panel-moderacion-inicio" style="margin-bottom:0.75rem;border-color:#4fc3f7;color:#4fc3f7">🛡️ Panel de Moderación</button>'
-      : '') +
-    '<div class="inicio-grid">' +
       '<button class="inicio-card" id="inicio-tienda"><span class="inicio-icon">🛒</span><span class="inicio-label">Tienda</span></button>' +
       '<button class="inicio-card" id="inicio-casino"><span class="inicio-icon">🎰</span><span class="inicio-label">Casino</span></button>' +
       '<button class="inicio-card" id="inicio-citas"><span class="inicio-icon">💘</span><span class="inicio-label">Citas</span></button>' +
