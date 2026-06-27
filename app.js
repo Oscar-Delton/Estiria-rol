@@ -610,7 +610,7 @@ document.getElementById('inicio-ranking').addEventListener('click', function() {
           return '<div style="border-left:3px solid ' + (tipoColor[a.tipo]||'var(--accent)') + ';padding-left:0.6rem;margin-bottom:0.5rem">' +
             '<p style="font-size:0.85rem;font-weight:700">' + (tipoEmoji[a.tipo]||'📢') + ' ' + a.titulo + '</p>' +
             '<p style="font-size:0.78rem;color:var(--text-primary)">' + a.cuerpo + '</p>' +
-            '<p style="font-size:0.68rem;color:var(--text-secondary);margin-top:0.2rem">' + new Date(a.creadoEn).toLocaleDateString('es-CO') + ' · ' + a.autorUsername + '</p>' +
+            '<p style="font-size:0.68rem;color:var(--text-secondary);margin-top:0.2rem">' + new Date(a.creadoEn).toLocaleDateString('es-CO') + ' · ' + spanUsuarioClicable(a.autorUid, a.autorUsername) + '</p>' +
           '</div>';
         }).join('');
     }
@@ -3575,7 +3575,7 @@ async function cargarListaBusquedaCitas() {
         ? '<img src="' + p.fotoPerfil + '" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0" onerror="this.style.display=\'none\'" />'
         : '<div style="width:48px;height:48px;border-radius:50%;background:var(--bg-primary);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">👤</div>') +
       '<div style="flex:1;min-width:0">' +
-        '<p style="font-weight:700;font-size:0.88rem">' + p.username + '</p>' +
+        '<p style="font-weight:700;font-size:0.88rem">' + spanUsuarioClicable(p.uid, p.username) + '</p>' +
         '<p style="font-size:0.75rem;color:var(--text-secondary)">' + (p.ciudad || 'Sin ciudad') + ' · Nv.' + p.nivel + ' · ' + p.raza + '</p>' +
         (p.frase ? '<p style="font-size:0.78rem;color:var(--text-secondary);font-style:italic;margin-top:0.2rem">"' + p.frase + '"</p>' : '') +
         '<button class="btn-citas-lista-vermas" data-uid="' + p.uid + '" style="background:none;border:none;color:var(--accent);font-size:0.75rem;padding:0.2rem 0;cursor:pointer">Ver perfil completo ▼</button>' +
@@ -3763,7 +3763,7 @@ async function cargarTarjetasCitas(miPerfil) {
       '<div class="citas-tarjeta">' +
         (p.fotoPerfil ? '<img src="' + p.fotoPerfil + '" class="citas-tarjeta-foto" onerror="this.style.display=\'none\'" />' : '<div class="citas-tarjeta-foto-placeholder">👤</div>') +
         '<div class="citas-tarjeta-info">' +
-          '<h3 class="citas-tarjeta-nombre">' + p.username + '</h3>' +
+          '<h3 class="citas-tarjeta-nombre">' + spanUsuarioClicable(p.uid, p.username) + '</h3>' +
           '<p class="citas-tarjeta-dato">' + (p.ciudad || 'Sin ciudad') + ' · Nv.' + p.nivel + ' · ' + p.raza + '</p>' +
           (p.frase ? '<p class="citas-tarjeta-frase">"' + p.frase + '"</p>' : '') +
           '<button class="btn btn-secondary citas-tarjeta-ver-mas" id="btn-ver-mas-citas">Ver perfil completo ▼</button>' +
@@ -3877,7 +3877,7 @@ async function renderMisMatches() {
     return '<div class="citas-match-card">' +
       (u.fotoPerfil ? '<img src="' + u.fotoPerfil + '" class="citas-match-foto" onerror="this.style.display=\'none\'" />' : '<div class="citas-match-foto-placeholder">👤</div>') +
       '<div class="citas-match-info">' +
-        '<p class="citas-match-nombre">' + p.username + '</p>' +
+        '<p class="citas-match-nombre">' + spanUsuarioClicable(p.uid, p.username) + '</p>' +
         '<p class="citas-match-dato">' + (u.ciudad || 'Sin ciudad') + ' · Nv.' + (u.nivel || '?') + '</p>' +
         (u.whatsapp ? '<p class="citas-match-wa">📱 ' + u.whatsapp + '</p>' : '<p class="citas-match-wa" style="color:var(--text-secondary)">Sin WhatsApp registrado</p>') +
       '</div>' +
@@ -4022,7 +4022,7 @@ function renderDetalleMision(misionId, mision, tipo) {
       '<div class="mision-dato-row"><span>💬 Mín. mensajes</span><span>' + mision.minMensajes + '</span></div>' +
       '<div class="mision-dato-row"><span>📝 Mín. líneas/mensaje</span><span>' + mision.minLineas + '</span></div>' +
       (tipo === 'grupal' ? '<div class="mision-dato-row"><span>👥 Tipo</span><span>Grupal (2-5 jugadores)</span></div>' : '') +
-      '<p style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.5rem">Creada por ' + mision.autorUsername + '</p>' +
+      '<p style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.5rem">Creada por ' + spanUsuarioClicable(mision.autorUid, mision.autorUsername) + '</p>' +
     '</div>' +
     '<button class="btn btn-primary btn-full" id="btn-tomar-mision" style="margin-top:0.75rem">⚔️ Tomar misión</button>' +
     (puedeEditar ? '<div style="display:flex;gap:0.5rem;margin-top:0.5rem">' +
@@ -4553,7 +4553,7 @@ function renderMisionesEnCurso() {
       lista.innerHTML = snap.docs.map(function(d) {
         var m = d.data();
         var miembrosStr = m.miembros && m.miembros.length > 1
-          ? m.miembros.map(function(mb) { return mb.username; }).join(', ')
+          ? m.miembros.map(function(mb) { return spanUsuarioClicable(mb.uid, mb.username); }).join(', ')
           : 'Individual';
         return '<div class="mision-en-curso-card">' +
           '<div class="mision-en-curso-info">' +
@@ -4629,7 +4629,7 @@ function renderAdminEnProgreso() {
       contenido.innerHTML = '<h3 style="margin:0.75rem 0 0.5rem">⏳ En progreso</h3>' +
         docs.map(function(d) {
           var m = d.data();
-          var miembros = m.miembros ? m.miembros.map(function(mb) { return mb.username; }).join(', ') : m.username;
+          var miembros = m.miembros ? m.miembros.map(function(mb) { return spanUsuarioClicable(mb.uid, mb.username); }).join(', ') : spanUsuarioClicable(m.uid, m.username);
           return '<div class="mision-admin-card">' +
             '<p class="mision-titulo">' + m.titulo + '</p>' +
             '<p class="mision-meta">👤 ' + miembros + ' · 🏙️ ' + (m.ciudad || 'Sin ciudad') + '</p>' +
@@ -4658,7 +4658,7 @@ function renderAdminCompletadas() {
       contenido.innerHTML = '<h3 style="margin:0.75rem 0 0.5rem">✅ Pendientes de revisión</h3>' +
         docs.map(function(d) {
           var m = d.data();
-          var miembros = m.miembros ? m.miembros.map(function(mb) { return mb.username; }).join(', ') : m.username;
+          var miembros = m.miembros ? m.miembros.map(function(mb) { return spanUsuarioClicable(mb.uid, mb.username); }).join(', ') : spanUsuarioClicable(m.uid, m.username);
           return '<div class="mision-admin-card">' +
             '<p class="mision-titulo">' + m.titulo + '</p>' +
             '<p class="mision-meta">👤 ' + miembros + '</p>' +
@@ -4829,7 +4829,7 @@ function cargarListaEventos() {
           '<p style="font-size:0.85rem;color:var(--text-primary);margin:0.3rem 0">' + e.descripcion + '</p>' +
           '<p style="font-size:0.72rem;color:var(--text-secondary)">🏙️ ' + (e.ciudad === 'Todas' ? 'Estiria (Todas las naciones)' : e.ciudad) + '</p>' +
           '<p style="font-size:0.72rem;color:var(--text-secondary)">🕐 Inicio: ' + new Date(e.fechaInicio).toLocaleString('es-CO') + (e.fechaFin ? ' · Fin: ' + new Date(e.fechaFin).toLocaleString('es-CO') : '') + '</p>' +
-          '<p style="font-size:0.68rem;color:var(--text-secondary);margin-top:0.2rem">Por ' + e.autorUsername + '</p>' +
+          '<p style="font-size:0.68rem;color:var(--text-secondary);margin-top:0.2rem">Por ' + spanUsuarioClicable(e.autorUid, e.autorUsername) + '</p>' +
           (puedeEditar
             ? '<div style="display:flex;gap:0.5rem;margin-top:0.5rem">' +
                 '<button class="btn btn-secondary btn-editar-evento" data-id="' + e.id + '" style="flex:1;font-size:0.78rem;padding:0.4rem">✏️ Editar</button>' +
@@ -5820,9 +5820,13 @@ function cargarMovimientosUsuario(uid, contenedorId, uidActual) {
       var fecha = new Date(m.fecha).toLocaleString('es-CO');
       var signo = esEnvio ? '-' : '+';
       var color = esEnvio ? 'var(--danger)' : 'var(--success)';
+      function spanSiUsuario(uidP, usernameP) {
+        if (!uidP || uidP === 'sistema') return usernameP;
+        return spanUsuarioClicable(uidP, usernameP);
+      }
       var contraparte = m.tipo === 'ajuste_admin'
-        ? 'Ajuste por: ' + m.deUsername
-        : (esEnvio ? 'Para: ' + m.paraUsername : 'De: ' + m.deUsername);
+        ? 'Ajuste por: ' + spanSiUsuario(m.de, m.deUsername)
+        : (esEnvio ? 'Para: ' + spanSiUsuario(m.para, m.paraUsername) : 'De: ' + spanSiUsuario(m.de, m.deUsername));
       return '<div class="movimiento-item"><div class="movimiento-info"><p class="movimiento-desc">' + m.descripcion + '</p><p class="movimiento-meta">' + contraparte + ' · ' + fecha + '</p></div><p class="movimiento-monto" style="color:' + color + '">' + signo + '£' + m.monto.toLocaleString('es-CO') + '</p></div>';
     }).join('');
   });
@@ -7175,7 +7179,7 @@ function renderEstadoEsperando(container, sala, salaId) {
         jugadores.map(function(j) {
           return '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid var(--bg-card)">' +
             (j.foto ? '<img src="' + j.foto + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover" />' : '<div style="width:32px;height:32px;border-radius:50%;background:var(--bg-card);display:flex;align-items:center;justify-content:center;font-size:1rem">👤</div>') +
-            '<p style="font-size:0.9rem;color:var(--text-primary)">' + j.username + '</p>' +
+            '<p style="font-size:0.9rem;color:var(--text-primary)">' + spanUsuarioClicable(j.uid, j.username) + '</p>' +
           '</div>';
         }).join('') +
       '</div>' +
@@ -7224,7 +7228,7 @@ function renderEstadoApostando(container, sala, salaId, yoJugador) {
         sala.jugadores.map(function(j) {
           var aposto = apuestasListas[j.uid] !== undefined;
           return '<div style="display:flex;justify-content:space-between;padding:0.35rem 0;font-size:0.85rem">' +
-            '<span>' + j.username + '</span>' +
+            '<span>' + spanUsuarioClicable(j.uid, j.username) + '</span>' +
             '<span style="color:' + (aposto ? 'var(--success)' : 'var(--text-secondary)') + '">' + (aposto ? '✓ Listo' : '⏳ Pendiente') + '</span>' +
           '</div>';
         }).join('') +
@@ -7272,7 +7276,7 @@ function renderEstadoDados(container, sala, salaId, yoJugador) {
         sala.jugadores.map(function(j) {
           var d = dadosLanzados[j.uid];
           return '<div style="display:flex;justify-content:space-between;padding:0.35rem 0;font-size:0.85rem">' +
-            '<span>' + j.username + '</span>' +
+            '<span>' + spanUsuarioClicable(j.uid, j.username) + '</span>' +
             '<span style="color:' + (d !== undefined ? 'var(--success)' : 'var(--text-secondary)') + '">' + (d !== undefined ? '🎲 ' + d : '⏳ Pendiente') + '</span>' +
           '</div>';
         }).join('') +
@@ -7358,7 +7362,7 @@ function renderEstadoEligiendoEspacios(container, sala, salaId, yoJugador) {
           '<input type="number" id="input-espacios" placeholder="Número de espacios" min="' + rango[0] + '" max="' + rango[1] + '" style="width:100%;padding:0.8rem 1rem;border-radius:10px;border:1px solid var(--bg-card);background:var(--bg-primary);color:var(--text-primary);font-size:0.9rem;outline:none;font-family:inherit;display:block;margin-bottom:0.5rem" />' +
           '<button class="btn btn-primary btn-full" id="btn-confirmar-espacios">Confirmar</button>' +
           '<div id="espacios-msg" style="margin-top:0.4rem;font-size:0.85rem"></div>'
-        : '<p style="color:var(--text-secondary);font-size:0.88rem">' + (ganadorData ? ganadorData.username : 'Alguien') + ' está eligiendo los espacios del arma...</p>'
+        : '<p style="color:var(--text-secondary);font-size:0.88rem">' + (ganadorData ? spanUsuarioClicable(ganadorData.uid, ganadorData.username) : 'Alguien') + ' está eligiendo los espacios del arma...</p>'
       ) +
     '</div>';
 
@@ -7418,7 +7422,7 @@ function renderEstadoJugando(container, sala, salaId, yoJugador) {
         sala.jugadores.filter(function(j) { return !j.eliminado; }).map(function(j) {
           var esTurnoEste = j.uid === uidEnTurno;
           return '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0.6rem;border-radius:8px;margin-bottom:0.3rem;background:' + (esTurnoEste ? 'rgba(233,69,96,0.15)' : 'var(--bg-primary)') + ';border:1px solid ' + (esTurnoEste ? 'var(--accent)' : 'transparent') + '">' +
-            '<span style="font-size:0.88rem">' + (esTurnoEste ? '▶️ ' : '') + j.username + '</span>' +
+            '<span style="font-size:0.88rem">' + (esTurnoEste ? '▶️ ' : '') + spanUsuarioClicable(j.uid, j.username) + '</span>' +
             '<span style="font-size:0.78rem;color:var(--text-secondary)">🎯 ' + j.apretadas + ' apretadas</span>' +
           '</div>';
         }).join('') +
@@ -7430,7 +7434,7 @@ function renderEstadoJugando(container, sala, salaId, yoJugador) {
             '<button class="btn btn-primary btn-full" id="btn-apretar-gatillo" style="font-size:1.1rem;padding:1rem;background:var(--danger)">🔫 Apretar gatillo</button>' +
             '<button class="btn btn-secondary btn-full" id="btn-pasar-turno" style="margin-top:0.5rem">Pasar turno (solo si ya apretaste)</button>' +
           '</div>'
-        : '<p style="color:var(--text-secondary);text-align:center;font-size:0.9rem">Turno de <strong>' + (jugadorEnTurno ? jugadorEnTurno.username : '...') + '</strong></p>'
+        : '<p style="color:var(--text-secondary);text-align:center;font-size:0.9rem">Turno de <strong>' + (jugadorEnTurno ? spanUsuarioClicable(jugadorEnTurno.uid, jugadorEnTurno.username) : '...') + '</strong></p>'
       ) +
     '</div>';
 
@@ -7590,14 +7594,14 @@ function renderEstadoTerminado(container, sala, salaId, yoJugador) {
     '<div class="card" style="margin-top:1rem;text-align:center">' +
       '<p style="font-size:3rem">💥</p>' +
       '<h3 style="margin-bottom:0.5rem">Partida terminada</h3>' +
-      '<p style="color:var(--danger);font-size:1rem;margin-bottom:0.5rem">💀 ' + (perdedorData ? perdedorData.username : 'Alguien') + ' recibió el disparo</p>' +
+      '<p style="color:var(--danger);font-size:1rem;margin-bottom:0.5rem">💀 ' + (perdedorData ? spanUsuarioClicable(perdedorData.uid, perdedorData.username) : 'Alguien') + ' recibió el disparo</p>' +
       '<p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:1rem">Perdió £' + montoPerdedor.toLocaleString('es-CO') + '</p>' +
       '<p style="color:var(--success);font-weight:700;margin-bottom:0.5rem">🏆 Ganadores:</p>' +
       ganadoresData.map(function(g) {
         var totalApretadas = ganadoresData.reduce(function(s, x) { return s + (x.apretadas || 0); }, 0) || 1;
         var pct = Math.round(((g.apretadas || 0) / totalApretadas) * 100);
         var premio = sala.capacidad === 2 ? montoPerdedor : Math.floor(montoPerdedor * (g.apretadas || 0) / totalApretadas);
-        return '<p style="font-size:0.9rem;margin-bottom:0.3rem">' + g.username + ' — £' + premio.toLocaleString('es-CO') + (sala.capacidad > 2 ? ' (' + pct + '%)' : '') + '</p>';
+        return '<p style="font-size:0.9rem;margin-bottom:0.3rem">' + spanUsuarioClicable(g.uid, g.username) + ' — £' + premio.toLocaleString('es-CO') + (sala.capacidad > 2 ? ' (' + pct + '%)' : '') + '</p>';
       }).join('') +
       '<button class="btn btn-primary btn-full" id="btn-salir-terminado" style="margin-top:1rem">Salir</button>' +
     '</div>';
@@ -8312,7 +8316,7 @@ function renderSalaRuleta(salaId, modoInicial) {
             (sala.jugadores && sala.jugadores.length > 0
               ? sala.jugadores.map(function(j) {
                   return '<div style="font-size:0.7rem;padding:0.2rem 0;border-bottom:1px solid var(--bg-secondary)">' +
-                    '<p style="color:var(--text-primary);font-weight:600">' + j.username + '</p>' +
+                    '<p style="color:var(--text-primary);font-weight:600">' + spanUsuarioClicable(j.uid, j.username) + '</p>' +
                     '<p style="color:var(--success)">+£' + (j.ganado || 0).toLocaleString('es-CO') + '</p>' +
                     '<p style="color:var(--danger)">-£' + (j.perdido || 0).toLocaleString('es-CO') + '</p>' +
                     '<p style="color:' + ((j.neto || 0) >= 0 ? 'var(--success)' : 'var(--danger)') + ';font-weight:700">Neto: £' + (j.neto || 0).toLocaleString('es-CO') + '</p>' +
@@ -8328,7 +8332,7 @@ function renderSalaRuleta(salaId, modoInicial) {
             (sala.apuestas && Object.keys(sala.apuestas).length > 0
               ? Object.values(sala.apuestas).map(function(ap) {
                   return '<div style="font-size:0.68rem;padding:0.2rem 0;border-bottom:1px solid var(--bg-secondary)">' +
-                    '<p style="color:var(--text-primary);font-weight:600">' + ap.username + '</p>' +
+                    '<p style="color:var(--text-primary);font-weight:600">' + spanUsuarioClicable(ap.uid, ap.username) + '</p>' +
                     '<p style="color:var(--accent)">£' + ap.monto.toLocaleString('es-CO') + ' — ' + ap.descripcion + '</p>' +
                   '</div>';
                 }).join('')
@@ -9097,7 +9101,7 @@ function renderSalaDados(salaId, modoInicial) {
           ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:0.3rem">' +
             sala.jugadores.map(function(j) {
               return '<div style="background:var(--bg-secondary);border-radius:8px;padding:0.4rem;font-size:0.7rem">' +
-                '<p style="font-weight:700;color:var(--text-primary)">' + j.username + '</p>' +
+                '<p style="font-weight:700;color:var(--text-primary)">' + spanUsuarioClicable(j.uid, j.username) + '</p>' +
                 '<p style="color:var(--success)">+£' + (j.ganado || 0).toLocaleString('es-CO') + '</p>' +
                 '<p style="color:var(--danger)">-£' + (j.perdido || 0).toLocaleString('es-CO') + '</p>' +
                 '<p style="color:' + ((j.neto || 0) >= 0 ? 'var(--success)' : 'var(--danger)') + ';font-weight:700">£' + (j.neto || 0).toLocaleString('es-CO') + '</p>' +
@@ -9162,7 +9166,7 @@ function renderAreaTiroDados(sala, yoJugador, yaTire, numDados, miModo) {
   var estadoJugadores = jugadores.map(function(j) {
     var tiro = dados[j.uid];
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.3rem 0;font-size:0.82rem">' +
-      '<span>' + j.username + '</span>' +
+      '<span>' + spanUsuarioClicable(j.uid, j.username) + '</span>' +
       '<span style="color:' + (tiro !== undefined ? 'var(--success)' : 'var(--text-secondary)') + '">' +
         (tiro !== undefined ? '✓ Lanzado' : '⏳ Esperando') +
       '</span>' +
@@ -9203,7 +9207,7 @@ function renderResultadoDados(sala) {
     var pos = ranking.indexOf(j.uid) + 1;
     var emoji = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : '💀';
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0.5rem;border-radius:8px;background:var(--bg-primary);margin-bottom:0.3rem">' +
-      '<span style="font-size:0.85rem">' + emoji + ' ' + j.username + '</span>' +
+      '<span style="font-size:0.85rem">' + emoji + ' ' + spanUsuarioClicable(j.uid, j.username) + '</span>' +
       '<span style="font-size:0.85rem;font-weight:700">' + res.join(' + ') + (res.length > 1 ? ' = ' + suma : '') + '</span>' +
     '</div>';
   }).join('');
@@ -9791,7 +9795,7 @@ function renderSalaBJ(salaId) {
               return '<div class="' + clase + '">' +
                 '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem">' +
                   '<p style="font-size:0.8rem;font-weight:700;color:' + (esTurno ? 'var(--accent)' : 'var(--text-primary)') + '">' +
-                    (esTurno ? '▶️ ' : '') + j.username +
+                    (esTurno ? '▶️ ' : '') + spanUsuarioClicable(j.uid, j.username) +
                     (estadoJ === 'plantado'  ? ' 🛑' : '') +
                     (estadoJ === 'eliminado' ? ' 💀' : '') +
                     (estadoJ === 'blackjack' ? ' 🃏' : '') +
@@ -9841,7 +9845,7 @@ function renderSalaBJ(salaId) {
         (sala.jugadores && sala.jugadores.length > 0
           ? sala.jugadores.slice().sort(function(a,b){ return (b.neto||0)-(a.neto||0); }).map(function(j,idx) {
               return '<div style="display:flex;justify-content:space-between;font-size:0.72rem;padding:0.2rem 0">' +
-                '<span>' + (idx===0?'🥇':idx===1?'🥈':idx===2?'🥉':'  ') + ' ' + j.username + '</span>' +
+                '<span>' + (idx===0?'🥇':idx===1?'🥈':idx===2?'🥉':'  ') + ' ' + spanUsuarioClicable(j.uid, j.username) + '</span>' +
                 '<span style="color:' + ((j.neto||0)>=0?'var(--success)':'var(--danger)') + ';font-weight:700">£' + (j.neto||0).toLocaleString('es-CO') + '</span>' +
               '</div>';
             }).join('')
@@ -11402,7 +11406,7 @@ function renderSalaPoker(salaId) {
         (sala.jugadores && sala.jugadores.length > 0
           ? sala.jugadores.slice().sort(function(a,b){return (b.fichas||0)-(a.fichas||0);}).map(function(j,idx) {
               return '<div style="display:flex;justify-content:space-between;font-size:.68rem;padding:.15rem 0">' +
-                '<span style="color:' + (j.estado==='retirado'?'var(--text-secondary)':'var(--text-primary)') + '">' + (idx===0?'🥇':idx===1?'🥈':'  ') + ' ' + j.username + (j.estado==='retirado'?' (fold)':'') + '</span>' +
+                '<span style="color:' + (j.estado==='retirado'?'var(--text-secondary)':'var(--text-primary)') + '">' + (idx===0?'🥇':idx===1?'🥈':'  ') + ' ' + spanUsuarioClicable(j.uid, j.username) + (j.estado==='retirado'?' (fold)':'') + '</span>' +
                 '<span style="color:var(--accent);font-weight:700">£' + (j.fichas||0).toLocaleString('es-CO') + '</span>' +
               '</div>';
             }).join('')
@@ -11466,7 +11470,7 @@ function renderJugadoresPoker(sala, uidEnTurno, yoJug, miModo) {
     return '<div class="' + clasePan + '">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">' +
         '<p style="font-size:.78rem;font-weight:700;color:' + (esTurno?'var(--accent)':'var(--text-primary)') + '">' +
-          (esTurno?'▶️ ':'') + j.username +
+          (esTurno?'▶️ ':'') + spanUsuarioClicable(j.uid, j.username) +
           (j.estado==='retirado' ? ' <span style="color:var(--danger);font-size:.68rem">(fold)</span>' : '') +
           (j.accion ? ' <span style="color:var(--text-secondary);font-size:.68rem">['+j.accion+']</span>' : '') +
         '</p>' +
@@ -11533,7 +11537,7 @@ function renderShowdownPoker(sala) {
       return '<div class="pk-showdown-card">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">' +
           '<p style="font-size:.82rem;font-weight:700;color:' + (j.estado==='ganador'?'gold':'var(--text-primary)') + '">' +
-            (j.estado==='ganador'?'🏆 ':'') + j.username +
+            (j.estado==='ganador'?'🏆 ':'') + spanUsuarioClicable(j.uid, j.username) +
           '</p>' +
           (mano ? '<span style="font-size:.72rem;color:var(--accent);font-weight:700">' + mano.desc + '</span>' : '') +
         '</div>' +
@@ -13519,7 +13523,7 @@ function cargarMercadoPublico() {
           '<div style="flex:1;min-width:0">' +
             '<p style="font-weight:700;font-size:0.88rem;color:var(--text-primary)">' + item.nombre + '</p>' +
             (item.descripcion ? '<p style="font-size:0.75rem;color:var(--text-secondary);margin:0.15rem 0">' + item.descripcion + '</p>' : '') +
-            '<p style="font-size:0.72rem;color:var(--text-secondary)">Por <strong>' + item.vendedorUsername + '</strong> · ' + (catEmoji[item.categoria] || '📦') + ' ' + (item.categoria || '') + '</p>' +
+            '<p style="font-size:0.72rem;color:var(--text-secondary)">Por <strong>' + spanUsuarioClicable(item.vendedorUid, item.vendedorUsername) + '</strong> · ' + (catEmoji[item.categoria] || '📦') + ' ' + (item.categoria || '') + '</p>' +
           '</div>' +
         '</div>' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--bg-primary)">' +
@@ -13561,7 +13565,7 @@ function mostrarModalCompra(item) {
       '">' +
         '<h3 style="margin-bottom:0.5rem">🛒 Comprar</h3>' +
         '<p style="font-weight:700;font-size:0.95rem;margin-bottom:0.25rem">' + item.nombre + '</p>' +
-        '<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.75rem">Vendedor: ' + item.vendedorUsername + '</p>' +
+        '<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.75rem">Vendedor: ' + spanUsuarioClicable(item.vendedorUid, item.vendedorUsername) + '</p>' +
 
         '<div style="background:var(--bg-card);border-radius:10px;padding:0.6rem;margin-bottom:0.75rem">' +
           '<div style="display:flex;justify-content:space-between;font-size:0.82rem;margin-bottom:0.25rem">' +
